@@ -400,6 +400,8 @@ function guestFill(text){return String(text).replace(/\[\[USE:([^|\]]+)\|([^\]]+
 
 const DEFAULT_DEVICE_MODEL='onnx-community/Qwen2.5-0.5B-Instruct';
 const SMALL_DEVICE_MODEL='onnx-community/SmolLM2-135M-Instruct-ONNX-MHA';
+const PHONE=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+const IOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 function activeDeviceModel(){return backend==='device-small'?SMALL_DEVICE_MODEL:(customModels.find(m=>m.id===backend)?.model||DEFAULT_DEVICE_MODEL)}
 const devicePipes={}, deviceLoads={};
 // Update the progress text in place. A full render() here destroys the input
@@ -413,18 +415,45 @@ function setDeviceStatus(s){
   const st=document.getElementById('waitingStatus');
   if(st)st.textContent=s||'Thinking — your private model is working…';
 }
+let deviceOk=false;
+// Phones need an explicit go-ahead: the first answer downloads a real model.
+function confirmPhoneDownload(){
+  return new Promise(resolve=>{
+    modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Private model for this phone</h3>
+      <p>The first answer downloads about 118 MB and keeps it on this device. It works offline afterwards.
+      If your phone closes the page while it loads, your question is saved — reopen the chat and tap "Try again".</p>
+      <div class="modal-actions"><button class="btn" id="dlCancel">Not now</button><button class="btn primary" id="dlGo">Download &amp; continue</button></div></div></div>`;
+    render();
+    document.getElementById('dlCancel')?.addEventListener('click',()=>{modal=null;render();resolve(false)});
+    document.getElementById('dlGo')?.addEventListener('click',()=>{modal=null;render();resolve(true)});
+  });
+}
 async function loadDeviceModel(modelId){
   modelId=modelId||DEFAULT_DEVICE_MODEL;
   if(devicePipes[modelId]){devicePipe=devicePipes[modelId];deviceModelId=modelId;return devicePipe}
   if(deviceLoads[modelId])return deviceLoads[modelId];
-  setDeviceStatus('First time: downloading your private model — keep this page open');
+  if(PHONE&&!deviceOk){
+    if(!await confirmPhoneDownload())throw new Error('Model download not started. Tap "Try again" when you are ready.');
+    deviceOk=true;
+  }
+  setDeviceStatus('Preparing your private model — first time only, keep this page open');
   deviceLoads[modelId]=(async()=>{
     try{
       const mod=await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.5');
-      const opts={dtype:'q4'};
       let pipe;
-      try{pipe=await mod.pipeline('text-generation',modelId,{...opts,device:'webgpu'})}
-      catch(e){setDeviceStatus('Using this device instead — slower on the first load');pipe=await mod.pipeline('text-generation',modelId,{...opts,device:'wasm'})}
+      if(PHONE){
+        // WebGPU + q4f16 is the smallest single download (118 MB) and uses GPU
+        // memory instead of a large WASM heap — important on iPhone Safari.
+        try{pipe=await mod.pipeline('text-generation',modelId,{dtype:'q4f16',device:'webgpu'})}
+        catch(e){
+          setDeviceStatus('This phone needs the slower option — one moment…');
+          if(mod.env?.backends?.onnx?.wasm)mod.env.backends.onnx.wasm.numThreads=1;
+          pipe=await mod.pipeline('text-generation',modelId,{dtype:'int8',device:'wasm'});
+        }
+      }else{
+        try{pipe=await mod.pipeline('text-generation',modelId,{dtype:'q4',device:'webgpu'})}
+        catch(e){setDeviceStatus('Using this device instead — slower on the first load');pipe=await mod.pipeline('text-generation',modelId,{dtype:'q4',device:'wasm'})}
+      }
       devicePipes[modelId]=pipe;devicePipe=pipe;deviceModelId=modelId;setDeviceStatus('');return pipe;
     }catch(err){setDeviceStatus('');throw err}
     finally{delete deviceLoads[modelId]}
@@ -433,12 +462,21 @@ async function loadDeviceModel(modelId){
 }
 async function deviceChat(messages,modelId){
   const gen=await loadDeviceModel(modelId);
-  const prompt=messages.map(m=>(m.from==='user'?'User':'Assistant')+': '+m.text).join('\n')+'\nAssistant:';
-  const out=await Promise.race([
-    gen(prompt,{max_new_tokens:160,do_sample:false}),
-    new Promise((_,rej)=>setTimeout(()=>rej(new Error('This device took too long — tap retry to try again.')),120000))
-  ]);
-  return guestFill(String(out?.[0]?.generated_text||'').replace(prompt,'').trim()||'(no answer)');
+  const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error('This device took too long — tap retry to try again.')),120000));
+  // Pass role-tagged messages so the model's own chat template is applied.
+  // A plain "User:/Assistant:" string makes small instruction models repeat
+  // themselves and produce unusable answers.
+  const chat=messages.map(m=>({role:m.from==='user'?'user':'assistant',content:m.text}));
+  let out;
+  try{out=await Promise.race([gen(chat,{max_new_tokens:160,do_sample:false}),timeout])}
+  catch(e){
+    const prompt=messages.map(m=>(m.from==='user'?'User':'Assistant')+': '+m.text).join('\n')+'\nAssistant:';
+    out=await Promise.race([gen(prompt,{max_new_tokens:160,do_sample:false}),timeout]);
+    return guestFill(String(out?.[0]?.generated_text||'').replace(prompt,'').trim()||'(no answer)');
+  }
+  const first=out?.[0]?.generated_text;
+  const text=(Array.isArray(first)?first.find(x=>x.role==='assistant')?.content:null)||(typeof first==='string'?first:'');
+  return guestFill(text.trim()||'(no answer)');
 }
 async function customCloudChat(cm,messages){
   const key=await gvGet('model:'+cm.id);

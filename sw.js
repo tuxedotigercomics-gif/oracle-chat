@@ -2,7 +2,7 @@
 // The app shell is updated from the network when available; downloaded model
 // files and the transformers.js library are cached so chat keeps working
 // without a connection after the first successful load.
-const CACHE = 'oracle-chat-v1';
+const CACHE = 'oracle-chat-v2';
 const SHELL = ['./', './index.html'];
 
 self.addEventListener('install', event => {
