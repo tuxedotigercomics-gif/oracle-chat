@@ -91,7 +91,9 @@
 
   .main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--main-bg)}
   .chat-header{height:56px;flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px;position:relative;z-index:45}
-  .chat-title-name{font-size:15px;font-weight:650}
+  .chat-title-name{font-size:15px;font-weight:650;min-width:0;overflow:hidden}
+  .chat-name-text{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .model-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .header-actions{display:flex;align-items:center;gap:8px}
   .model-pill{display:inline-flex;align-items:center;gap:6px;background:#f6f6f6;border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12.5px;cursor:pointer}
   .model-pill:hover{background:#efefef}
@@ -130,6 +132,8 @@
   .menu-item{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:none;border-radius:8px;padding:9px 10px;font-size:13.5px;cursor:pointer}
   .menu-item:hover{background:var(--main-bg)}
   .menu-item .mi-sub{display:block;font-size:11.5px;color:var(--muted);margin-top:1px}
+  .mi-note{font-size:11px;color:var(--muted);line-height:1.4;padding:4px 10px 8px}
+  .mobile-call{display:none}
   .model-remove{margin-left:auto;color:var(--muted);font-size:12px;padding:3px 5px;border-radius:6px;cursor:pointer}
   .model-remove:hover{background:#fdecea;color:#b3261e}
   .menu-sep{height:1px;background:var(--border);margin:5px 4px}
@@ -160,7 +164,54 @@
   .share-text{width:100%;height:180px;font-family:ui-monospace,Menlo,monospace;font-size:11px}
   .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:80;box-shadow:0 6px 20px rgba(0,0,0,.25);max-width:80vw}
   svg{flex-shrink:0}
-  @media(max-width:640px){.sidebar{display:none}.messages{padding:16px 12px}.composer-wrap{width:calc(100% - 24px)}}
+  @media(max-width:640px){
+    .sidebar{width:38%;min-width:124px;max-width:200px}
+    .sidebar-top{padding:10px 7px 8px;gap:3px}
+    .workspace-name{font-size:12.5px}
+    .workspace-sub{display:none}
+    .section-label{padding:6px 7px 4px}
+    .view-tabs{padding-right:4px;gap:1px}
+    .view-tabs>button[data-list-view]{padding:3px 4px;font-size:9.5px;letter-spacing:0}
+    .view-tabs .mini-add{padding:2px 3px;font-size:13px}
+    .nav-item{width:calc(100% - 10px);margin:0 5px 2px;padding:7px 5px;gap:5px;font-size:11.5px}
+    .folder-list,.conv-list{padding:4px 5px}
+    .folder-row{font-size:11.5px;gap:3px;padding-left:3px}
+    .folder-caret{width:9px;font-size:10px}
+    .folder-glyph{font-size:11px}
+    .folder-count{display:none}
+    .folder-chats{padding-left:7px}
+    .conv{gap:4px;padding:6px 2px 6px 4px}
+    .conv-name{font-size:11.5px}
+    .conv-preview{font-size:10.5px}
+    .agent-avatar{width:22px;height:22px;border-radius:6px}
+    .agent-avatar svg{width:20px;height:20px}
+    .profile{padding:8px 6px;gap:5px}
+    .avatar{width:26px;height:26px;font-size:10px}
+    .profile-name{font-size:10.5px}
+    .profile-sub,.profile-caret{display:none}
+    .dropdown.profile-menu{left:0;min-width:190px}
+    .chat-header{padding:0 6px;gap:3px}
+    .chat-title-name{flex:1 1 auto;min-width:0}
+    .chat-name-text{min-width:0}
+    .header-actions{flex:0 0 auto;gap:0;flex-wrap:nowrap}
+    .header-actions .status-dot{display:none}
+    .header-actions #voiceBtn,.header-actions #callBtn{display:none}
+    .mobile-call{display:flex}
+    .model-pill{max-width:64px;padding:6px 4px;font-size:10.5px}
+    .share-btn{padding:6px;font-size:0;gap:0}
+    .icon-btn{padding:5px}
+    .dropdown.model{right:6px;top:46px;min-width:170px}
+    .dropdown.more{right:6px;top:46px;min-width:190px;max-width:calc(100vw - 20px)}
+    .messages{padding:14px 10px}
+    .bubble{max-width:88%;font-size:13px}
+    .composer-wrap{width:calc(100% - 14px)}
+    .composer input{font-size:13px}
+    .call-bar{padding:6px 8px;font-size:11px}
+  }
+  @media(max-width:360px){
+    .sidebar{width:36%;min-width:112px}
+    .model-pill{max-width:54px}
+  }
 </style>
 </head>
 <body>
@@ -226,6 +277,12 @@ function heroAvatar(id,state=''){
 }
 
 const staticMode=!['127.0.0.1','localhost','[::1]'].includes(location.hostname);
+// Keep the hosted app and its downloaded model available without a connection.
+if(staticMode && 'serviceWorker' in navigator && location.protocol.startsWith('http')){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register(new URL('sw.js',location.href)).catch(()=>{});
+  });
+}
 // On a hosted build, share links use whatever host served the page (GitHub Pages
 // or oracle-chat.pages.dev). On the Mac, use the neutral public site so family
 // never see the account name in a shared link.
@@ -273,7 +330,10 @@ const MODELS=[
   {id:'local-deep',name:'Qwen 3 4B (deeper)',sub:'slower, stronger reasoning'},
   {id:'auto',name:'Cloud → Local',sub:'try Big Pickle, fall back'},
   {id:'cloud',name:'Big Pickle (cloud)',sub:'free OpenCode — quota resetting'},
-  ...((guestMode||staticMode)?[{id:'device',name:'This device (private)',sub:'runs on this device — no Mac needed'}]:[]),
+  ...((guestMode||staticMode)?[
+    {id:'device-small',name:'Tiny on-device · 135M',sub:'smallest download — about 182 MB once'},
+    {id:'device',name:'On-device · 0.5B',sub:'better answers — about 786 MB once'}
+  ]:[]),
 ];
 if(staticMode)MODELS.splice(0,4);
 
@@ -286,7 +346,7 @@ function allModels(){return [
   ...MODELS,
   ...customModels.map(m=>({id:m.id,name:m.name,sub:m.type==='device'?'on-device · your model':(m.model+' · your key'),custom:m}))
 ]}
-const DEFAULT_BACKEND=(guestMode||staticMode)?'device':'local';
+const DEFAULT_BACKEND=(guestMode||staticMode)?'device-small':'local';
 const savedBackend=localStorage.getItem('oracle.backend');
 let view='chat', listView=localStorage.getItem('oracle.listView')||'folders', backend=savedBackend||DEFAULT_BACKEND, draft='', waiting=false;
 if(!allModels().some(m=>m.id===backend))backend=DEFAULT_BACKEND;
@@ -335,6 +395,8 @@ async function gvGet(name){
 function guestFill(text){return String(text).replace(/\[\[USE:([^|\]]+)\|([^\]]+)\]\]/g,(m,n)=>`[credential '${n}' — value stayed on this device]`)}
 
 const DEFAULT_DEVICE_MODEL='onnx-community/Qwen2.5-0.5B-Instruct';
+const SMALL_DEVICE_MODEL='onnx-community/SmolLM2-135M-Instruct-ONNX-MHA';
+function activeDeviceModel(){return backend==='device-small'?SMALL_DEVICE_MODEL:(customModels.find(m=>m.id===backend)?.model||DEFAULT_DEVICE_MODEL)}
 const devicePipes={}, deviceLoads={};
 async function loadDeviceModel(modelId){
   modelId=modelId||DEFAULT_DEVICE_MODEL;
@@ -630,19 +692,20 @@ function render(){
       </div>`:''}</div></div>`).join('');
     mainContent=`
       <header class="chat-header">
-        <div class="chat-title-name" style="display:flex;align-items:center;gap:8px">${heroAvatar(c.hero,pendingTool?'asking':waiting?'walking':'')}<span>${esc(c.name)}</span></div>
+        <div class="chat-title-name" style="display:flex;align-items:center;gap:8px">${heroAvatar(c.hero,pendingTool?'asking':waiting?'walking':'')}<span class="chat-name-text">${esc(c.name)}</span></div>
         <div class="header-actions">
-          <span class="status-dot ${(backend==='device'||!!customModels.find(m=>m.id===backend)||localOn)?'':'off'}">${backend==='device'?(devicePipe?'On-device ready':'On-device (loads on first message)'):customModels.find(m=>m.id===backend)?(customModels.find(m=>m.id===backend).type==='cloud'?'Your provider':'On-device (loads on first message)'):(localOn?'Local ready':'Local offline')}</span>
-          <button class="model-pill" id="modelPill">${esc(allModels().find(m=>m.id===backend)?.name||backend)} <span class="caret">▾</span></button>
+          <span class="status-dot ${(backend==='device'||backend==='device-small'||!!customModels.find(m=>m.id===backend)||localOn)?'':'off'}">${(backend==='device'||backend==='device-small')?(devicePipe?'On-device ready':'On-device (loads on first message)'):customModels.find(m=>m.id===backend)?(customModels.find(m=>m.id===backend).type==='cloud'?'Your provider':'On-device (loads on first message)'):(localOn?'Local ready':'Local offline')}</span>
+          <button class="model-pill" id="modelPill"><span class="model-name">${esc(allModels().find(m=>m.id===backend)?.name||backend)}</span> <span class="caret">▾</span></button>
           <button class="icon-btn ${voiceReplies?'active':''}" id="voiceBtn" title="Voice replies">${icon('volume')}</button>
           <button class="icon-btn ${callActive?'calling':''}" id="callBtn" title="Live voice call — talk hands-free">${icon('phone')}</button>
           <button class="icon-btn ${moreOpen?'open':''}" id="moreBtn" title="Chat and folder options">${icon('more')}</button>
           <button class="share-btn" id="shareBtn">${icon('share',16)} Share</button>
-          ${modelOpen?`<div class="dropdown model">${allModels().map(m=>`<button class="menu-item" data-model="${m.id}"><span>${m.id===backend?'✓':'&nbsp;&nbsp;'}</span><span><strong>${esc(m.name)}</strong><span class="mi-sub">${esc(m.sub)}</span></span>${m.custom?`<span class="model-remove" data-model-remove="${m.id}" role="button" tabindex="0" title="Remove model">✕</span>`:''}</button>`).join('')}<div class="menu-sep"></div><button class="menu-item" id="addModel">${icon('plus',18)}<span><strong>Add a model…</strong><span class="mi-sub">On-device or your own provider</span></span></button></div>`:''}
+          ${modelOpen?`<div class="dropdown model">${allModels().map(m=>`<button class="menu-item" data-model="${m.id}"><span>${m.id===backend?'✓':'&nbsp;&nbsp;'}</span><span><strong>${esc(m.name)}</strong><span class="mi-sub">${esc(m.sub)}</span></span>${m.custom?`<span class="model-remove" data-model-remove="${m.id}" role="button" tabindex="0" title="Remove model">✕</span>`:''}</button>`).join('')}<div class="menu-sep"></div>${staticMode?`<button class="menu-item" id="preloadDevice">${icon('spark',18)}<span><strong>${devicePipe&&deviceModelId===activeDeviceModel()?'Private model is ready':'Prepare private model now'}</strong><span class="mi-sub">${devicePipe&&deviceModelId===activeDeviceModel()?'Answers work offline on this device':'Download once, then it stays on this device'}</span></span></button><div class="mi-note">Guests get one private model that runs on your own device. The Mac-only models need the Mac.</div>`:''}<button class="menu-item" id="addModel">${icon('plus',18)}<span><strong>Add a model…</strong><span class="mi-sub">On-device or your own provider</span></span></button></div>`:''}
           ${moreOpen?`<div class="dropdown more">
             <button class="menu-item" id="moreNewChat">${icon('plus',18)}<span><strong>New chat room</strong><span class="mi-sub">Name it and pick an agent</span></span></button>
             <button class="menu-item" id="moreNewFolder">${icon('file',18)}<span><strong>New folder</strong><span class="mi-sub">Group chats together</span></span></button>
             ${staticMode?'':`<button class="menu-item" id="moreToolMode">${icon('spark',18)}<span><strong>Tools: ${toolMode==='auto'?'Auto':'Ask first'}</strong><span class="mi-sub">${toolMode==='auto'?'Local model can act — click to require approvals':'Click to allow automatic basic tools'}</span></span></button>`}
+            <button class="menu-item mobile-call" id="moreCall">${icon('phone',18)}<span><strong>Live voice call</strong><span class="mi-sub">Hands-free talk with this device</span></span></button>
             <button class="menu-item" id="moreVoice">${icon('volume',18)}<span><strong>Voice replies: ${voiceReplies?'On':'Off'}</strong><span class="mi-sub">Jarvis-style voice when available</span></span></button>
             <button class="menu-item" id="moreVoicePick">${icon('spark',18)}<span><strong>Choose speaking voice</strong><span class="mi-sub">${esc(voiceName()?.name||'Device default')}</span></span></button>
             <div class="menu-sep"></div>
@@ -748,6 +811,7 @@ function bind(){
   document.getElementById('moreSmartSummary')?.addEventListener('click',()=>{moreOpen=false;smartChat('summary',activeId)});
   document.getElementById('voiceBtn')?.addEventListener('click',()=>toggleVoice());
   document.getElementById('callBtn')?.addEventListener('click',()=>toggleCall());
+  document.getElementById('moreCall')?.addEventListener('click',()=>{moreOpen=false;toggleCall()});
   document.getElementById('endCall')?.addEventListener('click',()=>toggleCall());
   document.getElementById('moreVoice')?.addEventListener('click',()=>{moreOpen=false;toggleVoice()});
   document.getElementById('moreVoicePick')?.addEventListener('click',()=>{moreOpen=false;openVoicePicker()});
@@ -798,6 +862,11 @@ function bind(){
     modelOpen=false;render();showToast('Model removed');
   });
   document.getElementById('addModel')?.addEventListener('click',e=>{e.stopPropagation();modelOpen=false;openAddModel()});
+  document.getElementById('preloadDevice')?.addEventListener('click',async e=>{
+    e.stopPropagation();modelOpen=false;render();
+    try{await loadDeviceModel(activeDeviceModel());showToast('Private model ready — answers work offline now')}
+    catch(err){showToast('Could not load the model: '+err.message)}
+  });
   const pb=document.getElementById('plusBtn');
   if(pb)pb.onclick=e=>{e.stopPropagation();plusOpen=!plusOpen;modelOpen=profileOpen=moreOpen=false;render()};
   document.getElementById('attachItem')?.addEventListener('click',e=>{e.stopPropagation();plusOpen=false;render();document.getElementById('fileInput').click()});
@@ -1223,8 +1292,8 @@ async function sendMessage(e){
   try{
     const msgs=c.messages.map(m=>({from:m.from,text:m.text}));
     if(credSelected.length)msgs.push({from:'user',text:'[Saved credentials available by name only: '+credSelected.join(', ')+'. Never ask for their values.]'});
-    if(backend==='device'||(cm&&cm.type==='device')){
-      const answer=await deviceChat(msgs,cm?.model);
+    if(backend==='device'||backend==='device-small'||(cm&&cm.type==='device')){
+      const answer=await deviceChat(msgs,backend==='device-small'?SMALL_DEVICE_MODEL:cm?.model);
       c.messages.push({from:'bot',text:answer,note:(cm?cm.name:'On-device')+' · private'});
       c.preview=answer.slice(0,40);replyText=answer;
     }else if(cm&&cm.type==='cloud'){
@@ -1245,7 +1314,7 @@ async function sendMessage(e){
       }
     }
   }catch(err){
-    const own=backend==='device'||!!cm;
+    const own=backend==='device'||backend==='device-small'||!!cm;
     c.messages.push({from:'bot',text:(own?'Model error: ':'Bridge error: ')+err.message,
       note:own?(cm?.type==='cloud'?'Check the endpoint and key':'Try another model'):'Start the bridge from the Desktop launcher.'});
     replyText='';
