@@ -1,5 +1,7 @@
 # Oracle Chat
 
+Canonical site: **https://oracle-chat.pages.dev/**
+
 A private, local-first AI chat app. This site runs entirely in your browser —
 there is no backend, no account, and no server that stores your chats.
 
