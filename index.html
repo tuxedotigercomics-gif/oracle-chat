@@ -163,57 +163,54 @@
   .share-text{width:100%;height:180px;font-family:ui-monospace,Menlo,monospace;font-size:11px}
   .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:80;box-shadow:0 6px 20px rgba(0,0,0,.25);max-width:80vw}
   svg{flex-shrink:0}
+  .mobile-back{display:none}
   @media(max-width:640px){
-    .sidebar{width:38%;min-width:124px;max-width:200px}
-    .sidebar-top{padding:10px 7px 8px;gap:3px}
-    .workspace-name{font-size:12.5px}
-    .workspace-sub{display:none}
-    .section-label{padding:6px 7px 4px}
-    .view-tabs{padding-right:4px;gap:1px}
-    .view-tabs>button[data-list-view]{padding:3px 4px;font-size:9.5px;letter-spacing:0}
-    .view-tabs .mini-add{padding:2px 3px;font-size:13px}
-    .nav-item{width:calc(100% - 10px);margin:0 5px 2px;padding:7px 5px;gap:5px;font-size:11.5px}
-    .folder-list,.conv-list{padding:4px 5px}
-    .folder-row{font-size:11.5px;gap:3px;padding-left:3px}
-    .folder-caret{width:9px;font-size:10px}
-    .folder-glyph{font-size:11px}
-    .folder-count{display:none}
-    .folder-chats{padding-left:7px}
-    .conv{gap:4px;padding:6px 2px 6px 4px}
-    .conv-name{font-size:11.5px}
-    .conv-preview{font-size:10.5px}
-    .agent-avatar{width:22px;height:22px;border-radius:6px}
-    .agent-avatar svg{width:20px;height:20px}
-    .profile{padding:8px 6px;gap:5px}
-    .avatar{width:26px;height:26px;font-size:10px}
-    .profile-name{font-size:10.5px}
-    .profile-sub,.profile-caret{display:none}
-    .dropdown.profile-menu{left:0;min-width:190px}
-    .chat-header{padding:0 6px;gap:3px}
+    /* Phone: the list is the home screen; opening a chat fills the screen. */
+    .app[data-mobile="list"] .main{display:none}
+    .app[data-mobile="chat"] .sidebar{display:none}
+    .sidebar,.main{width:100%;max-width:none;min-width:0}
+    .sidebar{border-right:none}
+    .sidebar-top{padding:14px 16px 10px}
+    .workspace-name{font-size:15px}
+    .section-label{padding:12px 14px 6px}
+    .view-tabs>button[data-list-view]{padding:6px 10px;font-size:11px}
+    .nav-item{padding:11px 14px;font-size:14px}
+    .folder-list,.conv-list{padding:6px 8px}
+    .folder-row{font-size:14px;padding:11px 10px}
+    .folder-count{display:inline}
+    .conv{gap:8px;padding:11px 8px}
+    .conv-name{font-size:14px}
+    .conv-preview{font-size:12px}
+    .profile{padding:12px 14px}
+    .profile-name{font-size:13px}
+    .mobile-back{display:inline-flex}
+    #memoryBack,#vaultBack,#gvBack{display:none}
+    .chat-header{padding:0 8px;gap:4px}
     .chat-title-name{flex:1 1 auto;min-width:0}
-    .chat-name-text{min-width:0}
-    .header-actions{flex:0 0 auto;gap:0;flex-wrap:nowrap}
+    .chat-name-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .header-actions{flex:0 0 auto;gap:2px;flex-wrap:nowrap}
     .header-actions .status-dot{display:none}
     .header-actions #voiceBtn{display:none}
-    .model-pill{max-width:64px;padding:6px 4px;font-size:10.5px}
-    .share-btn{padding:6px;font-size:0;gap:0}
-    .icon-btn{padding:5px}
-    .dropdown.model{right:6px;top:46px;min-width:170px}
-    .dropdown.more{right:6px;top:46px;min-width:190px;max-width:calc(100vw - 20px)}
-    .messages{padding:14px 10px}
-    .bubble{max-width:88%;font-size:13px}
-    .composer-wrap{width:calc(100% - 14px)}
-    .composer input{font-size:13px}
+    .model-pill{max-width:110px;padding:6px 6px;font-size:11px}
+    .share-btn{padding:6px 8px;font-size:12px}
+    .icon-btn{padding:6px}
+    .dropdown.model{right:6px;top:46px;min-width:200px}
+    .dropdown.more{right:6px;top:46px;min-width:210px;max-width:calc(100vw - 20px)}
+    .messages{padding:14px 12px}
+    .bubble{max-width:88%;font-size:13.5px}
+    .composer-wrap{width:calc(100% - 20px);margin-bottom:12px}
+    .composer{gap:6px;padding:7px 8px}
+    .composer input{font-size:14px;min-width:0}
     .call-bar{padding:6px 8px;font-size:11px}
   }
   @media(max-width:360px){
-    .sidebar{width:36%;min-width:112px}
-    .model-pill{max-width:54px}
+    .model-pill{max-width:88px}
+    .share-btn{font-size:0;padding:6px}
   }
 </style>
 </head>
 <body>
-<div class="app" id="app"></div>
+<div class="app" id="app" data-mobile="list"></div>
 <script>
 const ICONS={
   search:'<circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/>',
@@ -347,6 +344,8 @@ function allModels(){return [
 const DEFAULT_BACKEND=(guestMode||staticMode)?'device-small':'local';
 const savedBackend=localStorage.getItem('oracle.backend');
 let view='chat', listView=localStorage.getItem('oracle.listView')||'folders', backend=savedBackend||DEFAULT_BACKEND, draft='', waiting=false;
+// On phones the chat/folder list is the home screen; a chat opens full-screen.
+let mobileView='list';
 if(!allModels().some(m=>m.id===backend))backend=DEFAULT_BACKEND;
 let devicePipe=null, deviceLoading=null, deviceStatus='', deviceModelId='';
 let plusOpen=false, modelOpen=false, profileOpen=false, moreOpen=false, modal=null, toastTimer=null;
@@ -669,7 +668,7 @@ function render(){
   let mainContent;
   if(view==='guestvault'){
     mainContent=`
-      <header class="chat-header"><div class="chat-title-name">My Vault</div><div class="header-actions"><span class="status-dot">encrypted on this device</span><button class="icon-btn" id="gvBack" title="Back to chat">✕</button></div></header>
+      <header class="chat-header"><button class="icon-btn mobile-back" data-mobile-back title="Back to chats">←</button><div class="chat-title-name">My Vault</div><div class="header-actions"><span class="status-dot">encrypted on this device</span><button class="icon-btn" id="gvBack" title="Back to chat">✕</button></div></header>
       <div class="messages"><div class="messages-inner" style="max-width:620px">
         <p style="font-size:13px;color:var(--muted)">Secrets are encrypted with a key that stays in this browser. The model only ever sees the <strong>name</strong>, never the value. Nothing is sent to the host Mac.</p>
         <button class="btn primary" id="gvAdd" style="align-self:flex-start">+ Add credential</button>
@@ -677,7 +676,7 @@ function render(){
       </div></div>`;
   } else if(view==='memory'){
     mainContent=`
-      <header class="chat-header"><div class="chat-title-name">My Memory</div><div class="header-actions"><span class="status-dot">recall enabled</span><button class="icon-btn" id="memoryBack" title="Back to chat">✕</button></div></header>
+      <header class="chat-header"><button class="icon-btn mobile-back" data-mobile-back title="Back to chats">←</button><div class="chat-title-name">My Memory</div><div class="header-actions"><span class="status-dot">recall enabled</span><button class="icon-btn" id="memoryBack" title="Back to chat">✕</button></div></header>
       <div class="messages"><div class="messages-inner" style="max-width:620px">
         <p style="font-size:13px;color:var(--muted)">Notes in <code>oracle-knowledge/</code> and facts saved here are recalled into the local model's prompt when relevant. The model can also save facts itself during chat.</p>
         <button class="btn primary" id="addMemory" style="align-self:flex-start">+ Add a memory</button>
@@ -688,7 +687,7 @@ function render(){
       </div></div>`;
   } else if(view==='vault'){
     mainContent=`
-      <header class="chat-header"><div class="chat-title-name">Credential Vault</div><div class="header-actions"><span class="status-dot">macOS Keychain</span><button class="icon-btn" id="vaultBack" title="Back to chat">✕</button></div></header>
+      <header class="chat-header"><button class="icon-btn mobile-back" data-mobile-back title="Back to chats">←</button><div class="chat-title-name">Credential Vault</div><div class="header-actions"><span class="status-dot">macOS Keychain</span><button class="icon-btn" id="vaultBack" title="Back to chat">✕</button></div></header>
       <div class="messages"><div class="messages-inner" style="max-width:620px">
         <p style="font-size:13px;color:var(--muted)">Passwords live in your Mac Keychain. The model only sees <strong>names</strong>, never values. To use one, the app fills it in server-side and hides it.</p>
         <button class="btn primary" id="addCred" style="align-self:flex-start">+ Add credential</button>
@@ -704,6 +703,7 @@ function render(){
       </div>`:''}</div></div>`).join('');
     mainContent=`
       <header class="chat-header">
+        <button class="icon-btn mobile-back" data-mobile-back title="Back to chats">←</button>
         <div class="chat-title-name" style="display:flex;align-items:center;gap:8px">${heroAvatar(c.hero,pendingTool?'asking':waiting?'walking':'')}<span class="chat-name-text">${esc(c.name)}</span></div>
         <div class="header-actions">
           <span class="status-dot ${(backend==='device'||backend==='device-small'||!!customModels.find(m=>m.id===backend)||localOn)?'':'off'}">${(backend==='device'||backend==='device-small')?(devicePipe?'On-device ready':'On-device (loads on first message)'):customModels.find(m=>m.id===backend)?(customModels.find(m=>m.id===backend).type==='cloud'?'Your provider':'On-device (loads on first message)'):(localOn?'Local ready':'Local offline')}</span>
@@ -780,6 +780,7 @@ function render(){
     ${(plusOpen||modelOpen||profileOpen||moreOpen)?'<div class="backdrop" id="backdrop"></div>':''}
     ${modal||''}
     <input type="file" id="fileInput" style="display:none" multiple />`;
+  document.getElementById('app').dataset.mobile=mobileView;
   const m=document.getElementById('messages');if(m)m.scrollTop=m.scrollHeight;
   bind();
 }
@@ -789,13 +790,18 @@ function bind(){
   document.querySelectorAll('[data-list-view]').forEach(b=>b.onclick=()=>{listView=b.dataset.listView;localStorage.setItem('oracle.listView',listView);render()});
   document.querySelectorAll('.conv').forEach(b=>b.onclick=()=>{
     activeId=b.dataset.id;const target=convs.find(x=>x.id===activeId);if(target)activeFolder=target.folder;
-    view='chat';plusOpen=modelOpen=profileOpen=moreOpen=false;saveState();render();
+    view='chat';mobileView='chat';plusOpen=modelOpen=profileOpen=moreOpen=false;saveState();render();
   });
   document.querySelectorAll('[data-folder]').forEach(b=>b.onclick=()=>{
     const f=folders.find(x=>x.id===b.dataset.folder);if(!f)return;
     activeFolder=f.id;f.open=!f.open;
-    if(f.open){const first=convs.find(x=>x.folder===f.id);if(first)activeId=first.id}
-    view='chat';saveState();render();
+    const phone=window.matchMedia('(max-width:640px)').matches;
+    if(f.open&&!phone){const first=convs.find(x=>x.folder===f.id);if(first)activeId=first.id}
+    view='chat';if(!phone)mobileView='chat';saveState();render();
+  });
+  document.querySelectorAll('[data-mobile-back]').forEach(b=>b.onclick=()=>{
+    mobileView='list';if(view!=='chat')view='chat';
+    plusOpen=modelOpen=profileOpen=moreOpen=false;render();
   });
   document.querySelectorAll('[data-folder-menu]').forEach(b=>b.onclick=e=>{e.stopPropagation();openFolderMenu(b.dataset.folderMenu)});
   document.querySelectorAll('[data-conv-menu]').forEach(b=>b.onclick=e=>{e.stopPropagation();openChatMenu(b.dataset.convMenu)});
@@ -831,8 +837,8 @@ function bind(){
   document.getElementById('vaultBack')?.addEventListener('click',()=>{view='chat';render()});
   const profileBtn=document.getElementById('profileBtn');
   if(profileBtn)profileBtn.onclick=e=>{e.stopPropagation();profileOpen=!profileOpen;plusOpen=modelOpen=moreOpen=false;render()};
-  document.getElementById('openVault')?.addEventListener('click',()=>{view='vault';profileOpen=false;render()});
-  document.getElementById('openGuestVault')?.addEventListener('click',()=>{view='guestvault';profileOpen=false;render()});
+  document.getElementById('openVault')?.addEventListener('click',()=>{view='vault';mobileView='chat';profileOpen=false;render()});
+  document.getElementById('openGuestVault')?.addEventListener('click',()=>{view='guestvault';mobileView='chat';profileOpen=false;render()});
   document.getElementById('gvBack')?.addEventListener('click',()=>{view='chat';render()});
   document.getElementById('gvAdd')?.addEventListener('click',()=>{
     modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Add credential</h3><p>Stored encrypted on this device only.</p>
@@ -846,7 +852,7 @@ function bind(){
     });
   });
   document.querySelectorAll('[data-gvdel]').forEach(b=>b.onclick=()=>{gvDel(b.dataset.gvdel);render()});
-  document.getElementById('openMemory')?.addEventListener('click',async()=>{await loadMemory();view='memory';profileOpen=false;render()});
+  document.getElementById('openMemory')?.addEventListener('click',async()=>{await loadMemory();view='memory';mobileView='chat';profileOpen=false;render()});
   document.getElementById('memoryBack')?.addEventListener('click',()=>{view='chat';render()});
   document.getElementById('addMemory')?.addEventListener('click',()=>{
     modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Add a memory</h3><p>A fact the model should remember later.</p>
@@ -1157,7 +1163,7 @@ function bindModal(){
     const id='chat-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
     convs.push({id,name,preview:'Ask me anything…',hero:heroId,folder,messages:[]});
     const f=folders.find(x=>x.id===folder);if(f){f.open=true;activeFolder=f.id}
-    activeId=id;modal=null;saveState();render();showToast('Room created: '+name);
+    activeId=id;mobileView='chat';modal=null;saveState();render();showToast('Room created: '+name);
   });
   document.getElementById('folderForm')?.addEventListener('submit',e=>{
     e.preventDefault();
