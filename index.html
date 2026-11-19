@@ -225,8 +225,14 @@ function heroAvatar(id,state=''){
   return `<span class="agent-avatar ${state}" title="${esc(h.name)}"><svg viewBox="0 0 8 8" shape-rendering="crispEdges">${rects.join('')}</svg></span>`;
 }
 
-const PAGES_BASE='https://tuxedotigercomics-gif.github.io/oracle-chat/';
 const staticMode=!['127.0.0.1','localhost','[::1]'].includes(location.hostname);
+// On a hosted build, share links use whatever host served the page (GitHub Pages
+// or oracle-chat.pages.dev). On the Mac, use a stable public base that family can
+// open — flip this constant to the Cloudflare URL once that site is live.
+const PUBLIC_SHARE_BASE='https://tuxedotigercomics-gif.github.io/oracle-chat/';
+const PAGES_BASE=staticMode
+  ? location.origin+location.pathname.replace(/\/[^/]*$/,'/')
+  : PUBLIC_SHARE_BASE;
 const b64enc=s=>btoa(unescape(encodeURIComponent(s))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 const b64dec=s=>decodeURIComponent(escape(atob(String(s).replace(/-/g,'+').replace(/_/g,'/'))));
 const hashParams=new URLSearchParams((location.hash||'').replace(/^#/,''));
@@ -443,8 +449,15 @@ function openVoicePicker(){
   document.getElementById('voiceAuto')?.addEventListener('click',()=>pickVoicePreset('auto'));
   document.querySelectorAll('[data-vpreview]').forEach(b=>b.onclick=()=>{
     const v=vs.find(x=>encodeURIComponent(x.voiceURI)===b.dataset.vpreview);if(!v)return;
-    cancelSpeech();const u=new SpeechSynthesisUtterance('Hello. I am ready when you are.');
-    u.voice=v;u.rate=1.0;u.pitch=.8;window.speechSynthesis.speak(u);
+    // Do NOT use cancelSpeech() here: it schedules a second cancel ~80ms later,
+    // which cuts the sample off right after it starts. Cancel once, then speak
+    // on the next tick so Chrome flushes the old utterance first.
+    const s=window.speechSynthesis;
+    s.cancel();
+    setTimeout(()=>{
+      const u=new SpeechSynthesisUtterance('Hello. I am ready when you are.');
+      u.voice=v;u.rate=1.0;u.pitch=.8;s.speak(u);
+    },120);
   });
   document.querySelectorAll('[data-vpick]').forEach(b=>b.onclick=()=>{
     const v=vs.find(x=>encodeURIComponent(x.voiceURI)===b.dataset.vpick);if(!v)return;
