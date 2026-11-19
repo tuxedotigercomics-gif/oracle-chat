@@ -8,7 +8,11 @@ there is no backend, no account, and no server that stores your chats.
 ## How it works
 
 - Answers come from a small AI model that **runs on your own device** using
-  WebGPU/WASM (downloaded the first time you chat, then cached by your browser).
+  WebGPU/WASM. Two sizes are offered: Tiny 135M (~182 MB, the default) and 0.5B
+  (~786 MB, better answers). Use "Prepare private model now" in the model menu
+  to download one ahead of time.
+- A service worker caches the page and the model files, so after the first load
+  the app keeps working with no internet connection.
 - Your chats, folders, and settings stay in this browser's local storage.
 - Voice input and spoken replies use your browser's built-in speech features.
 - The "Use a saved login" vault encrypts values with a key that never leaves
