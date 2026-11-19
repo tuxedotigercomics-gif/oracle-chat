@@ -133,7 +133,6 @@
   .menu-item:hover{background:var(--main-bg)}
   .menu-item .mi-sub{display:block;font-size:11.5px;color:var(--muted);margin-top:1px}
   .mi-note{font-size:11px;color:var(--muted);line-height:1.4;padding:4px 10px 8px}
-  .mobile-call{display:none}
   .model-remove{margin-left:auto;color:var(--muted);font-size:12px;padding:3px 5px;border-radius:6px;cursor:pointer}
   .model-remove:hover{background:#fdecea;color:#b3261e}
   .menu-sep{height:1px;background:var(--border);margin:5px 4px}
@@ -195,8 +194,7 @@
     .chat-name-text{min-width:0}
     .header-actions{flex:0 0 auto;gap:0;flex-wrap:nowrap}
     .header-actions .status-dot{display:none}
-    .header-actions #voiceBtn,.header-actions #callBtn{display:none}
-    .mobile-call{display:flex}
+    .header-actions #voiceBtn{display:none}
     .model-pill{max-width:64px;padding:6px 4px;font-size:10.5px}
     .share-btn{padding:6px;font-size:0;gap:0}
     .icon-btn{padding:5px}
@@ -705,7 +703,6 @@ function render(){
             <button class="menu-item" id="moreNewChat">${icon('plus',18)}<span><strong>New chat room</strong><span class="mi-sub">Name it and pick an agent</span></span></button>
             <button class="menu-item" id="moreNewFolder">${icon('file',18)}<span><strong>New folder</strong><span class="mi-sub">Group chats together</span></span></button>
             ${staticMode?'':`<button class="menu-item" id="moreToolMode">${icon('spark',18)}<span><strong>Tools: ${toolMode==='auto'?'Auto':'Ask first'}</strong><span class="mi-sub">${toolMode==='auto'?'Local model can act — click to require approvals':'Click to allow automatic basic tools'}</span></span></button>`}
-            <button class="menu-item mobile-call" id="moreCall">${icon('phone',18)}<span><strong>Live voice call</strong><span class="mi-sub">Hands-free talk with this device</span></span></button>
             <button class="menu-item" id="moreVoice">${icon('volume',18)}<span><strong>Voice replies: ${voiceReplies?'On':'Off'}</strong><span class="mi-sub">Jarvis-style voice when available</span></span></button>
             <button class="menu-item" id="moreVoicePick">${icon('spark',18)}<span><strong>Choose speaking voice</strong><span class="mi-sub">${esc(voiceName()?.name||'Device default')}</span></span></button>
             <div class="menu-sep"></div>
@@ -811,7 +808,6 @@ function bind(){
   document.getElementById('moreSmartSummary')?.addEventListener('click',()=>{moreOpen=false;smartChat('summary',activeId)});
   document.getElementById('voiceBtn')?.addEventListener('click',()=>toggleVoice());
   document.getElementById('callBtn')?.addEventListener('click',()=>toggleCall());
-  document.getElementById('moreCall')?.addEventListener('click',()=>{moreOpen=false;toggleCall()});
   document.getElementById('endCall')?.addEventListener('click',()=>toggleCall());
   document.getElementById('moreVoice')?.addEventListener('click',()=>{moreOpen=false;toggleVoice()});
   document.getElementById('moreVoicePick')?.addEventListener('click',()=>{moreOpen=false;openVoicePicker()});
