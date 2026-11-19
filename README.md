@@ -22,3 +22,18 @@ other chats, folders, and vault are never included.
 
 Because everything runs in the browser, a link keeps working even if the person
 who created it is offline.
+
+## Models & voice
+- The model menu has an **Add a model…** option. Add another on-device model by
+  Hugging Face ID, or a cloud model using your own endpoint and API key. Keys
+  are encrypted in this browser and never shown to a model. The cloud endpoint
+  must allow browser requests (CORS).
+- Voice replies use a voice installed on your device. Use the three-dot menu →
+  **Choose speaking voice** for one-click **Jarvis (male)**, **Assistant
+  (female)**, or **Auto** presets, plus a full voice list with Try buttons.
+  Browsers cannot install voice models, so no character/actor voice clone is
+  included.
+
+## Local development
+The full local app (bridge, tools, vault, memory, auto-start) lives beside the
+desktop source files; this repository is only the browser-only published build.

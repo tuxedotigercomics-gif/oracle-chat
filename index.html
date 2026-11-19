@@ -130,6 +130,8 @@
   .menu-item{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:none;border-radius:8px;padding:9px 10px;font-size:13.5px;cursor:pointer}
   .menu-item:hover{background:var(--main-bg)}
   .menu-item .mi-sub{display:block;font-size:11.5px;color:var(--muted);margin-top:1px}
+  .model-remove{margin-left:auto;color:var(--muted);font-size:12px;padding:3px 5px;border-radius:6px;cursor:pointer}
+  .model-remove:hover{background:#fdecea;color:#b3261e}
   .menu-sep{height:1px;background:var(--border);margin:5px 4px}
   .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:60}
   .modal{background:#fff;border-radius:16px;padding:22px;width:min(440px,92vw);max-height:86vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.2)}
@@ -268,13 +270,24 @@ const MODELS=[
 ];
 if(staticMode)MODELS.splice(0,3);
 
-// Default to the local model so chat works immediately while cloud quota resets.
-let view='chat', listView=localStorage.getItem('oracle.listView')||'folders', backend=(guestMode||staticMode)?'device':'local', draft='', waiting=false;
-let devicePipe=null, deviceLoading=null, deviceStatus='';
+// Models a device owner adds themselves — on-device or their own cloud provider.
+let customModels=[];
+try{customModels=JSON.parse(localStorage.getItem('oracle.customModels')||'[]')}catch(e){}
+if(!Array.isArray(customModels))customModels=[];
+function saveCustomModels(){localStorage.setItem('oracle.customModels',JSON.stringify(customModels))}
+function allModels(){return [
+  ...MODELS,
+  ...customModels.map(m=>({id:m.id,name:m.name,sub:m.type==='device'?'on-device · your model':(m.model+' · your key'),custom:m}))
+]}
+const DEFAULT_BACKEND=(guestMode||staticMode)?'device':'local';
+const savedBackend=localStorage.getItem('oracle.backend');
+let view='chat', listView=localStorage.getItem('oracle.listView')||'folders', backend=savedBackend||DEFAULT_BACKEND, draft='', waiting=false;
+if(!allModels().some(m=>m.id===backend))backend=DEFAULT_BACKEND;
+let devicePipe=null, deviceLoading=null, deviceStatus='', deviceModelId='';
 let plusOpen=false, modelOpen=false, profileOpen=false, moreOpen=false, modal=null, toastTimer=null;
 let files=[], credSelected=[], vaultKeys=[], status={}, memoryData={memories:[],notes:[]};
 let voiceReplies=localStorage.getItem('oracle.voiceReplies')==='1', listening=false, recognition=null;
-let callActive=false, callState='idle', finalTranscript='', speechGen=0;
+let callActive=false, callState='idle', finalTranscript='', speechGen=0, prevVoiceReplies=false;
 let displayName=guestMode?(localStorage.getItem('oracle.guest.name.'+shareToken)||'Family Guest'):(localStorage.getItem('oracle.displayName')||'Michael Lynch');
 
 function active(){return convs.find(c=>c.id===activeId)||convs[0]}
@@ -291,7 +304,7 @@ const vaultId=shareToken||'self';
 const gvB64=b=>btoa(String.fromCharCode(...new Uint8Array(b)));
 const gvUnb64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 async function gvInit(){
-  if(!staticMode||!('crypto' in window&&crypto.subtle))return;
+  if(!('crypto' in window&&crypto.subtle))return;
   const kk='oracle.guest.vaultkey.'+vaultId;
   let raw=localStorage.getItem(kk);
   if(raw)gvKey=await crypto.subtle.importKey('raw',gvUnb64(raw),'AES-GCM',false,['encrypt','decrypt']);
@@ -307,29 +320,55 @@ async function gvSet(name,value){
 }
 function gvNames(){return Object.keys(gvCache)}
 function gvDel(name){delete gvCache[name];localStorage.setItem('oracle.guest.vault.'+vaultId,JSON.stringify(gvCache))}
+async function gvGet(name){
+  const e=gvCache[name];if(!e||!gvKey)return '';
+  const buf=await crypto.subtle.decrypt({name:'AES-GCM',iv:gvUnb64(e.iv)},gvKey,gvUnb64(e.data));
+  return new TextDecoder().decode(buf);
+}
 function guestFill(text){return String(text).replace(/\[\[USE:([^|\]]+)\|([^\]]+)\]\]/g,(m,n)=>`[credential '${n}' — value stayed on this device]`)}
 
-async function loadDeviceModel(){
-  if(devicePipe)return devicePipe;
-  if(deviceLoading)return deviceLoading;
-  deviceStatus='Loading on-device model… (first time only)';render();
-  deviceLoading=(async()=>{
+const DEFAULT_DEVICE_MODEL='onnx-community/Qwen2.5-0.5B-Instruct';
+const devicePipes={}, deviceLoads={};
+async function loadDeviceModel(modelId){
+  modelId=modelId||DEFAULT_DEVICE_MODEL;
+  if(devicePipes[modelId]){devicePipe=devicePipes[modelId];deviceModelId=modelId;return devicePipe}
+  if(deviceLoads[modelId])return deviceLoads[modelId];
+  deviceStatus='Loading '+(modelId.split('/').pop())+'… (first time only)';render();
+  deviceLoads[modelId]=(async()=>{
     try{
       const mod=await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.5');
       const opts={dtype:'q4'};
-      try{devicePipe=await mod.pipeline('text-generation','onnx-community/Qwen2.5-0.5B-Instruct',{...opts,device:'webgpu'})}
-      catch(e){deviceStatus='WebGPU unavailable — using CPU (slower)';render();devicePipe=await mod.pipeline('text-generation','onnx-community/Qwen2.5-0.5B-Instruct',{...opts,device:'wasm'})}
-      deviceStatus='';render();return devicePipe;
+      let pipe;
+      try{pipe=await mod.pipeline('text-generation',modelId,{...opts,device:'webgpu'})}
+      catch(e){deviceStatus='WebGPU unavailable — using CPU (slower)';render();pipe=await mod.pipeline('text-generation',modelId,{...opts,device:'wasm'})}
+      devicePipes[modelId]=pipe;devicePipe=pipe;deviceModelId=modelId;deviceStatus='';render();return pipe;
     }catch(err){deviceStatus='';throw err}
-    finally{deviceLoading=null}
+    finally{delete deviceLoads[modelId]}
   })();
-  return deviceLoading;
+  return deviceLoads[modelId];
 }
-async function deviceChat(messages){
-  const gen=await loadDeviceModel();
+async function deviceChat(messages,modelId){
+  const gen=await loadDeviceModel(modelId);
   const prompt=messages.map(m=>(m.from==='user'?'User':'Assistant')+': '+m.text).join('\n')+'\nAssistant:';
   const out=await gen(prompt,{max_new_tokens:200,do_sample:false});
   return guestFill(String(out?.[0]?.generated_text||'').replace(prompt,'').trim()||'(no answer)');
+}
+async function customCloudChat(cm,messages){
+  const key=await gvGet('model:'+cm.id);
+  const headers={'Content-Type':'application/json'};
+  if(key)headers.Authorization='Bearer '+key;
+  let r,d;
+  try{
+    r=await fetch(cm.endpoint,{method:'POST',headers,body:JSON.stringify({
+      model:cm.model,
+      messages:messages.map(m=>({role:m.from==='user'?'user':'assistant',content:m.text}))
+    })});
+  }catch(err){throw new Error('Could not reach endpoint — it may block browser requests (CORS).')}
+  try{d=await r.json()}catch(e){throw new Error('Endpoint returned non-JSON (HTTP '+r.status+')')}
+  if(!r.ok)throw new Error(d.error?.message||('HTTP '+r.status));
+  const answer=d.choices?.[0]?.message?.content??d.choices?.[0]?.text??d.response??'';
+  if(!answer)throw new Error('No answer in endpoint response');
+  return guestFill(String(answer).trim());
 }
 async function refresh(){
   if(staticMode){status={local:{ok:true},tools:{mode:'device'},vault:{ok:false}};render();return}
@@ -349,13 +388,63 @@ function convRow(x,pendingTool){
   </div>`;
 }
 
+let chosenVoiceURI=localStorage.getItem('oracle.voiceURI')||'';
+const MALE_VOICE_HINTS=['jarvis','daniel','oliver','george','google uk english male','microsoft george','david','mark'];
+const FEMALE_VOICE_HINTS=['samantha','zira','victoria','karen','moira','tessa','fiona','serena','allison','aria','jenny','libby','sonia','amy','female'];
 function voiceName(){
   const vs=('speechSynthesis' in window)?window.speechSynthesis.getVoices():[];
-  const wanted=['jarvis','daniel','oliver','george','google uk english male','microsoft george'];
-  for(const w of wanted){const v=vs.find(v=>v.name.toLowerCase().includes(w));if(v)return v}
+  if(chosenVoiceURI){const picked=vs.find(v=>v.voiceURI===chosenVoiceURI);if(picked)return picked}
+  for(const w of MALE_VOICE_HINTS){const v=vs.find(v=>v.name.toLowerCase().includes(w));if(v)return v}
   return vs.find(v=>/^en/i.test(v.lang))||null;
 }
-function cancelSpeech(){speechGen++;if('speechSynthesis' in window)window.speechSynthesis.cancel()}
+function pickVoicePreset(kind){
+  const vs=('speechSynthesis' in window)?window.speechSynthesis.getVoices():[];
+  if(kind==='auto'){chosenVoiceURI='';localStorage.removeItem('oracle.voiceURI');showToast('Automatic voice restored');openVoicePicker();return}
+  const hints=kind==='female'?FEMALE_VOICE_HINTS:MALE_VOICE_HINTS;
+  for(const h of hints){const v=vs.find(v=>v.name.toLowerCase().includes(h));if(v){
+    chosenVoiceURI=v.voiceURI;localStorage.setItem('oracle.voiceURI',v.voiceURI);
+    showToast((kind==='female'?'Assistant voice: ':'Jarvis voice: ')+v.name);openVoicePicker();return;
+  }}
+  showToast('No '+kind+' voice found on this device — choose one from the list');
+}
+function openVoicePicker(){
+  const vs=('speechSynthesis' in window)?window.speechSynthesis.getVoices():[];
+  if(!vs.length){showToast('No system voices found yet — try again in a moment');return}
+  const enc=v=>encodeURIComponent(v.voiceURI);
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Choose the speaking voice</h3>
+    <p>Voices come with this device — the site cannot install new ones. Both an assistant voice and a Jarvis-style voice are built in as one-click presets.</p>
+    <div class="tool-actions" style="margin-bottom:12px">
+      <button class="btn" id="voiceJarvis">Jarvis (male)</button>
+      <button class="btn" id="voiceAssistant">Assistant (female)</button>
+      <button class="btn" id="voiceAuto">Auto</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${vs.map(v=>`<div class="vault-row"><span><strong>${esc(v.name)}</strong><br><span style="font-size:11px;color:var(--muted)">${esc(v.lang)}${v.localService?' · on device':''}</span></span><span style="display:flex;gap:4px"><button class="btn" data-vpreview="${enc(v)}" style="padding:4px 8px;font-size:11px">Try</button><button class="btn ${chosenVoiceURI===v.voiceURI?'primary':''}" data-vpick="${enc(v)}" style="padding:4px 8px;font-size:11px">${chosenVoiceURI===v.voiceURI?'✓ Using':'Use'}</button></span></div>`).join('')}
+    </div>
+    <div class="modal-actions"><button class="btn" id="mc">Close</button></div>
+  </div></div>`;
+  render();
+  document.getElementById('voiceJarvis')?.addEventListener('click',()=>pickVoicePreset('male'));
+  document.getElementById('voiceAssistant')?.addEventListener('click',()=>pickVoicePreset('female'));
+  document.getElementById('voiceAuto')?.addEventListener('click',()=>pickVoicePreset('auto'));
+  document.querySelectorAll('[data-vpreview]').forEach(b=>b.onclick=()=>{
+    const v=vs.find(x=>encodeURIComponent(x.voiceURI)===b.dataset.vpreview);if(!v)return;
+    cancelSpeech();const u=new SpeechSynthesisUtterance('Hello. I am ready when you are.');
+    u.voice=v;u.rate=1.0;u.pitch=.8;window.speechSynthesis.speak(u);
+  });
+  document.querySelectorAll('[data-vpick]').forEach(b=>b.onclick=()=>{
+    const v=vs.find(x=>encodeURIComponent(x.voiceURI)===b.dataset.vpick);if(!v)return;
+    chosenVoiceURI=v.voiceURI;localStorage.setItem('oracle.voiceURI',v.voiceURI);
+    showToast('Voice: '+v.name);openVoicePicker();
+  });
+}
+if('speechSynthesis' in window)window.speechSynthesis.onvoiceschanged=()=>{if(view==='chat')render()};
+function cancelSpeech(){
+  speechGen++;
+  if(!('speechSynthesis' in window))return;
+  window.speechSynthesis.cancel();
+  setTimeout(()=>window.speechSynthesis.cancel(),80);
+}
 function speak(text,onDone){
   const gen=++speechGen;
   if(!voiceReplies||!('speechSynthesis' in window)){if(onDone)onDone();return}
@@ -423,11 +512,19 @@ function listenLoop(){
 function toggleCall(){
   if(callActive){
     callActive=false;listening=false;
-    try{recognition?.stop()}catch(e){}
-    recognition=null;cancelSpeech();render();showToast('Voice call ended');return;
+    try{recognition?.abort()}catch(e){}
+    recognition=null;
+    // Restore the speaker setting that was active before the call — ending a
+    // call must not leave later chat replies talking out loud.
+    voiceReplies=prevVoiceReplies;
+    localStorage.setItem('oracle.voiceReplies',voiceReplies?'1':'0');
+    cancelSpeech();render();
+    showToast(voiceReplies?'Voice call ended — spoken replies still on':'Voice call ended — replies back to text');
+    return;
   }
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){showToast('Live voice needs Chrome or Android Chrome');return}
+  prevVoiceReplies=voiceReplies;
   callActive=true;voiceReplies=true;localStorage.setItem('oracle.voiceReplies','1');
   render();showToast('Voice call started — just talk');listenLoop();
 }
@@ -508,18 +605,19 @@ function render(){
       <header class="chat-header">
         <div class="chat-title-name" style="display:flex;align-items:center;gap:8px">${heroAvatar(c.hero,pendingTool?'asking':waiting?'walking':'')}<span>${esc(c.name)}</span></div>
         <div class="header-actions">
-          <span class="status-dot ${backend==='device'||localOn?'':'off'}">${backend==='device'?(devicePipe?'On-device ready':'On-device (loads on first message)'):(localOn?'Local ready':'Local offline')}</span>
-          <button class="model-pill" id="modelPill">${esc(MODELS.find(m=>m.id===backend).name)} <span class="caret">▾</span></button>
+          <span class="status-dot ${(backend==='device'||!!customModels.find(m=>m.id===backend)||localOn)?'':'off'}">${backend==='device'?(devicePipe?'On-device ready':'On-device (loads on first message)'):customModels.find(m=>m.id===backend)?(customModels.find(m=>m.id===backend).type==='cloud'?'Your provider':'On-device (loads on first message)'):(localOn?'Local ready':'Local offline')}</span>
+          <button class="model-pill" id="modelPill">${esc(allModels().find(m=>m.id===backend)?.name||backend)} <span class="caret">▾</span></button>
           <button class="icon-btn ${voiceReplies?'active':''}" id="voiceBtn" title="Voice replies">${icon('volume')}</button>
           <button class="icon-btn ${callActive?'calling':''}" id="callBtn" title="Live voice call — talk hands-free">${icon('phone')}</button>
           <button class="icon-btn ${moreOpen?'open':''}" id="moreBtn" title="Chat and folder options">${icon('more')}</button>
           <button class="share-btn" id="shareBtn">${icon('share',16)} Share</button>
-          ${modelOpen?`<div class="dropdown model">${MODELS.map(m=>`<button class="menu-item" data-model="${m.id}"><span>${m.id===backend?'✓':'&nbsp;&nbsp;'}</span><span><strong>${esc(m.name)}</strong><span class="mi-sub">${esc(m.sub)}</span></span></button>`).join('')}</div>`:''}
+          ${modelOpen?`<div class="dropdown model">${allModels().map(m=>`<button class="menu-item" data-model="${m.id}"><span>${m.id===backend?'✓':'&nbsp;&nbsp;'}</span><span><strong>${esc(m.name)}</strong><span class="mi-sub">${esc(m.sub)}</span></span>${m.custom?`<span class="model-remove" data-model-remove="${m.id}" role="button" tabindex="0" title="Remove model">✕</span>`:''}</button>`).join('')}<div class="menu-sep"></div><button class="menu-item" id="addModel">${icon('plus',18)}<span><strong>Add a model…</strong><span class="mi-sub">On-device or your own provider</span></span></button></div>`:''}
           ${moreOpen?`<div class="dropdown more">
             <button class="menu-item" id="moreNewChat">${icon('plus',18)}<span><strong>New chat room</strong><span class="mi-sub">Name it and pick an agent</span></span></button>
             <button class="menu-item" id="moreNewFolder">${icon('file',18)}<span><strong>New folder</strong><span class="mi-sub">Group chats together</span></span></button>
             ${staticMode?'':`<button class="menu-item" id="moreToolMode">${icon('spark',18)}<span><strong>Tools: ${toolMode==='auto'?'Auto':'Ask first'}</strong><span class="mi-sub">${toolMode==='auto'?'Local model can act — click to require approvals':'Click to allow automatic basic tools'}</span></span></button>`}
             <button class="menu-item" id="moreVoice">${icon('volume',18)}<span><strong>Voice replies: ${voiceReplies?'On':'Off'}</strong><span class="mi-sub">Jarvis-style voice when available</span></span></button>
+            <button class="menu-item" id="moreVoicePick">${icon('spark',18)}<span><strong>Choose speaking voice</strong><span class="mi-sub">${esc(voiceName()?.name||'Device default')}</span></span></button>
             <div class="menu-sep"></div>
             <button class="menu-item" id="moreRename">${icon('edit',18)}<span><strong>Rename this chat</strong></span></button>
             <button class="menu-item" id="moreMove">${icon('chat',18)}<span><strong>Move chat to folder</strong></span></button>
@@ -625,6 +723,7 @@ function bind(){
   document.getElementById('callBtn')?.addEventListener('click',()=>toggleCall());
   document.getElementById('endCall')?.addEventListener('click',()=>toggleCall());
   document.getElementById('moreVoice')?.addEventListener('click',()=>{moreOpen=false;toggleVoice()});
+  document.getElementById('moreVoicePick')?.addEventListener('click',()=>{moreOpen=false;openVoicePicker()});
   document.getElementById('micBtn')?.addEventListener('click',()=>toggleListen());
   document.getElementById('shareBtn')?.addEventListener('click',()=>{moreOpen=false;modal=null;openShareModal()});
   document.getElementById('moreShare')?.addEventListener('click',()=>{moreOpen=false;openShareModal()});
@@ -661,7 +760,17 @@ function bind(){
   document.getElementById('editName')?.addEventListener('click',()=>{profileOpen=false;openNameModal()});
   const mp=document.getElementById('modelPill');
   if(mp)mp.onclick=e=>{e.stopPropagation();modelOpen=!modelOpen;plusOpen=profileOpen=moreOpen=false;render()};
-  document.querySelectorAll('[data-model]').forEach(b=>b.onclick=()=>{backend=b.dataset.model;modelOpen=false;render();showToast('Backend: '+MODELS.find(m=>m.id===backend).name)});
+  document.querySelectorAll('[data-model]').forEach(b=>b.onclick=e=>{
+    e.stopPropagation();backend=b.dataset.model;localStorage.setItem('oracle.backend',backend);
+    modelOpen=false;render();showToast('Model: '+(allModels().find(m=>m.id===backend)?.name||backend));
+  });
+  document.querySelectorAll('[data-model-remove]').forEach(b=>b.onclick=e=>{
+    e.stopPropagation();const id=b.dataset.modelRemove;
+    customModels=customModels.filter(m=>m.id!==id);saveCustomModels();gvDel('model:'+id);
+    if(backend===id)backend=DEFAULT_BACKEND;
+    modelOpen=false;render();showToast('Model removed');
+  });
+  document.getElementById('addModel')?.addEventListener('click',e=>{e.stopPropagation();modelOpen=false;openAddModel()});
   const pb=document.getElementById('plusBtn');
   if(pb)pb.onclick=e=>{e.stopPropagation();plusOpen=!plusOpen;modelOpen=profileOpen=moreOpen=false;render()};
   document.getElementById('attachItem')?.addEventListener('click',e=>{e.stopPropagation();plusOpen=false;render();document.getElementById('fileInput').click()});
@@ -860,6 +969,53 @@ function openCredPicker(){
 function openAddCred(){
   modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Add credential</h3><p>Saved to macOS Keychain. Never shown again in the chat.</p><form id="credForm"><label>Name (the model sees this)</label><input id="ck" placeholder="e.g. email_login" required/><label>Secret value</label><input id="cv" type="password" placeholder="password / token" required/><div class="modal-actions"><button type="button" class="btn" id="mc">Cancel</button><button class="btn primary" type="submit">Save to Keychain</button></div></form></div></div>`;render();
 }
+function openAddModel(){
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Add a model</h3>
+    <p>Saved on this device only. On-device models run entirely here; a cloud model uses your own provider and key.</p>
+    <label>Type</label>
+    <select id="cmType" style="width:100%;box-sizing:border-box">
+      <option value="device">On-device model (private, no key)</option>
+      <option value="cloud">Cloud provider (your own API key)</option>
+    </select>
+    <label>Display name</label><input id="cmName" placeholder="e.g. Tiny Llama / My Groq" style="width:100%;box-sizing:border-box"/>
+    <div id="cmDeviceFields">
+      <label>Hugging Face model ID</label>
+      <input id="cmModel" value="${DEFAULT_DEVICE_MODEL}" style="width:100%;box-sizing:border-box"/>
+      <p style="margin-top:6px;font-size:11.5px">Any ONNX text-generation model with a WebGPU/WASM build works. Bigger models need more memory.</p>
+    </div>
+    <div id="cmCloudFields" style="display:none">
+      <label>Endpoint (OpenAI-compatible /v1/chat/completions)</label>
+      <input id="cmEndpoint" placeholder="https://api.example.com/v1/chat/completions" style="width:100%;box-sizing:border-box"/>
+      <label>Model ID</label><input id="cmCloudModel" placeholder="model-name" style="width:100%;box-sizing:border-box"/>
+      <label>API key (optional)</label><input id="cmKey" type="password" placeholder="stored encrypted on this device" style="width:100%;box-sizing:border-box"/>
+      <p style="margin-top:6px;font-size:11.5px">The endpoint must allow browser requests (CORS). Your key is never sent anywhere except that endpoint, and never shown to a model.</p>
+    </div>
+    <div class="modal-actions"><button class="btn" id="mc">Cancel</button><button class="btn primary" id="cmSave">Add model</button></div>
+  </div></div>`;
+  render();
+  const t=document.getElementById('cmType');
+  t.onchange=()=>{
+    document.getElementById('cmDeviceFields').style.display=t.value==='device'?'':'none';
+    document.getElementById('cmCloudFields').style.display=t.value==='cloud'?'':'none';
+  };
+  document.getElementById('cmSave').onclick=async()=>{
+    const type=t.value,name=document.getElementById('cmName').value.trim();
+    if(!name){showToast('Give the model a name');return}
+    const m={id:'cm_'+Math.random().toString(36).slice(2,10),name,type};
+    if(type==='device'){
+      m.model=document.getElementById('cmModel').value.trim()||DEFAULT_DEVICE_MODEL;
+    }else{
+      m.endpoint=document.getElementById('cmEndpoint').value.trim();
+      m.model=document.getElementById('cmCloudModel').value.trim();
+      if(!m.endpoint||!m.model){showToast('Endpoint and model ID are required');return}
+      const key=document.getElementById('cmKey').value;
+      if(key){if(!gvKey)await gvInit();await gvSet('model:'+m.id,key)}
+    }
+    customModels.push(m);saveCustomModels();
+    backend=m.id;localStorage.setItem('oracle.backend',m.id);
+    modal=null;render();showToast('Added: '+m.name);
+  };
+}
 function openSkillModal(){
   modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Teach a Skill</h3><p>Adds an instruction the model sees on every message.</p><form id="skillForm"><label>Skill name</label><input id="sk" placeholder="e.g. Be concise" required/><label>Instructions</label><textarea id="sd" rows="3" placeholder="What should it do?"></textarea><div class="modal-actions"><button type="button" class="btn" id="mc">Cancel</button><button class="btn primary" type="submit">Save skill</button></div></form></div></div>`;render();
 }
@@ -1036,31 +1192,41 @@ async function sendMessage(e){
   c.messages.push({from:'user',text:text+extra});c.preview=(text||'file')+'…';
   draft='';files=[];waiting=true;if(callActive)setCallState('thinking');render();
   let replyText='',delegated=false;
+  const cm=customModels.find(m=>m.id===backend);
   try{
-    if(backend==='device'){
-      const dmsgs=c.messages.map(m=>({from:m.from,text:m.text}));
-      if(credSelected.length)dmsgs.push({from:'user',text:'[Saved credentials available by name only: '+credSelected.join(', ')+'. Never ask for their values.]'});
-      const answer=await deviceChat(dmsgs);
-      c.messages.push({from:'bot',text:answer,note:'on-device · private'});
+    const msgs=c.messages.map(m=>({from:m.from,text:m.text}));
+    if(credSelected.length)msgs.push({from:'user',text:'[Saved credentials available by name only: '+credSelected.join(', ')+'. Never ask for their values.]'});
+    if(backend==='device'||(cm&&cm.type==='device')){
+      const answer=await deviceChat(msgs,cm?.model);
+      c.messages.push({from:'bot',text:answer,note:(cm?cm.name:'On-device')+' · private'});
+      c.preview=answer.slice(0,40);replyText=answer;
+    }else if(cm&&cm.type==='cloud'){
+      const answer=await customCloudChat(cm,msgs);
+      c.messages.push({from:'bot',text:answer,note:cm.name+' · your provider'});
       c.preview=answer.slice(0,40);replyText=answer;
     }else{
-    const r=await api('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:c.messages.map(m=>({from:m.from,text:m.text})),backend,credentials:credSelected})});
-    if(r.tool){
-      const m={from:'bot',text:r.answer||'',note:noteOf(r),tool:r.tool,toolSummary:r.toolSummary,
-               needsApproval:r.needsApproval,toolState:r.needsApproval?'pending':'working'};
-      c.messages.push(m);replyText=r.answer||'';
-      render();
-      if(!r.needsApproval){delegated=true;await toolAction(c.messages.indexOf(m),true)}
-    }else{
-      c.messages.push({from:'bot',text:r.answer||'(no answer)',note:noteOf(r)});
-      c.preview=(r.answer||'').slice(0,40);replyText=r.answer||'';
+      const r=await api('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:msgs,backend,credentials:credSelected})});
+      if(r.tool){
+        const m={from:'bot',text:r.answer||'',note:noteOf(r),tool:r.tool,toolSummary:r.toolSummary,
+                 needsApproval:r.needsApproval,toolState:r.needsApproval?'pending':'working'};
+        c.messages.push(m);replyText=r.answer||'';
+        render();
+        if(!r.needsApproval){delegated=true;await toolAction(c.messages.indexOf(m),true)}
+      }else{
+        c.messages.push({from:'bot',text:r.answer||'(no answer)',note:noteOf(r)});
+        c.preview=(r.answer||'').slice(0,40);replyText=r.answer||'';
+      }
     }
-    }
-  }catch(err){c.messages.push({from:'bot',text:(backend==='device'?'On-device model error: ':'Bridge error: ')+err.message,note:backend==='device'?'Try switching to Local':'Start the bridge from the Desktop launcher.'});replyText=''}
+  }catch(err){
+    const own=backend==='device'||!!cm;
+    c.messages.push({from:'bot',text:(own?'Model error: ':'Bridge error: ')+err.message,
+      note:own?(cm?.type==='cloud'?'Check the endpoint and key':'Try another model'):'Start the bridge from the Desktop launcher.'});
+    replyText='';
+  }
   if(!delegated){const last=c.messages.at(-1)?.text||replyText;afterReply(last)}
 }
 (async()=>{
-  if(staticMode)await gvInit();
+  await gvInit();
   if(guestMode&&!staticMode){
     try{guestInfo=await api('/api/share/open')}catch(err){showToast('This share link is not valid.');guestInfo=null}
     if(!guestInfo){showToast('This share link is not valid.');guestInfo=null}
