@@ -1334,6 +1334,9 @@ async function sendMessage(e){
   // survives the reload and can be retried instead of vanishing.
   saveState();
   draft='';files=[];waiting=true;if(callActive)setCallState('thinking');render();
+  // render() rebuilds the input; refocus it so the phone keyboard stays open
+  // instead of looking like the page jumped or reset.
+  if(!callActive){const el=document.getElementById('draft');if(el){try{el.focus({preventScroll:true})}catch(e){}}}
   let replyText='',delegated=false;
   const cm=customModels.find(m=>m.id===backend);
   try{
