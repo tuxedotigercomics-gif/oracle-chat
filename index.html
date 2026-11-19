@@ -1,0 +1,1073 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Oracle · Chat (Live)</title>
+<style>
+  :root{
+    --sidebar-bg:#f5f5f5; --sidebar-active:#e4e4e4; --sidebar-hover:#ececec;
+    --main-bg:#f0f0f0; --surface:#fff; --border:#e2e2e2;
+    --text:#1f1f1f; --muted:#6b6b6b; --accent:#4a9861; --danger:#c0392b;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--main-bg);-webkit-font-smoothing:antialiased}
+  button,input,textarea{font:inherit;color:inherit}
+  .app{display:flex;height:100vh;width:100%;overflow:hidden}
+
+  .sidebar{width:20%;min-width:230px;max-width:320px;background:var(--sidebar-bg);border-right:1px solid var(--border);display:flex;flex-direction:column}
+  .sidebar-top{display:flex;align-items:center;justify-content:space-between;padding:14px 14px 10px}
+  .workspace{display:flex;align-items:baseline;gap:4px;min-width:0}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);align-self:center;margin-right:2px}
+  .workspace-name{font-weight:650;font-size:15px}
+  .workspace-sub{color:var(--muted);font-size:13px}
+  .icon-btn{background:transparent;border:none;border-radius:8px;padding:6px;cursor:pointer;color:var(--muted);display:inline-flex;align-items:center;justify-content:center}
+  .icon-btn:hover{background:var(--sidebar-hover);color:var(--text)}
+  .icon-btn.active{background:#e7f4ea;color:#2f7d47}
+  .icon-btn.listening{background:#fdecec;color:#c0392b;animation:agent-wave .6s ease-in-out infinite alternate}
+  .icon-btn.calling{background:#fdecec;color:#c0392b;animation:agent-wave .6s ease-in-out infinite alternate}
+  .call-bar{display:flex;align-items:center;gap:8px;padding:7px 14px;background:#eef6f0;border-top:1px solid var(--border);font-size:12px;color:#2f7d47;font-weight:600}
+  .call-dot{width:9px;height:9px;border-radius:50%;background:#2f7d47;animation:agent-wave .6s ease-in-out infinite alternate}
+  .call-bar.thinking{background:#fff8e8;color:#9a6b00}.call-bar.thinking .call-dot{background:#e0a500}
+  .call-bar.speaking{background:#eef0ff;color:#4a4ab0}.call-bar.speaking .call-dot{background:#5a5ad0}
+  .call-bar button{margin-left:auto;border:0;background:#c0392b;color:#fff;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer}
+  .section-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:8px 14px 4px;font-weight:700;display:flex;align-items:center;justify-content:space-between}
+  .mini-add{background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:15px;line-height:1;border-radius:6px;padding:2px 5px}
+  .mini-add:hover{background:var(--sidebar-hover);color:var(--text)}
+  .view-tabs{gap:5px;align-items:center;padding-right:10px}
+  .view-tabs>button[data-list-view]{background:transparent;border:none;border-radius:7px;padding:3px 7px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);cursor:pointer}
+  .view-tabs>button[data-list-view]:hover{background:var(--sidebar-hover)}
+  .view-tabs>button[data-list-view].active{background:var(--sidebar-active);color:var(--text)}
+  .view-tabs .mini-add{margin-left:auto}
+  .drop-chips{display:flex;flex-wrap:wrap;gap:5px;padding:5px 10px 8px}
+  .drop-chip{background:#fff;border:1px dashed #bbb;border-radius:12px;padding:3px 9px;font-size:11px;color:var(--muted);cursor:pointer}
+  .drop-chip:hover{border-color:var(--accent);color:var(--text)}
+  .drop-chip.drag-over{background:#e7f4ea;border-color:var(--accent);color:#2f7d47}
+  .folder-head.drag-over{outline:2px dashed var(--accent);background:#e7f4ea}
+  .conv-wrap.dragging{opacity:.45}
+  .nav-item{display:flex;align-items:center;gap:9px;width:calc(100% - 16px);margin:0 8px 2px;text-align:left;background:transparent;border:none;border-radius:9px;padding:8px 10px;font-size:13.5px;cursor:pointer}
+  .nav-item:hover{background:var(--sidebar-hover)}
+  .nav-item.active{background:var(--sidebar-active)}
+  .folder-list{flex:1;overflow-y:auto;padding:4px 8px}
+  .folder-head{display:flex;align-items:center;border-radius:9px}
+  .folder-head:hover{background:var(--sidebar-hover)}
+  .folder-head.current{background:var(--sidebar-active)}
+  .folder-row{display:flex;align-items:center;gap:6px;flex:1;min-width:0;text-align:left;background:transparent;border:none;border-radius:9px;padding:7px 2px 7px 7px;font-size:13.5px;font-weight:650;cursor:pointer;color:var(--text)}
+  .folder-caret{width:12px;color:var(--muted);font-size:11px}
+  .folder-glyph{font-size:13px}
+  .folder-name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .folder-count{font-size:11px;color:var(--muted);font-weight:500}
+  .row-action{background:transparent;border:none;color:var(--muted);cursor:pointer;border-radius:6px;padding:2px 5px;font-size:13px;line-height:1}
+  .row-action:hover{background:#ddd;color:var(--text)}
+  .folder-chats{padding:1px 0 5px 18px}
+  .conv-list{flex:1;overflow-y:auto;padding:4px 8px}
+  .conv-wrap{display:flex;align-items:center;border-radius:10px}
+  .conv-wrap:hover{background:var(--sidebar-hover)}
+  .conv-wrap.active{background:var(--sidebar-active);box-shadow:inset 3px 0 var(--hero,var(--accent))}
+  .conv{display:flex;align-items:center;gap:8px;flex:1;min-width:0;text-align:left;background:transparent;border:none;border-radius:10px;padding:7px 3px 7px 8px;margin-bottom:2px;cursor:pointer}
+  .conv:hover{background:var(--sidebar-hover)}
+  .conv.active{background:var(--sidebar-active)}
+  .conv-body{display:flex;flex-direction:column;align-items:flex-start;min-width:0;flex:1}
+  .conv-name{font-size:13.5px;font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .conv-preview{font-size:12.5px;color:var(--muted);line-height:1.3;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .empty-folder{font-size:12px;color:var(--muted);padding:5px 10px 7px}
+  .new-in-folder{background:transparent;border:none;color:var(--muted);font-size:11.5px;cursor:pointer;padding:4px 10px 6px;border-radius:8px}
+  .new-in-folder:hover{background:var(--sidebar-hover);color:var(--text)}
+  .agent-avatar{position:relative;width:26px;height:26px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:#e8e8e8;border:1px solid var(--hero,var(--border));border-radius:7px}
+  .agent-avatar svg{width:24px;height:24px}
+  .agent-avatar.walking{animation:agent-walk 1.1s ease-in-out infinite}
+  .agent-avatar.asking::after{content:"";position:absolute;right:-3px;top:-4px;width:6px;height:10px;background:#ffd166;border:1px solid #8a6d1f;transform-origin:bottom center;animation:agent-wave .7s ease-in-out infinite alternate}
+  @keyframes agent-walk{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-3px) rotate(2deg)}}
+  @keyframes agent-wave{from{transform:rotate(-18deg)}to{transform:rotate(18deg)}}
+  .profile{display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;border:none;border-top:1px solid var(--border);background:transparent;text-align:left;cursor:pointer;font:inherit;color:inherit}
+  .profile:hover,.profile.open{background:var(--sidebar-hover)}
+  .avatar{width:32px;height:32px;border-radius:50%;background:#d8d8d8;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+  .profile-info{display:flex;flex-direction:column;min-width:0}
+  .profile-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .profile-sub{font-size:11.5px;color:var(--muted)}
+  .profile-caret{margin-left:auto;color:var(--muted);font-size:14px;line-height:1}
+  .dropdown.profile-menu{bottom:60px;left:8px;min-width:220px}
+
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--main-bg)}
+  .chat-header{height:56px;flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px;position:relative;z-index:30}
+  .chat-title-name{font-size:15px;font-weight:650}
+  .header-actions{display:flex;align-items:center;gap:8px}
+  .model-pill{display:inline-flex;align-items:center;gap:6px;background:#f6f6f6;border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12.5px;cursor:pointer}
+  .model-pill:hover{background:#efefef}
+  .model-pill .caret{color:var(--muted);font-size:10px}
+  .share-btn{display:inline-flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer}
+  .share-btn:hover{background:var(--main-bg)}
+  .status-dot{font-size:11px;padding:3px 7px;border-radius:8px;background:#e6f2e9;color:#2f7d47}
+  .status-dot.off{background:#f3e6e6;color:#a33}
+  .messages{flex:1;overflow-y:auto;padding:24px 20px}
+  .messages-inner{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+  .row{display:flex}
+  .row.user{justify-content:flex-start}
+  .row.bot{justify-content:flex-end}
+  .bubble{max-width:78%;padding:11px 15px;border-radius:16px;font-size:14px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+  .bubble.user{background:transparent;padding-left:0}
+  .bubble.bot{background:var(--hero,var(--accent));color:#fff;border-bottom-right-radius:4px}
+  .meta{font-size:11px;color:var(--muted);margin-top:5px;font-style:italic}
+  .status{font-size:12.5px;color:var(--muted);font-style:italic;align-self:flex-start;padding-left:2px}
+  .composer-wrap{flex-shrink:0;width:calc(100% - 40px);max-width:760px;margin:0 auto 18px}
+  .attach-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:#e8e8e8;border-radius:8px;padding:4px 8px;font-size:12px}
+  .chip button{background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;line-height:1;padding:0}
+  .composer{background:var(--surface);border:1px solid var(--border);border-radius:14px;display:flex;align-items:center;gap:8px;padding:8px 10px;box-shadow:0 2px 10px rgba(0,0,0,.04);position:relative}
+  .composer-plus{background:transparent;border:none;border-radius:8px;padding:6px;cursor:pointer;color:var(--muted);display:flex}
+  .composer-plus:hover,.composer-plus.open{background:var(--main-bg);color:var(--text)}
+  .composer input{flex:1;border:none;outline:none;background:transparent;font-size:14px;padding:6px 4px}
+  .composer input::placeholder{color:#9a9a9a}
+  .composer-send{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:7px 9px;cursor:pointer;display:flex}
+  .composer-send:disabled{background:#cfcfcf;cursor:default}
+
+  .backdrop{position:fixed;inset:0;z-index:40}
+  .dropdown{position:absolute;z-index:50;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.14);padding:6px;min-width:190px}
+  .dropdown.model{top:48px;right:20px}
+  .dropdown.more{top:48px;right:88px;min-width:215px}
+  .dropdown.plus{bottom:54px;left:10px}
+  .menu-item{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:none;border-radius:8px;padding:9px 10px;font-size:13.5px;cursor:pointer}
+  .menu-item:hover{background:var(--main-bg)}
+  .menu-item .mi-sub{display:block;font-size:11.5px;color:var(--muted);margin-top:1px}
+  .menu-sep{height:1px;background:var(--border);margin:5px 4px}
+  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:60}
+  .modal{background:#fff;border-radius:16px;padding:22px;width:min(440px,92vw);max-height:86vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.2)}
+  .modal h3{margin:0 0 4px;font-size:17px}
+  .modal p{margin:0 0 14px;font-size:13px;color:var(--muted)}
+  .modal label{display:block;font-size:12.5px;font-weight:600;margin:12px 0 5px}
+  .modal input,.modal textarea{width:100%;border:1px solid var(--border);border-radius:8px;padding:9px 10px;font-size:13.5px;outline:none;resize:vertical}
+  .modal input:focus,.modal textarea:focus{border-color:var(--accent)}
+  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+  .btn{border:1px solid var(--border);background:#fff;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.danger{background:var(--danger);color:#fff;border-color:var(--danger)}
+  .vault-row{display:flex;align-items:center;justify-content:space-between;background:var(--main-bg);border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:13px}
+  .vault-row code{font-size:12px;color:var(--muted)}
+  .tool-card{margin-top:9px;border:1px solid var(--border);border-radius:10px;background:#fff;padding:9px 10px;max-width:420px}
+  .tool-title{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#2f7d47}
+  .tool-preview{margin:7px 0 0;max-height:110px;overflow:auto;background:var(--main-bg);border-radius:6px;padding:6px 8px;font-size:11px;white-space:pre-wrap;word-break:break-word;color:#444}
+  .tool-actions{display:flex;gap:8px;margin-top:9px}
+  .tool-actions .btn{padding:5px 10px;font-size:12px}
+  .hero-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;max-height:220px;overflow:auto;margin-top:8px}
+  .hero-choice{display:flex;flex-direction:column;align-items:center;gap:3px;background:#fff;border:1px solid var(--border);border-radius:10px;padding:6px 2px;cursor:pointer;font-size:10px;color:var(--muted)}
+  .hero-choice:hover{background:var(--main-bg)}
+  .hero-choice.selected{border-color:var(--accent);background:#eef7f0;color:var(--text);font-weight:600}
+  .hero-choice .agent-avatar{width:30px;height:30px}
+  .hero-choice .agent-avatar svg{width:28px;height:28px}
+  .share-text{width:100%;height:180px;font-family:ui-monospace,Menlo,monospace;font-size:11px}
+  .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:80;box-shadow:0 6px 20px rgba(0,0,0,.25);max-width:80vw}
+  svg{flex-shrink:0}
+  @media(max-width:640px){.sidebar{display:none}.messages{padding:16px 12px}.composer-wrap{width:calc(100% - 24px)}}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<script>
+const ICONS={
+  search:'<circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/>',
+  edit:'<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  share:'<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.5" x2="15.4" y2="6.5"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/>',
+  more:'<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
+  plus:'<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  arrow:'<line x1="22" y1="12" x2="4" y2="12"/><polyline points="10 6 4 12 10 18"/>',
+  file:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><polyline points="14 2 14 8 20 8"/>',
+  spark:'<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8Z"/>',
+  lock:'<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+  chat:'<path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/>',
+  mic:'<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/>',
+  volume:'<path d="M11 5 6 9H3v6h3l5 4Z"/><path d="M15 9a4 4 0 0 1 0 6M18 6a8 8 0 0 1 0 12"/>',
+  phone:'<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.9a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.9.3 1.9.6 2.9.7a2 2 0 0 1 1.7 2Z"/>',
+};
+function icon(n,s=18){return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${ICONS[n]}</svg>`}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+
+const SPRITES={
+  mask:[".HHHHHH.","HHHHHHHH","HAFFFFAH","HAFEEFAH","HAFFFFAH","HAFSSFAH",".HASSAH.","..HHHH.."],
+  hair:["..HHHH..",".HHHHHH.","HHFFFFHH","HFEFFEFH","HFFFFFFH",".HFAFAH.","..FFFF..","..SSSS.."],
+  helmet:["..AAAA..",".AHHHHA.","AHHEEHHA","AFFFFFFA","AFFSSFFA",".AFSSFA.","..FFFF..","..SSSS.."],
+  horns:["A......A","AA....AA",".AHHHHA.",".HFEEFH.",".HFFFFH.","..FAAF..","..FFFF..","..SSSS.."],
+  visor:["..HHHH..",".HHHHHH.","HHAAAAHH","HAEEEEAH","HFFFFFFH",".HFAFAH.","..FFFF..","..SSSS.."],
+  cape:["..HHHH..",".HHHHHH.",".HFFFFH.","AFEEEEFA","FFFFFFFF",".FAFFAF.","AAFFFFAA","SSSSSSSS"],
+  armor:["..AAAA..",".AHHHHA.","AHHEEHHA","AFFFFFFA","AFFSSFFA","AFFSSFFA",".AFFFFA.","..AAAA.."],
+};
+const HEROES=[
+  {id:'ironman',name:'Iron Man',sprite:'armor',c:{H:'#b3261e',F:'#e2b48c',E:'#ffffff',A:'#d9a21b',S:'#b3261e'}},
+  {id:'captainamerica',name:'Captain America',sprite:'mask',c:{H:'#2456a8',F:'#e8bd98',E:'#2456a8',A:'#c0392b',S:'#f2f2f2'}},
+  {id:'thor',name:'Thor',sprite:'cape',c:{H:'#e6c34a',F:'#e8bd98',E:'#4d90d4',A:'#b9c2cc',S:'#b3261e'}},
+  {id:'hulk',name:'Hulk',sprite:'hair',c:{H:'#2f6b32',F:'#4c9a4f',E:'#111111',A:'#2f6b32',S:'#6b3d83'}},
+  {id:'blackwidow',name:'Black Widow',sprite:'mask',c:{H:'#a33b2b',F:'#e8bd98',E:'#ffffff',A:'#222222',S:'#222222'}},
+  {id:'hawkeye',name:'Hawkeye',sprite:'mask',c:{H:'#6a3f9e',F:'#e8bd98',E:'#ffffff',A:'#4b2e75',S:'#6a3f9e'}},
+  {id:'spiderman',name:'Spider-Man',sprite:'mask',c:{H:'#c0392b',F:'#2456a8',E:'#ffffff',A:'#2456a8',S:'#c0392b'}},
+  {id:'wolverine',name:'Wolverine',sprite:'mask',c:{H:'#d4a017',F:'#e8bd98',E:'#111111',A:'#222222',S:'#d4a017'}},
+  {id:'storm',name:'Storm',sprite:'hair',c:{H:'#f2f2f2',F:'#a9785b',E:'#5aa9e6',A:'#5aa9e6',S:'#333b4d'}},
+  {id:'cyclops',name:'Cyclops',sprite:'visor',c:{H:'#3a2a1c',F:'#e8bd98',E:'#e03a3a',A:'#e03a3a',S:'#2456a8'}},
+  {id:'jeangrey',name:'Jean Grey',sprite:'hair',c:{H:'#b5471f',F:'#e8bd98',E:'#2f7d47',A:'#d9a21b',S:'#b5471f'}},
+  {id:'rogue',name:'Rogue',sprite:'hair',c:{H:'#5a3a24',F:'#e8bd98',E:'#2b8a5a',A:'#f2f2f2',S:'#2b8a5a'}},
+  {id:'gambit',name:'Gambit',sprite:'hair',c:{H:'#6b4423',F:'#e8bd98',E:'#4d4d4d',A:'#8b1e1e',S:'#4a3b32'}},
+  {id:'deadpool',name:'Deadpool',sprite:'mask',c:{H:'#c0392b',F:'#c0392b',E:'#111111',A:'#222222',S:'#c0392b'}},
+  {id:'daredevil',name:'Daredevil',sprite:'horns',c:{H:'#222222',F:'#c0392b',E:'#111111',A:'#c0392b',S:'#c0392b'}},
+  {id:'blackpanther',name:'Black Panther',sprite:'mask',c:{H:'#111111',F:'#222222',E:'#7c4dff',A:'#7c4dff',S:'#111111'}},
+  {id:'doctorstrange',name:'Doctor Strange',sprite:'cape',c:{H:'#2b2118',F:'#e8bd98',E:'#111111',A:'#d9a21b',S:'#b3261e'}},
+  {id:'scarletwitch',name:'Scarlet Witch',sprite:'hair',c:{H:'#a8272d',F:'#e8bd98',E:'#e03a3a',A:'#e03a3a',S:'#a8272d'}},
+  {id:'vision',name:'Vision',sprite:'armor',c:{H:'#c0392b',F:'#d9a21b',E:'#2f9e6e',A:'#d9a21b',S:'#c0392b'}},
+  {id:'loki',name:'Loki',sprite:'horns',c:{H:'#2f6b32',F:'#e8bd98',E:'#4d8f3a',A:'#d9a21b',S:'#2f6b32'}},
+];
+const HERO_COLORS={ironman:'#b3261e',captainamerica:'#2456a8',thor:'#b3261e',hulk:'#4c9a4f',blackwidow:'#222222',hawkeye:'#6a3f9e',spiderman:'#c0392b',wolverine:'#b8860b',storm:'#3c7fb1',cyclops:'#c0392b',jeangrey:'#b5471f',rogue:'#2b8a5a',gambit:'#8b1e1e',deadpool:'#c0392b',daredevil:'#c0392b',blackpanther:'#6c4acb',doctorstrange:'#b3261e',scarletwitch:'#a8272d',vision:'#2f9e6e',loki:'#2f6b32'};
+function heroColor(id){return HERO_COLORS[id]||'#4a9861'}
+function hero(id){return HEROES.find(h=>h.id===id)||HEROES[0]}
+function heroAvatar(id,state=''){
+  const h=hero(id), rows=SPRITES[h.sprite]||SPRITES.mask;
+  const rects=[];
+  rows.forEach((row,y)=>[...row].forEach((ch,x)=>{if(ch!=='.'&&h.c[ch])rects.push(`<rect x="${x}" y="${y}" width="1" height="1" fill="${h.c[ch]}"/>`)}));
+  return `<span class="agent-avatar ${state}" title="${esc(h.name)}"><svg viewBox="0 0 8 8" shape-rendering="crispEdges">${rects.join('')}</svg></span>`;
+}
+
+const PAGES_BASE='https://tuxedotigercomics-gif.github.io/oracle-chat/';
+const staticMode=!['127.0.0.1','localhost','[::1]'].includes(location.hostname);
+const b64enc=s=>btoa(unescape(encodeURIComponent(s))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+const b64dec=s=>decodeURIComponent(escape(atob(String(s).replace(/-/g,'+').replace(/_/g,'/'))));
+const hashParams=new URLSearchParams((location.hash||'').replace(/^#/,''));
+const queryParams=new URLSearchParams(location.search);
+let hashShare=null;
+if(hashParams.get('s')){try{hashShare=JSON.parse(b64dec(hashParams.get('s')))}catch(e){}}
+const shareToken=queryParams.get('share')||(hashShare&&hashShare.id)||hashParams.get('s')||'';
+const guestMode=!!shareToken;
+const stateKey=guestMode?'oracle.guest.'+shareToken:'oracle.state';
+let guestInfo=hashShare?{mode:hashShare.chat?'chat':hashShare.folder?'folder':'own',sharedChat:hashShare.chat||null,sharedFolder:hashShare.folder||null}:null;
+function staticShareLink(payload){
+  payload.id=payload.id||('g'+Math.random().toString(36).slice(2,10));
+  return PAGES_BASE+'#s='+b64enc(JSON.stringify(payload));
+}
+let activeId='main', activeFolder='general';
+let convs=[
+  {id:'main',name:'Oracle',preview:'Ask me anything…',hero:'ironman',folder:'general',messages:[]},
+  {id:'assistant',name:'Icona Live Assistant',preview:'Saved notes',hero:'vision',folder:'general',messages:[{from:'bot',text:'I am ready. Ask me anything.'}]},
+];
+let folders=[{id:'general',name:'Oracle',open:true}];
+if(guestMode){
+  convs=[{id:'main',name:'My Oracle',preview:'Ask me anything…',hero:'ironman',folder:'general',messages:[]}];
+  folders=[{id:'general',name:'My Chats',open:true}];
+}
+try{
+  const saved=JSON.parse(localStorage.getItem(stateKey)||'null');
+  if(saved&&Array.isArray(saved.convs)&&Array.isArray(saved.folders)&&saved.convs.length&&saved.folders.length){
+    folders=saved.folders;
+    convs=saved.convs.map(c=>({hero:'ironman',folder:folders[0].id,...c}));
+    if(saved.activeId&&convs.some(c=>c.id===saved.activeId))activeId=saved.activeId;
+  }
+}catch(e){}
+function saveState(){localStorage.setItem(stateKey,JSON.stringify({convs,folders,activeId}))}
+const startConv=()=>convs.find(c=>c.id===activeId)||convs[0];
+activeFolder=startConv()?.folder||folders[0]?.id||'general';
+const MODELS=[
+  {id:'local',name:'Qwen 2.5 3B (local)',sub:'working now — offline'},
+  {id:'auto',name:'Cloud → Local',sub:'try Big Pickle, fall back'},
+  {id:'cloud',name:'Big Pickle (cloud)',sub:'free OpenCode — quota resetting'},
+  ...((guestMode||staticMode)?[{id:'device',name:'This device (private)',sub:'runs on this device — no Mac needed'}]:[]),
+];
+if(staticMode)MODELS.splice(0,3);
+
+// Default to the local model so chat works immediately while cloud quota resets.
+let view='chat', listView=localStorage.getItem('oracle.listView')||'folders', backend=(guestMode||staticMode)?'device':'local', draft='', waiting=false;
+let devicePipe=null, deviceLoading=null, deviceStatus='';
+let plusOpen=false, modelOpen=false, profileOpen=false, moreOpen=false, modal=null, toastTimer=null;
+let files=[], credSelected=[], vaultKeys=[], status={}, memoryData={memories:[],notes:[]};
+let voiceReplies=localStorage.getItem('oracle.voiceReplies')==='1', listening=false, recognition=null;
+let callActive=false, callState='idle', finalTranscript='', speechGen=0;
+let displayName=guestMode?(localStorage.getItem('oracle.guest.name.'+shareToken)||'Family Guest'):(localStorage.getItem('oracle.displayName')||'Michael Lynch');
+
+function active(){return convs.find(c=>c.id===activeId)||convs[0]}
+function initials(n){return n.trim().split(/\s+/).slice(0,2).map(w=>w[0]||'').join('').toUpperCase()||'?'}
+function showToast(m){const h=document.getElementById('app');document.getElementById('toast')?.remove();h.insertAdjacentHTML('beforeend',`<div class="toast" id="toast">${esc(m)}</div>`);clearTimeout(toastTimer);toastTimer=setTimeout(()=>document.getElementById('toast')?.remove(),2600)}
+async function api(path,opts){
+  if(shareToken&&path.startsWith('/api/')&&!path.includes('token='))path+=(path.includes('?')?'&':'?')+'token='+encodeURIComponent(shareToken);
+  const r=await fetch(path,opts);return r.json();
+}
+
+// Guest/device vault: secrets stay encrypted in this device's browser, never sent to a model.
+let gvKey=null, gvCache={};
+const vaultId=shareToken||'self';
+const gvB64=b=>btoa(String.fromCharCode(...new Uint8Array(b)));
+const gvUnb64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+async function gvInit(){
+  if(!staticMode||!('crypto' in window&&crypto.subtle))return;
+  const kk='oracle.guest.vaultkey.'+vaultId;
+  let raw=localStorage.getItem(kk);
+  if(raw)gvKey=await crypto.subtle.importKey('raw',gvUnb64(raw),'AES-GCM',false,['encrypt','decrypt']);
+  else{const r=crypto.getRandomValues(new Uint8Array(32));gvKey=await crypto.subtle.importKey('raw',r,'AES-GCM',false,['encrypt','decrypt']);localStorage.setItem(kk,gvB64(r))}
+  const v=localStorage.getItem('oracle.guest.vault.'+vaultId);
+  if(v){try{gvCache=JSON.parse(v)}catch(e){gvCache={}}}
+}
+async function gvSet(name,value){
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  const buf=await crypto.subtle.encrypt({name:'AES-GCM',iv},gvKey,new TextEncoder().encode(value));
+  gvCache[name.trim()]={iv:gvB64(iv),data:gvB64(buf)};
+  localStorage.setItem('oracle.guest.vault.'+vaultId,JSON.stringify(gvCache));
+}
+function gvNames(){return Object.keys(gvCache)}
+function gvDel(name){delete gvCache[name];localStorage.setItem('oracle.guest.vault.'+vaultId,JSON.stringify(gvCache))}
+function guestFill(text){return String(text).replace(/\[\[USE:([^|\]]+)\|([^\]]+)\]\]/g,(m,n)=>`[credential '${n}' — value stayed on this device]`)}
+
+async function loadDeviceModel(){
+  if(devicePipe)return devicePipe;
+  if(deviceLoading)return deviceLoading;
+  deviceStatus='Loading on-device model… (first time only)';render();
+  deviceLoading=(async()=>{
+    try{
+      const mod=await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.5');
+      const opts={dtype:'q4'};
+      try{devicePipe=await mod.pipeline('text-generation','onnx-community/Qwen2.5-0.5B-Instruct',{...opts,device:'webgpu'})}
+      catch(e){deviceStatus='WebGPU unavailable — using CPU (slower)';render();devicePipe=await mod.pipeline('text-generation','onnx-community/Qwen2.5-0.5B-Instruct',{...opts,device:'wasm'})}
+      deviceStatus='';render();return devicePipe;
+    }catch(err){deviceStatus='';throw err}
+    finally{deviceLoading=null}
+  })();
+  return deviceLoading;
+}
+async function deviceChat(messages){
+  const gen=await loadDeviceModel();
+  const prompt=messages.map(m=>(m.from==='user'?'User':'Assistant')+': '+m.text).join('\n')+'\nAssistant:';
+  const out=await gen(prompt,{max_new_tokens:200,do_sample:false});
+  return guestFill(String(out?.[0]?.generated_text||'').replace(prompt,'').trim()||'(no answer)');
+}
+async function refresh(){
+  if(staticMode){status={local:{ok:true},tools:{mode:'device'},vault:{ok:false}};render();return}
+  try{
+    status=await api('/api/status');
+    if(!guestMode)vaultKeys=(await api('/api/vault/list')).keys||[];
+    render();
+  }catch(e){ showToast('Bridge not reachable — start it from the Desktop folder.'); }
+}
+async function loadMemory(){try{memoryData=await api('/api/memory')}catch(e){memoryData={memories:[],notes:[]}}}
+
+function convRow(x,pendingTool){
+  const state=x.id===activeId?(pendingTool?'asking':waiting?'walking':''):'';
+  return `<div class="conv-wrap ${x.id===activeId&&view==='chat'?'active':''}" draggable="true" data-drag-chat="${x.id}" style="--hero:${heroColor(x.hero)}">
+    <button class="conv" data-id="${x.id}">${heroAvatar(x.hero,state)}<span class="conv-body"><span class="conv-name">${esc(x.name)}</span><span class="conv-preview">${esc(x.preview)}</span></span></button>
+    <button class="row-action" data-conv-menu="${x.id}" title="Chat options">⋯</button>
+  </div>`;
+}
+
+function voiceName(){
+  const vs=('speechSynthesis' in window)?window.speechSynthesis.getVoices():[];
+  const wanted=['jarvis','daniel','oliver','george','google uk english male','microsoft george'];
+  for(const w of wanted){const v=vs.find(v=>v.name.toLowerCase().includes(w));if(v)return v}
+  return vs.find(v=>/^en/i.test(v.lang))||null;
+}
+function cancelSpeech(){speechGen++;if('speechSynthesis' in window)window.speechSynthesis.cancel()}
+function speak(text,onDone){
+  const gen=++speechGen;
+  if(!voiceReplies||!('speechSynthesis' in window)){if(onDone)onDone();return}
+  window.speechSynthesis.cancel();
+  const clean=String(text||'').replace(/\[\[USE:[^\]]+\]\]/g,'').replace(/\s+/g,' ').slice(0,1200);
+  if(!clean.trim()){if(onDone)onDone();return}
+  const u=new SpeechSynthesisUtterance(clean),v=voiceName();
+  if(v)u.voice=v;
+  u.rate=1.0;u.pitch=.8;
+  u.onend=()=>{if(gen===speechGen&&callActive&&onDone)onDone()};
+  u.onerror=()=>{if(gen===speechGen&&callActive&&onDone)onDone()};
+  if(callActive)setCallState('speaking');
+  window.speechSynthesis.speak(u);
+}
+function setCallState(s){callState=s;render()}
+function toggleVoice(){
+  voiceReplies=!voiceReplies;localStorage.setItem('oracle.voiceReplies',voiceReplies?'1':'0');
+  render();if(voiceReplies)speak('Voice mode on.');else cancelSpeech();
+}
+function toggleListen(){
+  if(callActive){toggleCall();return}
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){showToast('Voice typing is not supported in this browser');return}
+  if(listening){recognition?.stop();return}
+  try{
+    recognition=new SR();recognition.lang='en-US';recognition.continuous=false;recognition.interimResults=true;
+    recognition.onstart=()=>{listening=true;render()};
+    recognition.onresult=e=>{let t='';for(let i=0;i<e.results.length;i++)t+=e.results[i][0].transcript;draft=t.trim();render()};
+    recognition.onerror=e=>showToast('Voice error: '+e.error);
+    recognition.onend=()=>{listening=false;render()};
+    recognition.start();
+  }catch(err){showToast('Could not start voice typing: '+err.message)}
+}
+function listenLoop(){
+  if(!callActive)return;
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){showToast('Live voice needs Chrome or Android Chrome');toggleCall();return}
+  finalTranscript='';
+  try{
+    recognition=new SR();recognition.lang='en-US';recognition.continuous=false;recognition.interimResults=true;
+    recognition.onstart=()=>{listening=true;setCallState('listening')};
+    recognition.onresult=e=>{
+      let fin='',inter='';
+      for(let i=e.resultIndex;i<e.results.length;i++){
+        const seg=e.results[i];
+        if(seg.isFinal)fin+=seg[0].transcript+' ';else inter+=seg[0].transcript;
+      }
+      if(fin)finalTranscript+=fin;
+      const shown=(finalTranscript+inter).trim();
+      const inp=document.getElementById('draft');if(inp)inp.value=shown;
+      const send=document.getElementById('send');if(send)send.disabled=!shown;
+      draft=shown;
+    };
+    recognition.onerror=e=>{if(e.error==='no-speech')return;if(e.error!=='aborted')showToast('Voice: '+e.error)};
+    recognition.onend=()=>{
+      listening=false;
+      if(!callActive)return;
+      const t=finalTranscript.trim();
+      if(t){draft=t;sendMessage({preventDefault(){}});return}
+      if(!waiting&&callState!=='speaking')setTimeout(()=>{if(callActive)listenLoop()},300);
+    };
+    recognition.start();
+  }catch(err){showToast('Could not start live voice: '+err.message);toggleCall()}
+}
+function toggleCall(){
+  if(callActive){
+    callActive=false;listening=false;
+    try{recognition?.stop()}catch(e){}
+    recognition=null;cancelSpeech();render();showToast('Voice call ended');return;
+  }
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){showToast('Live voice needs Chrome or Android Chrome');return}
+  callActive=true;voiceReplies=true;localStorage.setItem('oracle.voiceReplies','1');
+  render();showToast('Voice call started — just talk');listenLoop();
+}
+function afterReply(text){
+  waiting=false;credSelected=[];saveState();render();
+  if(!text)return;
+  if(callActive)speak(text,()=>{if(callActive){setCallState('listening');listenLoop()}});
+  else speak(text);
+}
+
+function render(){
+  const c=active();
+  const localOn=status.local?.ok;
+  const toolMode=status.tools?.mode||'auto';
+  const pendingTool=c.messages.some(m=>m.toolState==='pending');
+  const tabs=`<div class="section-label view-tabs">
+    <button data-list-view="chats" class="${listView==='chats'?'active':''}">Chats</button>
+    <button data-list-view="folders" class="${listView==='folders'?'active':''}">Folders</button>
+    <button class="mini-add" id="newFolder" title="New folder">＋</button>
+  </div>`;
+  let list;
+  if(listView==='folders'){
+    list=`<div class="folder-list">${folders.map(f=>{
+      const items=convs.filter(x=>x.folder===f.id);
+      const chats=f.open?`<div class="folder-chats">${items.length?items.map(x=>convRow(x,pendingTool)).join(''):'<div class="empty-folder">No chats in this folder yet.</div>'}
+        <button class="new-in-folder" data-new-in="${f.id}">+ New chat here</button></div>`:'';
+      return `<div class="folder">
+        <div class="folder-head ${f.id===activeFolder?'current':''}" data-drop-folder="${f.id}">
+          <button class="folder-row" data-folder="${f.id}"><span class="folder-caret">${f.open?'▾':'▸'}</span><span class="folder-glyph">${f.open?'📂':'📁'}</span><span class="folder-name">${esc(f.name)}</span><span class="folder-count">${items.length}</span></button>
+          <button class="row-action" data-folder-menu="${f.id}" title="Folder options">⋯</button>
+        </div>${chats}
+      </div>`;
+    }).join('')}</div>`;
+  }else{
+    list=`<div class="drop-chips">${folders.map(f=>`<button class="drop-chip" data-drop-folder="${f.id}">${esc(f.name)}</button>`).join('')}</div>
+    <div class="conv-list">${convs.map(x=>convRow(x,pendingTool)).join('')}
+      <button class="new-in-folder" data-new-in="${activeFolder}">+ New chat here</button>
+    </div>`;
+  }
+  const nav=tabs+list;
+  let mainContent;
+  if(view==='guestvault'){
+    mainContent=`
+      <header class="chat-header"><div class="chat-title-name">My Vault</div><div class="header-actions"><span class="status-dot">encrypted on this device</span><button class="icon-btn" id="gvBack" title="Back to chat">✕</button></div></header>
+      <div class="messages"><div class="messages-inner" style="max-width:620px">
+        <p style="font-size:13px;color:var(--muted)">Secrets are encrypted with a key that stays in this browser. The model only ever sees the <strong>name</strong>, never the value. Nothing is sent to the host Mac.</p>
+        <button class="btn primary" id="gvAdd" style="align-self:flex-start">+ Add credential</button>
+        <div style="margin-top:14px">${gvNames().length?gvNames().map(k=>`<div class="vault-row"><span>${esc(k)}</span><span><code>••••••••</code> <button class="btn danger" data-gvdel="${esc(k)}" style="padding:4px 8px;font-size:11px">Remove</button></span></div>`).join(''):'<p style="color:var(--muted);font-size:13px">No saved credentials yet.</p>'}</div>
+      </div></div>`;
+  } else if(view==='memory'){
+    mainContent=`
+      <header class="chat-header"><div class="chat-title-name">My Memory</div><div class="header-actions"><span class="status-dot">recall enabled</span><button class="icon-btn" id="memoryBack" title="Back to chat">✕</button></div></header>
+      <div class="messages"><div class="messages-inner" style="max-width:620px">
+        <p style="font-size:13px;color:var(--muted)">Notes in <code>oracle-knowledge/</code> and facts saved here are recalled into the local model's prompt when relevant. The model can also save facts itself during chat.</p>
+        <button class="btn primary" id="addMemory" style="align-self:flex-start">+ Add a memory</button>
+        <h4 style="margin:16px 0 6px">Saved facts</h4>
+        <div>${memoryData.memories?.length?memoryData.memories.map(m=>`<div class="vault-row"><span>${esc(m)}</span></div>`).join(''):'<p style="color:var(--muted);font-size:13px">No saved facts yet.</p>'}</div>
+        <h4 style="margin:16px 0 6px">Knowledge notes</h4>
+        <div>${(memoryData.notes||[]).map(n=>`<div class="vault-row"><span>📄 ${esc(n)}</span></div>`).join('')||'<p style="color:var(--muted);font-size:13px">No notes found.</p>'}</div>
+      </div></div>`;
+  } else if(view==='vault'){
+    mainContent=`
+      <header class="chat-header"><div class="chat-title-name">Credential Vault</div><div class="header-actions"><span class="status-dot">macOS Keychain</span><button class="icon-btn" id="vaultBack" title="Back to chat">✕</button></div></header>
+      <div class="messages"><div class="messages-inner" style="max-width:620px">
+        <p style="font-size:13px;color:var(--muted)">Passwords live in your Mac Keychain. The model only sees <strong>names</strong>, never values. To use one, the app fills it in server-side and hides it.</p>
+        <button class="btn primary" id="addCred" style="align-self:flex-start">+ Add credential</button>
+        <div style="margin-top:14px">${vaultKeys.length?vaultKeys.map(k=>`<div class="vault-row"><span>${esc(k)}</span><span><code>••••••••</code> <button class="btn danger" data-del="${esc(k)}" style="padding:4px 8px;font-size:11px">Remove</button></span></div>`).join(''):'<p style="color:var(--muted);font-size:13px">No saved credentials yet.</p>'}</div>
+      </div></div>`;
+  } else {
+    const msgs=c.messages.map((m,i)=>`<div class="row ${m.from}"><div class="bubble ${m.from}">${esc(m.text)}${m.note?`<div class="meta">${esc(m.note)}</div>`:''}${m.tool?`<div class="tool-card ${m.toolState||''}">
+        <div class="tool-title">${icon('spark',14)} ${esc(m.toolSummary||'Tool action')}</div>
+        ${m.tool.preview?`<pre class="tool-preview">${esc(m.tool.preview)}</pre>`:''}
+        ${m.toolResult?`<pre class="tool-preview">${esc(String(m.toolResult.result||m.toolResult.error||'').slice(0,600))}</pre>`:''}
+        ${m.toolState==='pending'?`<div class="tool-actions"><button class="btn primary" data-tool-approve="${i}">Approve</button><button class="btn" data-tool-deny="${i}">Deny</button></div>`:''}
+        ${m.toolState==='working'?'<div class="meta">Running…</div>':''}
+      </div>`:''}</div></div>`).join('');
+    mainContent=`
+      <header class="chat-header">
+        <div class="chat-title-name" style="display:flex;align-items:center;gap:8px">${heroAvatar(c.hero,pendingTool?'asking':waiting?'walking':'')}<span>${esc(c.name)}</span></div>
+        <div class="header-actions">
+          <span class="status-dot ${backend==='device'||localOn?'':'off'}">${backend==='device'?(devicePipe?'On-device ready':'On-device (loads on first message)'):(localOn?'Local ready':'Local offline')}</span>
+          <button class="model-pill" id="modelPill">${esc(MODELS.find(m=>m.id===backend).name)} <span class="caret">▾</span></button>
+          <button class="icon-btn ${voiceReplies?'active':''}" id="voiceBtn" title="Voice replies">${icon('volume')}</button>
+          <button class="icon-btn ${callActive?'calling':''}" id="callBtn" title="Live voice call — talk hands-free">${icon('phone')}</button>
+          <button class="icon-btn ${moreOpen?'open':''}" id="moreBtn" title="Chat and folder options">${icon('more')}</button>
+          <button class="share-btn" id="shareBtn">${icon('share',16)} Share</button>
+          ${modelOpen?`<div class="dropdown model">${MODELS.map(m=>`<button class="menu-item" data-model="${m.id}"><span>${m.id===backend?'✓':'&nbsp;&nbsp;'}</span><span><strong>${esc(m.name)}</strong><span class="mi-sub">${esc(m.sub)}</span></span></button>`).join('')}</div>`:''}
+          ${moreOpen?`<div class="dropdown more">
+            <button class="menu-item" id="moreNewChat">${icon('plus',18)}<span><strong>New chat room</strong><span class="mi-sub">Name it and pick an agent</span></span></button>
+            <button class="menu-item" id="moreNewFolder">${icon('file',18)}<span><strong>New folder</strong><span class="mi-sub">Group chats together</span></span></button>
+            ${staticMode?'':`<button class="menu-item" id="moreToolMode">${icon('spark',18)}<span><strong>Tools: ${toolMode==='auto'?'Auto':'Ask first'}</strong><span class="mi-sub">${toolMode==='auto'?'Local model can act — click to require approvals':'Click to allow automatic basic tools'}</span></span></button>`}
+            <button class="menu-item" id="moreVoice">${icon('volume',18)}<span><strong>Voice replies: ${voiceReplies?'On':'Off'}</strong><span class="mi-sub">Jarvis-style voice when available</span></span></button>
+            <div class="menu-sep"></div>
+            <button class="menu-item" id="moreRename">${icon('edit',18)}<span><strong>Rename this chat</strong></span></button>
+            <button class="menu-item" id="moreMove">${icon('chat',18)}<span><strong>Move chat to folder</strong></span></button>
+            <button class="menu-item" id="moreDelete">${icon('more',18)}<span><strong>Delete this chat</strong></span></button>
+            ${staticMode?'':`<div class="menu-sep"></div>
+            <button class="menu-item" id="moreSmartName">${icon('spark',18)}<span><strong>Smart: name this room</strong><span class="mi-sub">Local model suggests a title</span></span></button>
+            <button class="menu-item" id="moreSmartFolder">${icon('spark',18)}<span><strong>Smart: suggest folder</strong><span class="mi-sub">Where this chat belongs</span></span></button>
+            <button class="menu-item" id="moreSmartSummary">${icon('spark',18)}<span><strong>Smart: summarize chat</strong><span class="mi-sub">Add a short recap</span></span></button>
+            <div class="menu-sep"></div>`}
+            <button class="menu-item" id="moreShare">${icon('share',18)}<span><strong>Share / export chat</strong><span class="mi-sub">Copy or download transcript</span></span></button>
+          </div>`:''}
+        </div>
+      </header>
+      <div class="messages" id="messages"><div class="messages-inner">
+        ${msgs||'<div class="status">Ask a question — answers come from a real model.</div>'}
+        ${waiting?'<div class="status">Thinking…</div>':''}
+      </div></div>
+      <div class="composer-wrap">
+        ${deviceStatus?`<div class="call-bar thinking"><span class="call-dot"></span><span>${esc(deviceStatus)}</span></div>`:''}
+        ${callActive?`<div class="call-bar ${callState}"><span class="call-dot"></span><span>${callState==='listening'?'Listening — talk now…':callState==='thinking'?'Thinking…':'Speaking…'}</span><button id="endCall">End call</button></div>`:''}
+        ${(files.length||credSelected.length)?`<div class="attach-chips">
+          ${files.map((f,i)=>`<span class="chip">📎 ${esc(f)} <button data-rmf="${i}">×</button></span>`).join('')}
+          ${credSelected.map((k,i)=>`<span class="chip">🔒 ${esc(k)} <button data-rmc="${i}">×</button></span>`).join('')}
+        </div>`:''}
+        <form class="composer" id="composer">
+          <button type="button" class="composer-plus ${plusOpen?'open':''}" id="plusBtn" title="Add">${icon('plus')}</button>
+          <button type="button" class="composer-plus ${listening?'listening':''}" id="micBtn" title="Speak instead of type">${icon('mic')}</button>
+          <input id="draft" value="${esc(draft)}" placeholder="Message ${esc(c.name)}" autocomplete="off" />
+          <button type="submit" class="composer-send" id="send" ${draft.trim()||files.length?'':'disabled'}>${icon('arrow')}</button>
+          ${plusOpen?`<div class="dropdown plus">
+            <button class="menu-item" id="attachItem">${icon('file',18)}<span><strong>Attach a file</strong><span class="mi-sub">Send text file contents</span></span></button>
+            <div class="menu-sep"></div>
+            <button class="menu-item" id="${staticMode?'gvCredItem':'credItem'}">${icon('lock',18)}<span><strong>Use a saved login</strong><span class="mi-sub">Value stays hidden from model</span></span></button>
+            ${staticMode?'':`<div class="menu-sep"></div>
+            <button class="menu-item" id="skillItem">${icon('spark',18)}<span><strong>Teach a Skill</strong><span class="mi-sub">Add an instruction</span></span></button>`}
+          </div>`:''}
+        </form>
+      </div>`;
+  }
+
+  document.getElementById('app').innerHTML=`
+    <aside class="sidebar">
+      <div class="sidebar-top"><div class="workspace"><span class="dot"></span><span class="workspace-name">Oracle</span><span class="workspace-sub">• Live</span></div>
+      <button class="icon-btn" id="newChat" title="New chat">${icon('edit')}</button></div>
+      ${nav}
+      <button class="profile ${profileOpen?'open':''}" id="profileBtn" title="Profile, vault and name">
+        <div class="avatar">${initials(displayName)}</div>
+        <div class="profile-info"><span class="profile-name">${esc(displayName)}</span><span class="profile-sub">${staticMode?'Private · on this device':'Local + free cloud'}</span></div>
+        <span class="profile-caret">⌃</span>
+      </button>
+      ${profileOpen?`<div class="dropdown profile-menu">
+        ${staticMode?`<button class="menu-item" id="openGuestVault">${icon('lock',18)}<span><strong>My Vault</strong><span class="mi-sub">Encrypted on this device</span></span></button><div class="menu-sep"></div>`:`<button class="menu-item" id="openVault">${icon('lock',18)}<span><strong>Credential Vault</strong><span class="mi-sub">macOS Keychain — values hidden</span></span></button>
+        <button class="menu-item" id="openMemory">${icon('spark',18)}<span><strong>My Memory</strong><span class="mi-sub">Notes &amp; skills the model recalls</span></span></button>
+        <div class="menu-sep"></div>`}
+        <button class="menu-item" id="editName">${icon('edit',18)}<span><strong>Change display name</strong><span class="mi-sub">Shown in the sidebar</span></span></button>
+      </div>`:''}
+    </aside>
+    <main class="main" style="--hero:${heroColor(c.hero)}">${mainContent}</main>
+    ${(plusOpen||modelOpen||profileOpen||moreOpen)?'<div class="backdrop" id="backdrop"></div>':''}
+    ${modal||''}
+    <input type="file" id="fileInput" style="display:none" multiple />`;
+  const m=document.getElementById('messages');if(m)m.scrollTop=m.scrollHeight;
+  bind();
+}
+
+function bind(){
+  document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view=b.dataset.view;plusOpen=modelOpen=profileOpen=moreOpen=false;render()});
+  document.querySelectorAll('[data-list-view]').forEach(b=>b.onclick=()=>{listView=b.dataset.listView;localStorage.setItem('oracle.listView',listView);render()});
+  document.querySelectorAll('.conv').forEach(b=>b.onclick=()=>{
+    activeId=b.dataset.id;const target=convs.find(x=>x.id===activeId);if(target)activeFolder=target.folder;
+    view='chat';plusOpen=modelOpen=profileOpen=moreOpen=false;saveState();render();
+  });
+  document.querySelectorAll('[data-folder]').forEach(b=>b.onclick=()=>{
+    const f=folders.find(x=>x.id===b.dataset.folder);if(!f)return;
+    activeFolder=f.id;f.open=!f.open;
+    if(f.open){const first=convs.find(x=>x.folder===f.id);if(first)activeId=first.id}
+    view='chat';saveState();render();
+  });
+  document.querySelectorAll('[data-folder-menu]').forEach(b=>b.onclick=e=>{e.stopPropagation();openFolderMenu(b.dataset.folderMenu)});
+  document.querySelectorAll('[data-conv-menu]').forEach(b=>b.onclick=e=>{e.stopPropagation();openChatMenu(b.dataset.convMenu)});
+  document.getElementById('newFolder')?.addEventListener('click',()=>openFolderModal());
+  document.querySelectorAll('[data-new-in]').forEach(b=>b.onclick=()=>openRoomModal(b.dataset.newIn));
+  document.getElementById('newChat')?.addEventListener('click',()=>openRoomModal(activeFolder));
+  bindDragDrop();
+  const mb=document.getElementById('moreBtn');
+  if(mb)mb.onclick=e=>{e.stopPropagation();moreOpen=!moreOpen;plusOpen=modelOpen=profileOpen=false;modal=null;render()};
+  document.getElementById('moreNewChat')?.addEventListener('click',()=>{moreOpen=false;openRoomModal(activeFolder)});
+  document.getElementById('moreNewFolder')?.addEventListener('click',()=>{moreOpen=false;openFolderModal()});
+  document.getElementById('moreToolMode')?.addEventListener('click',async()=>{
+    const next=(status.tools?.mode||'auto')==='auto'?'ask':'auto';
+    try{
+      const r=await api('/api/tools/mode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:next})});
+      status.tools=r;moreOpen=false;render();showToast('Tool mode: '+(r.mode==='auto'?'Auto — no approvals':'Ask first'));
+    }catch(err){showToast('Could not change tool mode: '+err.message)}
+  });
+  document.getElementById('moreRename')?.addEventListener('click',()=>{moreOpen=false;openRenameModal('chat',activeId)});
+  document.getElementById('moreMove')?.addEventListener('click',()=>{moreOpen=false;openMoveModal(activeId)});
+  document.getElementById('moreDelete')?.addEventListener('click',()=>{moreOpen=false;openDeleteChatModal(activeId)});
+  document.getElementById('moreSmartName')?.addEventListener('click',()=>{moreOpen=false;smartChat('name',activeId)});
+  document.getElementById('moreSmartFolder')?.addEventListener('click',()=>{moreOpen=false;smartChat('folder',activeId)});
+  document.getElementById('moreSmartSummary')?.addEventListener('click',()=>{moreOpen=false;smartChat('summary',activeId)});
+  document.getElementById('voiceBtn')?.addEventListener('click',()=>toggleVoice());
+  document.getElementById('callBtn')?.addEventListener('click',()=>toggleCall());
+  document.getElementById('endCall')?.addEventListener('click',()=>toggleCall());
+  document.getElementById('moreVoice')?.addEventListener('click',()=>{moreOpen=false;toggleVoice()});
+  document.getElementById('micBtn')?.addEventListener('click',()=>toggleListen());
+  document.getElementById('shareBtn')?.addEventListener('click',()=>{moreOpen=false;modal=null;openShareModal()});
+  document.getElementById('moreShare')?.addEventListener('click',()=>{moreOpen=false;openShareModal()});
+  document.getElementById('vaultBack')?.addEventListener('click',()=>{view='chat';render()});
+  const profileBtn=document.getElementById('profileBtn');
+  if(profileBtn)profileBtn.onclick=e=>{e.stopPropagation();profileOpen=!profileOpen;plusOpen=modelOpen=moreOpen=false;render()};
+  document.getElementById('openVault')?.addEventListener('click',()=>{view='vault';profileOpen=false;render()});
+  document.getElementById('openGuestVault')?.addEventListener('click',()=>{view='guestvault';profileOpen=false;render()});
+  document.getElementById('gvBack')?.addEventListener('click',()=>{view='chat';render()});
+  document.getElementById('gvAdd')?.addEventListener('click',()=>{
+    modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Add credential</h3><p>Stored encrypted on this device only.</p>
+      <input id="gvk" placeholder="Credential name (e.g. wifi-password)" style="width:100%;box-sizing:border-box"/>
+      <input id="gvv" type="password" placeholder="Value" style="width:100%;box-sizing:border-box;margin-top:8px"/>
+      <div class="modal-actions"><button class="btn" id="mc">Cancel</button><button class="btn primary" id="gvSave">Save</button></div></div></div>`;render();
+    document.getElementById('gvSave')?.addEventListener('click',async()=>{
+      const k=document.getElementById('gvk').value.trim(),v=document.getElementById('gvv').value;
+      if(k&&v){await gvSet(k,v);showToast('Saved on this device: '+k)}
+      modal=null;render();
+    });
+  });
+  document.querySelectorAll('[data-gvdel]').forEach(b=>b.onclick=()=>{gvDel(b.dataset.gvdel);render()});
+  document.getElementById('openMemory')?.addEventListener('click',async()=>{await loadMemory();view='memory';profileOpen=false;render()});
+  document.getElementById('memoryBack')?.addEventListener('click',()=>{view='chat';render()});
+  document.getElementById('addMemory')?.addEventListener('click',()=>{
+    modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Add a memory</h3><p>A fact the model should remember later.</p>
+      <textarea id="memText" rows="3" style="width:100%;box-sizing:border-box"></textarea>
+      <div class="modal-actions"><button class="btn" id="mc">Cancel</button><button class="btn primary" id="memSave">Save</button></div></div></div>`;render();
+    document.getElementById('memSave')?.addEventListener('click',async()=>{
+      const t=document.getElementById('memText').value;
+      if(t.trim()){await api('/api/memory',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:t})});await loadMemory();showToast('Memory saved')}
+      modal=null;render();
+    });
+  });
+  document.getElementById('editName')?.addEventListener('click',()=>{profileOpen=false;openNameModal()});
+  const mp=document.getElementById('modelPill');
+  if(mp)mp.onclick=e=>{e.stopPropagation();modelOpen=!modelOpen;plusOpen=profileOpen=moreOpen=false;render()};
+  document.querySelectorAll('[data-model]').forEach(b=>b.onclick=()=>{backend=b.dataset.model;modelOpen=false;render();showToast('Backend: '+MODELS.find(m=>m.id===backend).name)});
+  const pb=document.getElementById('plusBtn');
+  if(pb)pb.onclick=e=>{e.stopPropagation();plusOpen=!plusOpen;modelOpen=profileOpen=moreOpen=false;render()};
+  document.getElementById('attachItem')?.addEventListener('click',e=>{e.stopPropagation();plusOpen=false;render();document.getElementById('fileInput').click()});
+  document.getElementById('credItem')?.addEventListener('click',e=>{e.stopPropagation();plusOpen=false;render();openCredPicker()});
+  document.getElementById('gvCredItem')?.addEventListener('click',e=>{
+    e.stopPropagation();plusOpen=false;
+    const names=gvNames();
+    if(!names.length){showToast('Add a credential in My Vault first');render();return}
+    modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Use a saved login</h3><p>Only the name is shared with the model — the value stays encrypted on this device.</p>
+      ${names.map(n=>`<button class="menu-item" data-gvpick="${esc(n)}">${icon('lock',18)}<span><strong>${esc(n)}</strong></span></button>`).join('')}
+      <div class="modal-actions"><button class="btn" id="mc">Cancel</button></div></div></div>`;render();
+    document.querySelectorAll('[data-gvpick]').forEach(b=>b.onclick=()=>{if(!credSelected.includes(b.dataset.gvpick))credSelected.push(b.dataset.gvpick);modal=null;render();showToast('Selected '+b.dataset.gvpick+' (value hidden)')});
+  });
+  document.getElementById('skillItem')?.addEventListener('click',e=>{e.stopPropagation();plusOpen=false;render();openSkillModal()});
+  document.getElementById('addCred')?.addEventListener('click',()=>openAddCred());
+  document.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{await api('/api/vault/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:b.dataset.del})});vaultKeys=(await api('/api/vault/list')).keys;render();showToast('Removed '+b.dataset.del)});
+  document.getElementById('backdrop')?.addEventListener('click',()=>{plusOpen=modelOpen=profileOpen=moreOpen=false;render()});
+  document.querySelectorAll('[data-rmf]').forEach(b=>b.onclick=()=>{files.splice(+b.dataset.rmf,1);render()});
+  document.querySelectorAll('[data-rmc]').forEach(b=>b.onclick=()=>{credSelected.splice(+b.dataset.rmc,1);render()});
+  document.querySelectorAll('[data-tool-approve]').forEach(b=>b.onclick=()=>toolAction(+b.dataset.toolApprove,true));
+  document.querySelectorAll('[data-tool-deny]').forEach(b=>b.onclick=()=>toolAction(+b.dataset.toolDeny,false));
+  document.getElementById('fileInput')?.addEventListener('change',async e=>{
+    for(const f of e.target.files){files.push(f.name)}
+    e.target.value='';render();showToast(files.length+' file(s) attached (name shown)');
+  });
+  bindModal();
+  const input=document.getElementById('draft'), send=document.getElementById('send');
+  if(input){input.oninput=()=>{draft=input.value;send.disabled=!draft.trim()&&!files.length};input.onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();document.getElementById('composer').requestSubmit()}}}
+  document.getElementById('composer')?.addEventListener('submit',sendMessage);
+}
+
+function closeMenus(){plusOpen=modelOpen=profileOpen=moreOpen=false}
+function heroPicker(field){
+  return `<div class="hero-grid">${HEROES.map(h=>`<button type="button" class="hero-choice" data-hero="${h.id}" data-hero-field="${field}">${heroAvatar(h.id)}<span>${esc(h.name)}</span></button>`).join('')}</div>`;
+}
+function openRoomModal(folderId=activeFolder){
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>New chat room</h3><p>Name the room and pick its pixel agent. The agent stands beside the room title.</p>
+    <form id="roomForm"><label>Room name</label><input id="rn" placeholder="e.g. Marketing ideas" maxlength="50" required autofocus onfocus="this.select()" onclick="this.select()"/>
+    <label>Folder</label><select id="rf">${folders.map(f=>`<option value="${f.id}" ${f.id===folderId?'selected':''}>${esc(f.name)}</option>`).join('')}<option value="__new__">＋ Create new folder…</option></select>
+    <input id="rfNew" placeholder="New folder name" maxlength="40" style="display:none;margin-top:6px"/>
+    <label>Agent avatar</label><input type="hidden" id="rh" value="${hero(active()?.hero).id}"/>${heroPicker('rh')}
+    <div class="modal-actions"><button type="button" class="btn" id="mc">Cancel</button><button class="btn primary" type="submit">Create room</button></div></form></div></div>`;render();
+}
+function openFolderModal(folderId=null){
+  const f=folderId?folders.find(x=>x.id===folderId):null;
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>${f?'Rename folder':'New folder'}</h3><p>Folders hold chat rooms. Drag a chat onto a folder to move it.</p>
+    <form id="folderForm"><input type="hidden" id="foId" value="${f?f.id:''}"/><label>Folder name</label><input id="fn" value="${esc(f?.name||'')}" placeholder="e.g. Marketing" maxlength="40" required autofocus onfocus="this.select()" onclick="this.select()"/>
+    <div class="modal-actions"><button type="button" class="btn" id="mc">Cancel</button><button class="btn primary" type="submit">${f?'Save folder':'Create folder'}</button></div></form></div></div>`;render();
+}
+function openFolderMenu(id){
+  const f=folders.find(x=>x.id===id);if(!f)return;
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>${esc(f.name)}</h3><p>Folder options</p>
+    <button class="menu-item" data-fm="rename" data-id="${f.id}">${icon('edit',18)}<span><strong>Rename folder</strong></span></button>
+    <button class="menu-item" data-fm="new" data-id="${f.id}">${icon('plus',18)}<span><strong>New chat in this folder</strong></span></button>
+    ${guestMode?'':`<button class="menu-item" data-fm="share" data-id="${f.id}">${icon('share',18)}<span><strong>Share folder</strong><span class="mi-sub">Family gets a copy in their own workspace</span></span></button>`}
+    <button class="menu-item" data-fm="delete" data-id="${f.id}">${icon('more',18)}<span><strong>Delete folder</strong><span class="mi-sub">Its chats move to another folder</span></span></button>
+    <div class="modal-actions"><button class="btn" id="mc">Close</button></div></div></div>`;render();
+}
+function openChatMenu(id){
+  const c=convs.find(x=>x.id===id);if(!c)return;
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>${esc(c.name)}</h3><p>Chat options</p>
+    <button class="menu-item" data-cm="rename" data-id="${c.id}">${icon('edit',18)}<span><strong>Rename chat</strong></span></button>
+    <button class="menu-item" data-cm="move" data-id="${c.id}">${icon('chat',18)}<span><strong>Move to folder</strong></span></button>
+    <button class="menu-item" data-cm="smart-name" data-id="${c.id}">${icon('spark',18)}<span><strong>Smart: name this room</strong></span></button>
+    <button class="menu-item" data-cm="smart-folder" data-id="${c.id}">${icon('spark',18)}<span><strong>Smart: suggest folder</strong></span></button>
+    <button class="menu-item" data-cm="smart-summary" data-id="${c.id}">${icon('spark',18)}<span><strong>Smart: summarize chat</strong></span></button>
+    <div class="menu-sep"></div>
+    <button class="menu-item" data-cm="share" data-id="${c.id}">${icon('share',18)}<span><strong>Share / export</strong></span></button>
+    <button class="menu-item" data-cm="delete" data-id="${c.id}">${icon('more',18)}<span><strong>Delete chat</strong></span></button>
+    <div class="modal-actions"><button class="btn" id="mc">Close</button></div></div></div>`;render();
+}
+function openRenameModal(kind,id){
+  const item=kind==='chat'?convs.find(x=>x.id===id):folders.find(x=>x.id===id);if(!item)return;
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Rename ${kind}</h3>
+    <form id="renameForm"><input type="hidden" id="reKind" value="${kind}"/><input type="hidden" id="reId" value="${id}"/>
+    <label>Name</label><input id="rv" value="${esc(item.name)}" maxlength="50" required autofocus onfocus="this.select()" onclick="this.select()"/>
+    <div class="modal-actions"><button type="button" class="btn" id="mc">Cancel</button><button class="btn primary" type="submit">Save</button></div></form></div></div>`;render();
+}
+function openMoveModal(id){
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Move chat to folder</h3><p>Drop it on a folder in the sidebar, or choose one here.</p>
+    ${folders.map(f=>`<button class="menu-item" data-move-chat="${id}" data-move-folder="${f.id}">${icon('file',18)}<span><strong>${esc(f.name)}</strong><span class="mi-sub">${convs.filter(x=>x.folder===f.id).length} chat(s)</span></span></button>`).join('')}
+    <div class="modal-actions"><button class="btn" id="mc">Cancel</button></div></div></div>`;render();
+}
+function openDeleteChatModal(id){
+  const c=convs.find(x=>x.id===id);if(!c)return;
+  if(convs.length===1){showToast('Keep at least one chat room');return}
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Delete chat?</h3><p>This removes “${esc(c.name)}” and its messages from this Mac.</p>
+    <div class="modal-actions"><button class="btn" id="mc">Cancel</button><button class="btn danger" id="confirmDeleteChat" data-id="${id}">Delete chat</button></div></div></div>`;render();
+}
+function chatTranscript(c){
+  return c.messages.map(m=>`${m.from==='user'?'You':c.name}: ${m.text}`).join('\n\n');
+}
+function openShareModal(){
+  const c=active(),text=chatTranscript(c);
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Share / export “${esc(c.name)}”</h3><p>Copy the transcript or download it as a text file. Vault values stay hidden.</p>
+    <textarea id="shareText" class="share-text" readonly>${esc(text)}</textarea>
+    <div class="modal-actions"><button class="btn" id="mc">Close</button><button class="btn" id="shareCopy">Copy</button><button class="btn primary" id="shareDownload">Download .txt</button></div>
+    ${guestMode?'':`<div class="menu-sep"></div>
+      <p style="margin-top:12px">Family link: they get their own blank workspace — never your folders, other chats, or vault. Optionally include just this chat.</p>
+      <div class="tool-actions">
+        <button class="btn" id="shareFamilyOwn">Family link (blank)</button>
+        <button class="btn" id="shareFamilyChat">Family link + this chat</button>
+      </div>`}
+    </div></div>`;render();
+}
+function openLinkModal(url,label){
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>${esc(label)} ready</h3><p>Works anywhere on the internet. The chat is carried inside the link itself — no Mac, no server needed. Anyone with the link can read what's in it, so only send it to people you trust.</p>
+    <input id="shareLinkText" value="${esc(url)}" readonly onfocus="this.select()" onclick="this.select()"/>
+    <div class="modal-actions"><button class="btn" id="mc">Close</button><button class="btn primary" id="copyShareLink">Copy link</button></div></div></div>`;render();
+}
+function openGuestWelcome(info){
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Welcome to Oracle</h3>
+    <p>This is a private session on this device. Your chats and folders stay separate from the person who shared the link.</p>
+    ${info?.sharedChat?`<button class="menu-item" id="guestContinue">${icon('chat',18)}<span><strong>Continue the shared chat</strong><span class="mi-sub">“${esc(info.sharedChat.name)}” — a copy, not your host's other chats</span></span></button>`:''}
+    ${info?.sharedFolder?`<button class="menu-item" id="guestFolder">${icon('file',18)}<span><strong>Open the shared folder</strong><span class="mi-sub">“${esc(info.sharedFolder.name)}” — its chats only</span></span></button>`:''}
+    <button class="menu-item" id="guestStart">${icon('plus',18)}<span><strong>Start my own session</strong><span class="mi-sub">A fresh blank chat workspace</span></span></button>
+    <div class="modal-actions"><button class="btn primary" id="guestChooseDone">Continue</button></div></div></div>`;render();
+}
+async function makeFamilyFolderLink(folderId){
+  const f=folders.find(x=>x.id===folderId);if(!f)return;
+  const payload={folder:{id:f.id,name:f.name,chats:convs.filter(c=>c.folder===f.id).map(c=>({id:c.id,name:c.name,hero:c.hero,preview:c.preview,messages:c.messages}))}};
+  openLinkModal(staticShareLink(payload),'Folder link');
+}
+function guestChoose(kind){
+  const blank=()=>{convs=[{id:'main',name:'My Oracle',preview:'Ask me anything…',hero:'ironman',folder:'general',messages:[]}];folders=[{id:'general',name:'My Chats',open:true}];activeId='main';activeFolder='general'};
+  if(kind==='chat'&&guestInfo?.sharedChat){
+    const s=guestInfo.sharedChat;
+    convs=[{id:'shared',name:s.name||'Shared chat',preview:(s.messages||[]).at(-1)?.text?.slice(0,40)||'Ask me anything…',hero:s.hero||'ironman',folder:'general',messages:[...(s.messages||[])]}];
+    folders=[{id:'general',name:'My Chats',open:true}];activeId='shared';activeFolder='general';
+  }else if(kind==='folder'&&guestInfo?.sharedFolder){
+    const f=guestInfo.sharedFolder,fid='shared-folder';
+    convs=(f.chats||[]).map((c,i)=>({id:'shared-'+i,name:c.name||'Shared chat',hero:c.hero||'ironman',preview:(c.messages||[]).at(-1)?.text?.slice(0,40)||'Ask me anything…',folder:fid,messages:[...(c.messages||[])]}));
+    if(!convs.length)convs=[{id:'main',name:'My Oracle',preview:'Ask me anything…',hero:'ironman',folder:fid,messages:[]}];
+    folders=[{id:fid,name:f.name||'Shared folder',open:true}];activeId=convs[0].id;activeFolder=fid;
+  }else blank();
+  modal=null;saveState();render();showToast(kind==='chat'?'Shared chat opened':'Your own session is ready');
+}
+function moveChat(chatId,folderId){
+  const c=convs.find(x=>x.id===chatId),f=folders.find(x=>x.id===folderId);
+  if(!c||!f)return;
+  c.folder=f.id;f.open=true;activeFolder=f.id;saveState();render();
+  showToast(`Moved “${c.name}” to ${f.name}`);
+}
+async function smartChat(kind,chatId=activeId){
+  const c=convs.find(x=>x.id===chatId);if(!c)return;
+  if(!c.messages.length){showToast('Ask a question in this room first');return}
+  const asks={
+    name:'Suggest a short 2-5 word title for this chat. Reply with only the title, no quotes.',
+    folder:'Suggest one short folder name where this chat belongs. Reply with only the folder name.',
+    summary:'Summarize this chat in two short sentences. Reply with only the summary.',
+  };
+  const msgs=c.messages.slice(-10).map(m=>({from:m.from,text:m.text}));
+  msgs.push({from:'user',text:asks[kind]});
+  showToast('Smart action is thinking…');
+  try{
+    const r=await api('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:msgs,backend:'local',credentials:[]})});
+    let text=(r.answer||'').trim().replace(/^["']|["']$/g,'').replace(/\s+/g,' ');
+    if(r.tool||!text){showToast('The local model could not do that yet');return}
+    text=text.split('\n')[0].slice(0,90);
+    if(kind==='name'){
+      c.name=text;saveState();render();showToast('Room named: '+text);
+    }else if(kind==='summary'){
+      c.messages.push({from:'bot',text:'Smart summary: '+text,note:'local model'});
+      c.preview='Smart summary added';saveState();render();showToast('Summary added to chat');
+    }else{
+      showSmartFolderModal(chatId,text);
+    }
+  }catch(err){showToast('Smart action failed: '+err.message)}
+}
+function showSmartFolderModal(chatId,suggestion){
+  const name=suggestion.replace(/^["']|["']$/g,'').slice(0,40)||'New folder';
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Smart folder suggestion</h3><p>“${esc(name)}” — choose an existing folder or create this one.</p>
+    ${folders.map(f=>`<button class="menu-item" data-smart-use="${f.id}" data-smart-chat="${chatId}">${icon('file',18)}<span><strong>${esc(f.name)}</strong></span></button>`).join('')}
+    <div class="menu-sep"></div>
+    <button class="menu-item" id="smartCreate" data-smart-chat="${chatId}" data-smart-name="${esc(name)}">${icon('plus',18)}<span><strong>Create “${esc(name)}” and move chat</strong></span></button>
+    <div class="modal-actions"><button class="btn" id="mc">Cancel</button></div></div></div>`;render();
+}
+function bindDragDrop(){
+  let draggingId=null;
+  document.querySelectorAll('[data-drag-chat]').forEach(el=>{
+    el.addEventListener('dragstart',e=>{draggingId=el.dataset.dragChat;el.classList.add('dragging');e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',draggingId)});
+    el.addEventListener('dragend',()=>{el.classList.remove('dragging');document.querySelectorAll('.drag-over').forEach(n=>n.classList.remove('drag-over'));draggingId=null});
+  });
+  document.querySelectorAll('[data-drop-folder]').forEach(el=>{
+    el.addEventListener('dragover',e=>{e.preventDefault();e.dataTransfer.dropEffect='move';el.classList.add('drag-over')});
+    el.addEventListener('dragleave',()=>el.classList.remove('drag-over'));
+    el.addEventListener('drop',e=>{e.preventDefault();el.classList.remove('drag-over');const id=draggingId||e.dataTransfer.getData('text/plain');if(id)moveChat(id,el.dataset.dropFolder)});
+  });
+}
+
+function openCredPicker(){
+  if(!vaultKeys.length){showToast('No saved logins yet — add one in Credential Vault');return}
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Use a saved login</h3><p>Only the name is sent to the model. The value stays in your Keychain.</p>${vaultKeys.map(k=>`<div class="vault-row"><span>${esc(k)}</span><button class="btn" data-pick="${esc(k)}">Select</button></div>`).join('')}<div class="modal-actions"><button class="btn" id="mc">Cancel</button></div></div></div>`;
+  render();
+}
+function openAddCred(){
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Add credential</h3><p>Saved to macOS Keychain. Never shown again in the chat.</p><form id="credForm"><label>Name (the model sees this)</label><input id="ck" placeholder="e.g. email_login" required/><label>Secret value</label><input id="cv" type="password" placeholder="password / token" required/><div class="modal-actions"><button type="button" class="btn" id="mc">Cancel</button><button class="btn primary" type="submit">Save to Keychain</button></div></form></div></div>`;render();
+}
+function openSkillModal(){
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Teach a Skill</h3><p>Adds an instruction the model sees on every message.</p><form id="skillForm"><label>Skill name</label><input id="sk" placeholder="e.g. Be concise" required/><label>Instructions</label><textarea id="sd" rows="3" placeholder="What should it do?"></textarea><div class="modal-actions"><button type="button" class="btn" id="mc">Cancel</button><button class="btn primary" type="submit">Save skill</button></div></form></div></div>`;render();
+}
+function openNameModal(){
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Change display name</h3><p>Only used in the sidebar on this Mac.</p><form id="nameForm"><label>Display name</label><input id="dn" value="${esc(displayName)}" maxlength="40" required autofocus onfocus="this.select()" onclick="this.select()"/><div class="modal-actions"><button type="button" class="btn" id="mc">Cancel</button><button class="btn primary" type="submit">Save name</button></div></form></div></div>`;render();
+}
+function bindModal(){
+  document.getElementById('mc')?.addEventListener('click',()=>{modal=null;render()});
+  document.getElementById('mb')?.addEventListener('click',e=>{if(e.target.id==='mb'){modal=null;render()}});
+  const rh=document.getElementById('rh');
+  if(rh)document.querySelectorAll('[data-hero-field="rh"]').forEach(b=>b.classList.toggle('selected',b.dataset.hero===rh.value));
+  document.querySelectorAll('[data-hero]').forEach(b=>b.onclick=()=>{
+    const field=b.dataset.heroField||'rh',input=document.getElementById(field);
+    if(input)input.value=b.dataset.hero;
+    document.querySelectorAll(`[data-hero-field="${field}"]`).forEach(x=>x.classList.toggle('selected',x===b));
+  });
+  document.getElementById('rf')?.addEventListener('change',e=>{
+    const n=document.getElementById('rfNew');if(!n)return;
+    n.style.display=e.target.value==='__new__'?'block':'none';
+    if(e.target.value==='__new__')n.focus();
+  });
+  document.getElementById('roomForm')?.addEventListener('submit',e=>{
+    e.preventDefault();
+    const name=document.getElementById('rn').value.trim(),heroId=document.getElementById('rh').value;
+    let folder=document.getElementById('rf').value;
+    if(!name)return;
+    if(folder==='__new__'){
+      const newName=document.getElementById('rfNew').value.trim();
+      if(!newName){showToast('Enter a folder name');return}
+      const nf={id:'folder-'+Date.now().toString(36),name:newName,open:true};
+      folders.push(nf);folder=nf.id;
+    }
+    const id='chat-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+    convs.push({id,name,preview:'Ask me anything…',hero:heroId,folder,messages:[]});
+    const f=folders.find(x=>x.id===folder);if(f){f.open=true;activeFolder=f.id}
+    activeId=id;modal=null;saveState();render();showToast('Room created: '+name);
+  });
+  document.getElementById('folderForm')?.addEventListener('submit',e=>{
+    e.preventDefault();
+    const id=document.getElementById('foId').value.trim(),name=document.getElementById('fn').value.trim();
+    if(!name)return;
+    const f=id?folders.find(x=>x.id===id):null;
+    if(f)f.name=name;else folders.push({id:'folder-'+Date.now().toString(36),name,open:true});
+    modal=null;saveState();render();showToast(f?'Folder renamed':'Folder created: '+name);
+  });
+  document.getElementById('renameForm')?.addEventListener('submit',e=>{
+    e.preventDefault();
+    const kind=document.getElementById('reKind').value,id=document.getElementById('reId').value,name=document.getElementById('rv').value.trim();
+    const item=kind==='chat'?convs.find(x=>x.id===id):folders.find(x=>x.id===id);
+    if(item&&name){item.name=name;saveState();showToast('Renamed to '+name)}
+    modal=null;render();
+  });
+  document.querySelectorAll('[data-fm]').forEach(b=>b.onclick=()=>{
+    const act=b.dataset.fm,id=b.dataset.id;modal=null;
+    if(act==='rename')openRenameModal('folder',id);
+    if(act==='new')openRoomModal(id);
+    if(act==='share')makeFamilyFolderLink(id);
+    if(act==='delete'){
+      const f=folders.find(x=>x.id===id);
+      if(folders.length===1){render();showToast('Keep at least one folder');return}
+      const target=folders.find(x=>x.id!==id);
+      convs.filter(x=>x.folder===id).forEach(x=>{x.folder=target.id});
+      folders=folders.filter(x=>x.id!==id);
+      if(activeFolder===id)activeFolder=target.id;
+      saveState();render();showToast('Folder removed; its chats were kept');
+    }
+  });
+  document.querySelectorAll('[data-cm]').forEach(b=>b.onclick=()=>{
+    const act=b.dataset.cm,id=b.dataset.id;modal=null;
+    if(act==='rename')openRenameModal('chat',id);
+    if(act==='move')openMoveModal(id);
+    if(act.startsWith('smart-'))smartChat(act.slice(6),id);
+    if(act==='share'){activeId=id;openShareModal()}
+    if(act==='delete')openDeleteChatModal(id);
+  });
+  document.querySelectorAll('[data-move-chat]').forEach(b=>b.onclick=()=>{modal=null;moveChat(b.dataset.moveChat,b.dataset.moveFolder)});
+  document.querySelectorAll('[data-smart-use]').forEach(b=>b.onclick=()=>{modal=null;moveChat(b.dataset.smartChat,b.dataset.smartUse)});
+  document.getElementById('smartCreate')?.addEventListener('click',e=>{
+    const name=e.currentTarget.dataset.smartName,chatId=e.currentTarget.dataset.smartChat;
+    let f=folders.find(x=>x.name.toLowerCase()===name.toLowerCase());
+    if(!f){f={id:'folder-'+Date.now().toString(36),name,open:true};folders.push(f)}
+    modal=null;moveChat(chatId,f.id);
+  });
+  document.getElementById('confirmDeleteChat')?.addEventListener('click',e=>{
+    const id=e.currentTarget.dataset.id,idx=convs.findIndex(x=>x.id===id);
+    if(idx>=0&&convs.length>1){
+      convs.splice(idx,1);
+      if(activeId===id)activeId=convs[0].id;
+      activeFolder=convs[0].folder;saveState();showToast('Chat deleted');
+    }
+    modal=null;render();
+  });
+  document.getElementById('shareCopy')?.addEventListener('click',async()=>{
+    const t=document.getElementById('shareText');t.select();
+    try{await navigator.clipboard.writeText(t.value)}catch(err){document.execCommand('copy')}
+    showToast('Transcript copied');
+  });
+  document.getElementById('shareDownload')?.addEventListener('click',()=>{
+    const t=document.getElementById('shareText'),blob=new Blob([t.value],{type:'text/plain'}),a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);a.download=(active().name||'oracle-chat').replace(/[^a-z0-9_-]+/gi,'-')+'.txt';
+    document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(a.href);showToast('Transcript downloaded');
+  });
+  function makeFamilyLink(includeChat){
+    const c=active();
+    const payload=includeChat?{chat:{id:c.id,name:c.name,hero:c.hero,messages:c.messages}}:{own:true};
+    openLinkModal(staticShareLink(payload),includeChat?'Family link with this chat':'Family link');
+  }
+  document.getElementById('shareFamilyOwn')?.addEventListener('click',()=>makeFamilyLink(false));
+  document.getElementById('shareFamilyChat')?.addEventListener('click',()=>makeFamilyLink(true));
+  document.getElementById('copyShareLink')?.addEventListener('click',async()=>{
+    const t=document.getElementById('shareLinkText');t.select();
+    try{await navigator.clipboard.writeText(t.value)}catch(err){document.execCommand('copy')}
+    showToast('Share link copied');
+  });
+  document.getElementById('guestStart')?.addEventListener('click',()=>guestChoose('own'));
+  document.getElementById('guestContinue')?.addEventListener('click',()=>guestChoose('chat'));
+  document.getElementById('guestFolder')?.addEventListener('click',()=>guestChoose('folder'));
+  document.getElementById('guestChooseDone')?.addEventListener('click',()=>guestChoose('own'));
+  document.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>{if(!credSelected.includes(b.dataset.pick))credSelected.push(b.dataset.pick);modal=null;render();showToast('Selected '+b.dataset.pick+' (value hidden)')});
+  document.getElementById('credForm')?.addEventListener('submit',async e=>{
+    e.preventDefault();const key=document.getElementById('ck').value.trim(),value=document.getElementById('cv').value;
+    const r=await api('/api/vault/set',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,value})});
+    modal=null;if(r.ok){showToast('Saved to Keychain: '+key)}else{showToast('Could not save: '+(r.error||'unknown'))}
+    vaultKeys=(await api('/api/vault/list')).keys;render();
+  });
+  document.getElementById('nameForm')?.addEventListener('submit',e=>{
+    e.preventDefault();const v=document.getElementById('dn').value.trim();
+    if(v){displayName=v;localStorage.setItem('oracle.displayName',v)}
+    modal=null;render();if(v)showToast('Name updated: '+v);
+  });
+  document.getElementById('skillForm')?.addEventListener('submit',async e=>{
+    e.preventDefault();const name=document.getElementById('sk').value.trim(),desc=document.getElementById('sd').value.trim();
+    await api('/api/skills',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,desc})});
+    modal=null;render();showToast('Skill saved: '+name);
+  });
+}
+
+function noteOf(r){return [r.backend&&'backend: '+r.backend,r.note].filter(Boolean).join(' · ')}
+
+async function toolAction(idx,approved){
+  const c=active(), m=c.messages[idx];
+  if(!m||!(m.toolState==='pending'||m.toolState==='working'))return;
+  m.toolState='working';waiting=true;render();
+  let result=null;
+  if(approved){
+    try{result=await api('/api/tool/execute',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tool:m.tool,approved:true})})}
+    catch(err){result={ok:false,error:err.message}}
+    m.toolResult=result;m.toolState=result.ok?'done':'error';
+  }else{
+    m.toolResult={ok:false,error:'Denied by you.'};m.toolState='denied';
+  }
+  render();await followUp(idx,result);
+}
+
+async function followUp(idx,result){
+  const c=active(),m=c.messages[idx];
+  const prior=c.messages.slice(0,idx).map(x=>({from:x.from,text:x.text}));
+  const body={messages:prior,backend,credentials:credSelected};
+  if(m.toolState==='denied')body.toolDenied=true;
+  if(result)body.toolResult=result;
+  try{
+    const r=await api('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    c.messages.push({from:'bot',text:r.answer||'(no answer)',note:noteOf(r)});
+    c.preview=(r.answer||'').slice(0,40);
+  }catch(err){c.messages.push({from:'bot',text:'Bridge error: '+err.message,note:'Start the bridge from the Desktop launcher.'})}
+  afterReply(c.messages.at(-1)?.text||'');
+}
+
+async function sendMessage(e){
+  e.preventDefault();
+  const text=draft.trim();if(!text&&!files.length)return;
+  const extra=(files.length?'\n[Attached files: '+files.join(', ')+']':'');
+  const c=active();
+  c.messages.push({from:'user',text:text+extra});c.preview=(text||'file')+'…';
+  draft='';files=[];waiting=true;if(callActive)setCallState('thinking');render();
+  let replyText='',delegated=false;
+  try{
+    if(backend==='device'){
+      const dmsgs=c.messages.map(m=>({from:m.from,text:m.text}));
+      if(credSelected.length)dmsgs.push({from:'user',text:'[Saved credentials available by name only: '+credSelected.join(', ')+'. Never ask for their values.]'});
+      const answer=await deviceChat(dmsgs);
+      c.messages.push({from:'bot',text:answer,note:'on-device · private'});
+      c.preview=answer.slice(0,40);replyText=answer;
+    }else{
+    const r=await api('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:c.messages.map(m=>({from:m.from,text:m.text})),backend,credentials:credSelected})});
+    if(r.tool){
+      const m={from:'bot',text:r.answer||'',note:noteOf(r),tool:r.tool,toolSummary:r.toolSummary,
+               needsApproval:r.needsApproval,toolState:r.needsApproval?'pending':'working'};
+      c.messages.push(m);replyText=r.answer||'';
+      render();
+      if(!r.needsApproval){delegated=true;await toolAction(c.messages.indexOf(m),true)}
+    }else{
+      c.messages.push({from:'bot',text:r.answer||'(no answer)',note:noteOf(r)});
+      c.preview=(r.answer||'').slice(0,40);replyText=r.answer||'';
+    }
+    }
+  }catch(err){c.messages.push({from:'bot',text:(backend==='device'?'On-device model error: ':'Bridge error: ')+err.message,note:backend==='device'?'Try switching to Local':'Start the bridge from the Desktop launcher.'});replyText=''}
+  if(!delegated){const last=c.messages.at(-1)?.text||replyText;afterReply(last)}
+}
+(async()=>{
+  if(staticMode)await gvInit();
+  if(guestMode&&!staticMode){
+    try{guestInfo=await api('/api/share/open')}catch(err){showToast('This share link is not valid.');guestInfo=null}
+    if(!guestInfo){showToast('This share link is not valid.');guestInfo=null}
+  }
+  await refresh();
+  if(guestMode)openGuestWelcome(guestInfo||{});
+})();
+</script>
+</body>
+</html>
