@@ -353,6 +353,7 @@ let plusOpen=false, modelOpen=false, profileOpen=false, moreOpen=false, modal=nu
 let files=[], credSelected=[], vaultKeys=[], status={}, memoryData={memories:[],notes:[]};
 let voiceReplies=localStorage.getItem('oracle.voiceReplies')==='1', listening=false, recognition=null;
 let callActive=false, callState='idle', finalTranscript='', speechGen=0, prevVoiceReplies=false;
+let callFatal=false, callNoSpeech=0;
 let displayName=guestMode?(localStorage.getItem('oracle.guest.name.'+shareToken)||'Family Guest'):(localStorage.getItem('oracle.displayName')||'Michael Lynch');
 
 function active(){return convs.find(c=>c.id===activeId)||convs[0]}
@@ -569,7 +570,7 @@ function listenLoop(){
   if(!callActive)return;
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){showToast('Live voice needs Chrome or Android Chrome');toggleCall();return}
-  finalTranscript='';
+  finalTranscript='';callFatal=false;
   try{
     recognition=new SR();recognition.lang='en-US';recognition.continuous=false;recognition.interimResults=true;
     recognition.onstart=()=>{listening=true;setCallState('listening')};
@@ -579,19 +580,31 @@ function listenLoop(){
         const seg=e.results[i];
         if(seg.isFinal)fin+=seg[0].transcript+' ';else inter+=seg[0].transcript;
       }
-      if(fin)finalTranscript+=fin;
+      if(fin){finalTranscript+=fin;callNoSpeech=0}
       const shown=(finalTranscript+inter).trim();
       const inp=document.getElementById('draft');if(inp)inp.value=shown;
       const send=document.getElementById('send');if(send)send.disabled=!shown;
       draft=shown;
     };
-    recognition.onerror=e=>{if(e.error==='no-speech')return;if(e.error!=='aborted')showToast('Voice: '+e.error)};
+    recognition.onerror=e=>{
+      if(e.error==='no-speech'||e.error==='aborted')return;
+      // Permission, missing microphone or service errors will repeat forever if
+      // we auto-retry. End the call so the page stays responsive.
+      callFatal=true;
+      if(callActive)toggleCall();
+      showToast('Voice unavailable ('+e.error+') — check mic permission, then tap call again');
+    };
     recognition.onend=()=>{
       listening=false;
-      if(!callActive)return;
+      if(!callActive||callFatal)return;
       const t=finalTranscript.trim();
-      if(t){draft=t;sendMessage({preventDefault(){}});return}
-      if(!waiting&&callState!=='speaking')setTimeout(()=>{if(callActive)listenLoop()},300);
+      if(t){draft=t;callNoSpeech=0;sendMessage({preventDefault(){}});return}
+      callNoSpeech++;
+      if(callNoSpeech>=4){
+        toggleCall();
+        showToast('No speech heard — tap the call button to try again');return;
+      }
+      if(!waiting&&callState!=='speaking')setTimeout(()=>{if(callActive)listenLoop()},400);
     };
     recognition.start();
   }catch(err){showToast('Could not start live voice: '+err.message);toggleCall()}
@@ -612,6 +625,7 @@ function toggleCall(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){showToast('Live voice needs Chrome or Android Chrome');return}
   prevVoiceReplies=voiceReplies;
+  callNoSpeech=0;callFatal=false;
   callActive=true;voiceReplies=true;localStorage.setItem('oracle.voiceReplies','1');
   render();showToast('Voice call started — just talk');listenLoop();
 }
