@@ -318,6 +318,12 @@ try{
   }
 }catch(e){}
 function saveState(){localStorage.setItem(stateKey,JSON.stringify({convs,folders,activeId}))}
+// A phone tab can be killed while a model loads. If the saved chat ends on a
+// user message, offer to resend it instead of silently losing the question.
+function interruptedConv(){
+  const c=convs.find(x=>x.id===activeId);
+  return (!waiting&&c&&c.messages.length&&c.messages.at(-1)?.from==='user')?c:null;
+}
 const startConv=()=>convs.find(c=>c.id===activeId)||convs[0];
 activeFolder=startConv()?.folder||folders[0]?.id||'general';
 const MODELS=[
@@ -396,20 +402,31 @@ const DEFAULT_DEVICE_MODEL='onnx-community/Qwen2.5-0.5B-Instruct';
 const SMALL_DEVICE_MODEL='onnx-community/SmolLM2-135M-Instruct-ONNX-MHA';
 function activeDeviceModel(){return backend==='device-small'?SMALL_DEVICE_MODEL:(customModels.find(m=>m.id===backend)?.model||DEFAULT_DEVICE_MODEL)}
 const devicePipes={}, deviceLoads={};
+// Update the progress text in place. A full render() here destroys the input
+// and closes the phone keyboard, which makes a slow first load look like a
+// page reset.
+function setDeviceStatus(s){
+  deviceStatus=s;
+  const bar=document.getElementById('deviceBar'),txt=document.getElementById('deviceBarText');
+  if(txt)txt.textContent=s;
+  if(bar)bar.style.display=s?'':'none';
+  const st=document.getElementById('waitingStatus');
+  if(st)st.textContent=s||'Thinking — your private model is working…';
+}
 async function loadDeviceModel(modelId){
   modelId=modelId||DEFAULT_DEVICE_MODEL;
   if(devicePipes[modelId]){devicePipe=devicePipes[modelId];deviceModelId=modelId;return devicePipe}
   if(deviceLoads[modelId])return deviceLoads[modelId];
-  deviceStatus='Loading '+(modelId.split('/').pop())+'… (first time only)';render();
+  setDeviceStatus('First time: downloading your private model — keep this page open');
   deviceLoads[modelId]=(async()=>{
     try{
       const mod=await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.5');
       const opts={dtype:'q4'};
       let pipe;
       try{pipe=await mod.pipeline('text-generation',modelId,{...opts,device:'webgpu'})}
-      catch(e){deviceStatus='WebGPU unavailable — using CPU (slower)';render();pipe=await mod.pipeline('text-generation',modelId,{...opts,device:'wasm'})}
-      devicePipes[modelId]=pipe;devicePipe=pipe;deviceModelId=modelId;deviceStatus='';render();return pipe;
-    }catch(err){deviceStatus='';throw err}
+      catch(e){setDeviceStatus('Using this device instead — slower on the first load');pipe=await mod.pipeline('text-generation',modelId,{...opts,device:'wasm'})}
+      devicePipes[modelId]=pipe;devicePipe=pipe;deviceModelId=modelId;setDeviceStatus('');return pipe;
+    }catch(err){setDeviceStatus('');throw err}
     finally{delete deviceLoads[modelId]}
   })();
   return deviceLoads[modelId];
@@ -417,7 +434,10 @@ async function loadDeviceModel(modelId){
 async function deviceChat(messages,modelId){
   const gen=await loadDeviceModel(modelId);
   const prompt=messages.map(m=>(m.from==='user'?'User':'Assistant')+': '+m.text).join('\n')+'\nAssistant:';
-  const out=await gen(prompt,{max_new_tokens:200,do_sample:false});
+  const out=await Promise.race([
+    gen(prompt,{max_new_tokens:160,do_sample:false}),
+    new Promise((_,rej)=>setTimeout(()=>rej(new Error('This device took too long — tap retry to try again.')),120000))
+  ]);
   return guestFill(String(out?.[0]?.generated_text||'').replace(prompt,'').trim()||'(no answer)');
 }
 async function customCloudChat(cm,messages){
@@ -734,10 +754,12 @@ function render(){
       </header>
       <div class="messages" id="messages"><div class="messages-inner">
         ${msgs||'<div class="status">Ask a question — answers come from a real model.</div>'}
-        ${waiting?'<div class="status">Thinking…</div>':''}
+        ${waiting?`<div class="status" id="waitingStatus">${esc(deviceStatus||'Thinking — your private model is working…')}</div>`:''}
+        ${interruptedConv()?`<div class="status" style="align-self:center;text-align:center">Your last question was interrupted.
+          <button class="btn primary" id="retrySend" style="padding:4px 10px;font-size:12px;margin-left:6px">Try again</button></div>`:''}
       </div></div>
       <div class="composer-wrap">
-        ${deviceStatus?`<div class="call-bar thinking"><span class="call-dot"></span><span>${esc(deviceStatus)}</span></div>`:''}
+        <div class="call-bar thinking" id="deviceBar" style="${deviceStatus?'':'display:none'}"><span class="call-dot"></span><span id="deviceBarText">${esc(deviceStatus)}</span></div>
         ${callActive?`<div class="call-bar ${callState}"><span class="call-dot"></span><span>${callState==='listening'?'Listening — talk now…':callState==='thinking'?'Thinking…':'Speaking…'}</span><button id="endCall">End call</button></div>`:''}
         ${(files.length||credSelected.length)?`<div class="attach-chips">
           ${files.map((f,i)=>`<span class="chip">📎 ${esc(f)} <button data-rmf="${i}">×</button></span>`).join('')}
@@ -904,6 +926,12 @@ function bind(){
   document.querySelectorAll('[data-rmc]').forEach(b=>b.onclick=()=>{credSelected.splice(+b.dataset.rmc,1);render()});
   document.querySelectorAll('[data-tool-approve]').forEach(b=>b.onclick=()=>toolAction(+b.dataset.toolApprove,true));
   document.querySelectorAll('[data-tool-deny]').forEach(b=>b.onclick=()=>toolAction(+b.dataset.toolDeny,false));
+  document.getElementById('retrySend')?.addEventListener('click',()=>{
+    const c=active(),last=c.messages.at(-1);
+    if(!last||last.from!=='user')return;
+    c.messages.pop();draft=last.text.replace(/\n\[Attached files:[^\]]*\]$/,'');
+    saveState();sendMessage({preventDefault(){}});
+  });
   document.getElementById('fileInput')?.addEventListener('change',async e=>{
     for(const f of e.target.files){files.push(f.name)}
     e.target.value='';render();showToast(files.length+' file(s) attached (name shown)');
@@ -1302,6 +1330,9 @@ async function sendMessage(e){
   const extra=(files.length?'\n[Attached files: '+files.join(', ')+']':'');
   const c=active();
   c.messages.push({from:'user',text:text+extra});c.preview=(text||'file')+'…';
+  // Save now — if a phone tab is killed while the model loads, the question
+  // survives the reload and can be retried instead of vanishing.
+  saveState();
   draft='';files=[];waiting=true;if(callActive)setCallState('thinking');render();
   let replyText='',delegated=false;
   const cm=customModels.find(m=>m.id===backend);
