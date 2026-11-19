@@ -263,12 +263,13 @@ function saveState(){localStorage.setItem(stateKey,JSON.stringify({convs,folders
 const startConv=()=>convs.find(c=>c.id===activeId)||convs[0];
 activeFolder=startConv()?.folder||folders[0]?.id||'general';
 const MODELS=[
-  {id:'local',name:'Qwen 2.5 3B (local)',sub:'working now — offline'},
+  {id:'local',name:'Qwen 2.5 3B (local)',sub:'fast — best for voice calls'},
+  {id:'local-deep',name:'Qwen 3 4B (deeper)',sub:'slower, stronger reasoning'},
   {id:'auto',name:'Cloud → Local',sub:'try Big Pickle, fall back'},
   {id:'cloud',name:'Big Pickle (cloud)',sub:'free OpenCode — quota resetting'},
   ...((guestMode||staticMode)?[{id:'device',name:'This device (private)',sub:'runs on this device — no Mac needed'}]:[]),
 ];
-if(staticMode)MODELS.splice(0,3);
+if(staticMode)MODELS.splice(0,4);
 
 // Models a device owner adds themselves — on-device or their own cloud provider.
 let customModels=[];
@@ -408,8 +409,21 @@ function pickVoicePreset(kind){
   showToast('No '+kind+' voice found on this device — choose one from the list');
 }
 function openVoicePicker(){
-  const vs=('speechSynthesis' in window)?window.speechSynthesis.getVoices():[];
-  if(!vs.length){showToast('No system voices found yet — try again in a moment');return}
+  let vs=('speechSynthesis' in window)?window.speechSynthesis.getVoices():[];
+  if(!vs.length){
+    // Some browsers (notably Safari) load voices asynchronously. Wait for them
+    // instead of silently doing nothing when the menu item is tapped early.
+    modal='<div class="modal-backdrop" id="mb"><div class="modal"><h3>Choose the speaking voice</h3><p>Loading this device’s voices…</p><div class="modal-actions"><button class="btn" id="mc">Close</button></div></div></div>';
+    render();
+    let tries=0;
+    const timer=setInterval(()=>{
+      if(!modal||!document.getElementById('mb')){clearInterval(timer);return}
+      vs=('speechSynthesis' in window)?window.speechSynthesis.getVoices():[];
+      if(vs.length){clearInterval(timer);openVoicePicker();return}
+      if(++tries>25){clearInterval(timer);modal=null;render();showToast('No system voices found on this device')}
+    },200);
+    return;
+  }
   const enc=v=>encodeURIComponent(v.voiceURI);
   modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Choose the speaking voice</h3>
     <p>Voices come with this device — the site cannot install new ones. Both an assistant voice and a Jarvis-style voice are built in as one-click presets.</p>
