@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#4a9861" />
-<meta name="oracle-build" content="2026-11-20j" />
+<meta name="oracle-build" content="2026-11-20k" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Oracle" />
@@ -1001,6 +1001,15 @@ const IMG_SIZES=[
 let imageRuntime=null,imageRuntimeLoad=null,imageBusy=false,imagePct=0,imageStatusText='';
 let imagePrompt='',imageSize='auto',imageSeed=0,imageResultBlob=null,imageResultUrl='';
 let imageOk=localStorage.getItem('oracle.image.ok')==='1',imageGpuReady=null;
+// iOS can kill the tab outright during WebGPU work, so no catch/finally runs
+// and the error log stays empty. A synchronous checkpoint before each stage
+// survives the kill and names the operation to fix after the app reopens.
+function imageCheckpoint(stage){
+  try{
+    const build=document.querySelector('meta[name="oracle-build"]')?.content||'';
+    localStorage.setItem('oracle.image.checkpoint',JSON.stringify({at:Date.now(),build,stage:String(stage).slice(0,120)}));
+  }catch(e){}
+}
 function imageSaved(){try{return localStorage.getItem('oracle.image.saved')===IMG_MODEL_REV}catch(e){return false}}
 function imageFileUrl(path){return 'https://huggingface.co/utkucoban/NanoDiffuser/resolve/'+IMG_MODEL_REV+'/'+path}
 // This quantized model feeds float16 tensors to WebGPU. Safari can expose
@@ -1072,6 +1081,7 @@ async function ensureImageFiles(progress){
 }
 // Read one model file from the device cache only when a session needs it.
 async function imageFile(path){
+  imageCheckpoint('read '+path);
   const url=imageFileUrl(path);
   const cache=await caches.open(IMG_CACHE).catch(()=>null);
   if(!cache)throw new Error('Image model cache unavailable — download the model again.');
@@ -1203,6 +1213,7 @@ function cropImageData(img,w,h){
 // Label every image step so an opaque phone failure names the exact stage and
 // keeps the browser's raw error text instead of a bare "I/O" message.
 async function imageStage(name,fn){
+  imageCheckpoint(name);
   try{return await fn()}
   catch(e){
     const raw=(e&&e.message)||String(e),named=(e&&e.name&&e.name!=='Error')?e.name+': ':'';
@@ -1295,6 +1306,7 @@ async function startImageGeneration(){
   if(imageBusy||guestMode)return;
   const prompt=imagePrompt.trim();
   if(!prompt){showToast('Describe the image first');return}
+  imageCheckpoint('generate start');
   imageBusy=true;imageResultBlob=null;
   if(imageResultUrl)URL.revokeObjectURL(imageResultUrl);
   imageResultUrl='';imagePct=0;imageStatusText='Freeing chat model…';openImageModal();
@@ -1302,8 +1314,10 @@ async function startImageGeneration(){
     // Drop the chat model first so the WebGPU image model has the whole device
     // memory budget. Its weights stay saved and reload on the next chat message.
     await releaseDevicePipes();
+    imageCheckpoint('models released');
     imageSeed=(Date.now()^Math.floor(Math.random()*1000000000))>>>0;
     const r=await generateImageBlob(prompt,imageSize,imageSeed,(p,t)=>setImageProgress(p,t));
+    imageCheckpoint('image generated');
     if(r.blank)throw new Error('The image came out blank on this device. Please try again — a shorter prompt uses less memory.');
     imageResultBlob=r.blob;imageResultUrl=URL.createObjectURL(r.blob);
     const id='img'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
@@ -1314,9 +1328,11 @@ async function startImageGeneration(){
     c.preview='Generated '+r.size.id+' image';
     saveState();
     await imageStorePut(id,r.blob);
+    imageCheckpoint('image saved');
     imageBusy=false;imagePct=0;imageStatusText='';openImageModal();showToast('Image added to this chat');
   }catch(err){
     const msg=String((err&&err.message)||err);
+    imageCheckpoint('failed: '+msg);
     // Keep the full labelled error even after the toast disappears, so it can
     // be copied from the command palette and pasted back for a targeted fix.
     try{
@@ -1332,7 +1348,9 @@ function copyImageDiagnostics(){
   let rows=[];try{rows=JSON.parse(localStorage.getItem('oracle.imageErrors')||'[]')}catch(e){}
   if(!Array.isArray(rows))rows=[];
   const build=document.querySelector('meta[name="oracle-build"]')?.content||'unknown';
-  const text=['Oracle Chat image diagnostics','Build: '+build,
+  let cp='none';
+  try{const x=JSON.parse(localStorage.getItem('oracle.image.checkpoint')||'null');if(x)cp=new Date(x.at).toISOString()+'  ['+(x.build||'?')+']  '+x.stage}catch(e){}
+  const text=['Oracle Chat image diagnostics','Build: '+build,'Last checkpoint: '+cp,
     'Update: '+JSON.stringify(window.oracleUpdateInfo?.()||{}),'',
     ...(rows.length?rows.map(r=>new Date(r.at).toISOString()+'  '+r.message):['No image errors recorded.'])].join('\n');
   const done=()=>showToast('Image diagnostics copied');
