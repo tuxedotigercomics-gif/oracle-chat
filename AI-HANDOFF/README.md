@@ -11,7 +11,8 @@ should be able to resume the work without access to the original Mac workspace.
 | Current build marker | `2026-11-21a` |
 | Current app SHA (sha256) | `1aa44729b87ba0123ce49b96e05eb2f02fab3b3612b51406f21e2618f6d975f0` |
 | Service-worker SHA | `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35` |
-| Pages commit | `49d1b5e` |
+| Pages commit (app build) | `49d1b5e` |
+| Handoff docs commit | `2cc8b47` (documentation only; app unchanged) |
 | Canonical site | https://oracle-chat.pages.dev/ |
 | Backup site | https://tuxedotigercomics-gif.github.io/oracle-chat/ |
 | Repo | `tuxedotigercomics-gif/oracle-chat` (this repository) |
