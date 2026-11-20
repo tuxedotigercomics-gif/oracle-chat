@@ -12,7 +12,7 @@ should be able to resume the work without access to the original Mac workspace.
 | Current app SHA (sha256) | `82a1ab7ddb26a3671f7b3f6cef96b023aa47ad039af88391b8af79a7a0839aaa` |
 | Service-worker SHA | `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35` |
 | Previous verified build | `2026-11-21a` (`1aa44729b87ba0123ce49b96e05eb2f02fab3b3612b51406f21e2618f6d975f0`) |
-| Pages commit (app build) | _see `git log` after the web-search publish_ |
+| Pages commit (app build) | `701cc86` |
 | Previous app commit | `49d1b5e`; handoff docs `2cc8b47`, `0f7f8cb` |
 | Canonical site | https://oracle-chat.pages.dev/ |
 | Backup site | https://tuxedotigercomics-gif.github.io/oracle-chat/ |

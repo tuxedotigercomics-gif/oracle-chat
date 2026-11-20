@@ -7,6 +7,7 @@ between the frozen baseline and whatever is currently in the working file.
 
 Status: **published and verified** — build `2026-11-21a` → `2026-11-21b`.
 App SHA: `82a1ab7ddb26a3671f7b3f6cef96b023aa47ad039af88391b8af79a7a0839aaa`.
+Pages commit: `701cc86`.
 Service worker unchanged: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`.
 
 Shipped in build `2026-11-21b`: the Mac host now has an owner-only `search`
