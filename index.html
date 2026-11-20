@@ -402,6 +402,128 @@ async function gvGet(name){
 }
 function guestFill(text){return String(text).replace(/\[\[USE:([^|\]]+)\|([^\]]+)\]\]/g,(m,n)=>`[credential '${n}' — value stayed on this device]`)}
 
+// ---- Device-local routines (static/phone build only) ----
+// The on-device model can DRAFT a routine, but nothing executes until the owner
+// approves it. Steps are a strict whitelist: model output is never eval'd, and
+// a routine can only call hosts the owner typed into the allowlist.
+const DR_KEY='oracle.routines.'+vaultId;
+const DR_OPS=['fetch','model','say','notify','share','wait','log'];
+let deviceRoutines={routines:{},allowHosts:[],lastRun:{}},drRunning=false,drEditorId=null,drEditorText='',drOutput='';
+function drLoad(){
+  try{
+    const x=JSON.parse(localStorage.getItem(DR_KEY)||'{}');
+    deviceRoutines={
+      routines:(x.routines&&typeof x.routines==='object')?x.routines:{},
+      allowHosts:Array.isArray(x.allowHosts)?x.allowHosts:[],
+      lastRun:(x.lastRun&&typeof x.lastRun==='object')?x.lastRun:{}
+    };
+  }catch(e){deviceRoutines={routines:{},allowHosts:[],lastRun:{}}}
+}
+function drSave(){try{localStorage.setItem(DR_KEY,JSON.stringify(deviceRoutines))}catch(e){}}
+function drAllowed(url){
+  try{
+    const u=new URL(String(url||''));
+    if(!/^https?:$/.test(u.protocol)||!deviceRoutines.allowHosts.length)return false;
+    return deviceRoutines.allowHosts.some(h=>h&&(u.hostname===h||u.hostname.endsWith('.'+h)));
+  }catch(e){return false}
+}
+function drValidate(r){
+  if(!r||typeof r!=='object'||typeof r.name!=='string'||!r.name.trim())return {error:'Give the routine a name.'};
+  const steps=Array.isArray(r.steps)?r.steps:[];
+  if(!steps.length||steps.length>12)return {error:'Use between 1 and 12 steps.'};
+  for(const s of steps){
+    if(!s||!DR_OPS.includes(s.op))return {error:'Unsupported step: '+String(s&&s.op||'(none)')};
+    if(s.op==='fetch'&&!drAllowed(s.url))return {error:'Host not allowed: '+String(s.url||'').split('/')[2]+'. Add it to Allowed endpoints first.'};
+    if(s.op==='wait')s.ms=Math.max(100,Math.min(Number(s.ms)||1000,5000));
+  }
+  const t=r.trigger&&typeof r.trigger==='object'?r.trigger:{type:'manual'};
+  return {routine:{
+    id:r.id||('r-'+Date.now().toString(36)),name:r.name.trim().slice(0,60),
+    steps:steps.map(s=>({op:s.op,url:s.url,method:s.method==='POST'?'POST':'GET',body:s.body,
+      prompt:s.prompt,text:s.text,title:s.title,saveAs:s.saveAs,ms:s.ms})),
+    trigger:{type:['manual','interval','at'].includes(t.type)?t.type:'manual',
+      minutes:Math.max(5,Math.min(Number(t.minutes)||60,10080)),
+      time:/^\d{1,2}:\d{2}$/.test(t.time||'')?t.time:'08:00'},
+    // Never trust a newly authored/edited routine. The owner must approve it.
+    trusted:false,created:Date.now()
+  }};
+}
+async function drResolve(text,vars,secrets){
+  let out=String(text==null?'':text);
+  for(const m of out.matchAll(/\{\{cred:([^}]+)\}\}/g)){
+    const v=await gvGet(m[1].trim());
+    if(v)secrets.push(v);
+    out=out.split(m[0]).join(v||'');
+  }
+  out=out.replace(/\{\{var:([^}]+)\}\}/g,(m,n)=>String(vars[n.trim()]??''));
+  return out.slice(0,8000);
+}
+function drRedact(s,secrets){
+  let o=String(s==null?'':s);
+  for(const v of secrets)if(v)o=o.split(v).join('[REDACTED]');
+  return o.slice(0,4000);
+}
+async function drRun(r){
+  if(drRunning)return 'Another routine is still running.';
+  const v=drValidate(r);if(v.error)return v.error;
+  const route=v.routine,secrets=[],vars={},log=[];
+  drRunning=true;
+  try{
+    for(const s of route.steps){
+      try{
+        if(s.op==='fetch'){
+          const url=await drResolve(s.url,vars,secrets);
+          if(!drAllowed(url)){log.push('fetch blocked — host is not approved');continue}
+          const opt={method:s.method||'GET',headers:{'User-Agent':'OracleChat/1.0'}};
+          if(s.method==='POST'){
+            opt.headers['Content-Type']='application/json';
+            opt.body=JSON.stringify({text:await drResolve(s.body||'',vars,secrets)});
+          }
+          const res=await fetch(url,opt),txt=(await res.text()).slice(0,4000);
+          log.push('fetch '+res.status+': '+drRedact(txt.slice(0,180),secrets));
+          if(s.saveAs)vars[s.saveAs]=txt;
+        }else if(s.op==='model'){
+          const a=await deviceChat([{from:'user',text:await drResolve(s.prompt||'',vars,secrets)}]);
+          if(s.saveAs)vars[s.saveAs]=a;
+          log.push('model: '+drRedact(String(a).slice(0,180),secrets));
+        }else if(s.op==='say'){
+          speak(drRedact(await drResolve(s.text||'',vars,secrets),secrets));
+          log.push('spoke the reply');
+        }else if(s.op==='notify'){
+          if('Notification' in window&&Notification.permission==='granted'){
+            new Notification(drRedact(await drResolve(s.title||'',vars,secrets),secrets),
+              {body:drRedact(await drResolve(s.body||'',vars,secrets),secrets)});
+            log.push('notification sent');
+          }else log.push('notification skipped — alerts are not enabled');
+        }else if(s.op==='share'){
+          const t=drRedact(await drResolve(s.text||'',vars,secrets),secrets);
+          if(navigator.share){await navigator.share({text:t});log.push('shared')}
+          else log.push('sharing is unavailable in this browser');
+        }else if(s.op==='wait'){
+          await new Promise(ok=>setTimeout(ok,s.ms||1000));log.push('waited');
+        }else if(s.op==='log'){
+          log.push(drRedact(await drResolve(s.text||'',vars,secrets),secrets));
+        }
+      }catch(e){log.push(s.op+' failed: '+drRedact(e.message,secrets))}
+    }
+    deviceRoutines.lastRun[route.id]=Date.now();drSave();
+    return log.join('\n')||'Routine finished.';
+  }finally{drRunning=false}
+}
+function drTick(){
+  const now=new Date(),hhmm=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  for(const r of Object.values(deviceRoutines.routines)){
+    if(!r.trusted||!r.trigger||r.trigger.type==='manual')continue;
+    const last=Number(deviceRoutines.lastRun[r.id]||0);
+    // A daily trigger must fire once per calendar day, not on every tick inside
+    // the matching minute. An interval waits that long after the last run.
+    const due=r.trigger.type==='at'
+      ?(r.trigger.time===hhmm&&new Date(last).toDateString()!==now.toDateString())
+      :(Date.now()-last)>=r.trigger.minutes*60000;
+    if(due){deviceRoutines.lastRun[r.id]=Date.now();drSave();drRun(r).catch(()=>{})}
+  }
+}
+
 // Private models that fit a phone browser. wllama (llama.cpp compiled to
 // WebAssembly) is used instead of Transformers.js because Transformers.js is
 // the one browser runtime known to kill iPhone tabs during/after generation.
@@ -431,7 +553,20 @@ function setDeviceStatus(s){
   const st=document.getElementById('waitingStatus');
   if(st)st.textContent=s||'Thinking — your private model is working…';
 }
-let deviceOk=false;
+// Remember the owner's go-ahead across refreshes. The GGUF itself is cached on
+// device; without this flag the first-download confirmation reappeared on every
+// page load and looked like the model was being downloaded again.
+let deviceOk=localStorage.getItem('oracle.device.ok')==='1';
+async function modelCached(spec){
+  try{
+    const urls=['resolve','raw'].map(p=>'https://huggingface.co/'+spec.repo+'/'+p+'/main/'+spec.file);
+    for(const n of await caches.keys()){
+      const c=await caches.open(n);
+      for(const u of urls)if(await c.match(u))return true;
+    }
+  }catch(e){}
+  return false;
+}
 // Phones need an explicit go-ahead: the first answer downloads a real model.
 function confirmPhoneDownload(spec){
   return new Promise(resolve=>{
@@ -452,9 +587,12 @@ async function loadDeviceModel(modelId){
   if(deviceLoads[modelId])return deviceLoads[modelId];
   const spec=ggufSpec(modelId);
   if(!spec)throw new Error('Unknown on-device model. Pick one of the private models.');
-  if(PHONE&&!deviceOk){
+  // Only ask when the weights are genuinely not on the device yet. A cached
+  // model loads silently after refresh, even in a new chat room.
+  if(PHONE&&!deviceOk&&!await modelCached(spec)){
     if(!await confirmPhoneDownload(spec))throw new Error('Model download not started. Tap "Try again" when you are ready.');
     deviceOk=true;
+    try{localStorage.setItem('oracle.device.ok','1')}catch(e){}
   }
   setDeviceStatus('Preparing '+spec.name+' — first time only, keep this page open');
   deviceLoads[modelId]=(async()=>{
@@ -886,7 +1024,8 @@ function render(){
         <span class="profile-caret">⌃</span>
       </button>
       ${profileOpen?`<div class="dropdown profile-menu">
-        ${staticMode?`<button class="menu-item" id="openGuestVault">${icon('lock',18)}<span><strong>My Vault</strong><span class="mi-sub">Encrypted on this device</span></span></button><div class="menu-sep"></div>`:`<button class="menu-item" id="openVault">${icon('lock',18)}<span><strong>Credential Vault</strong><span class="mi-sub">macOS Keychain — values hidden</span></span></button>
+        ${staticMode?`<button class="menu-item" id="openGuestVault">${icon('lock',18)}<span><strong>My Vault</strong><span class="mi-sub">Encrypted on this device</span></span></button>
+        <button class="menu-item" id="openDeviceRoutines">${icon('spark',18)}<span><strong>My Routines</strong><span class="mi-sub">Make this app do things on its own</span></span></button><div class="menu-sep"></div>`:`<button class="menu-item" id="openVault">${icon('lock',18)}<span><strong>Credential Vault</strong><span class="mi-sub">macOS Keychain — values hidden</span></span></button>
         <button class="menu-item" id="openMemory">${icon('spark',18)}<span><strong>My Memory</strong><span class="mi-sub">Notes &amp; skills the model recalls</span></span></button>
         <button class="menu-item" id="openRoutines">${icon('spark',18)}<span><strong>Web Routines</strong><span class="mi-sub">Email, webhooks &amp; browser actions</span></span></button>
         <div class="menu-sep"></div>`}
@@ -971,6 +1110,7 @@ function bind(){
   document.querySelectorAll('[data-gvdel]').forEach(b=>b.onclick=()=>{gvDel(b.dataset.gvdel);render()});
   document.getElementById('openMemory')?.addEventListener('click',async()=>{await loadMemory();view='memory';mobileView='chat';profileOpen=false;render()});
   document.getElementById('openRoutines')?.addEventListener('click',async()=>{profileOpen=false;await openRoutines()});
+  document.getElementById('openDeviceRoutines')?.addEventListener('click',()=>{profileOpen=false;openDeviceRoutines()});
   document.getElementById('memoryBack')?.addEventListener('click',()=>{view='chat';render()});
   document.getElementById('addMemory')?.addEventListener('click',()=>{
     modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Add a memory</h3><p>A fact the model should remember later.</p>
@@ -1232,6 +1372,123 @@ async function openRoutines(){
       if(!res.ok)throw new Error(res.error||'Could not save');
       showToast('Routines saved');modal=null;render();
     }catch(e){showToast('Invalid configuration: '+e.message)}
+  });
+}
+function openDeviceRoutines(){
+  const rows=Object.values(deviceRoutines.routines);
+  const tpl=(drEditorText||JSON.stringify({name:'My routine',steps:[{op:'log',text:'Hello from this device'}],trigger:{type:'manual'}},null,2));
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal" style="max-width:720px">
+    <h3>My Routines</h3>
+    <p>Routines live on this device only. Your private model can <strong>write</strong> one for you, but nothing runs until you approve it. A shared chat gets its own blank set — your routines and credentials never leave this device.</p>
+    <label>Allowed endpoints — one hostname per line</label>
+    <textarea id="drHosts" rows="3" style="width:100%;box-sizing:border-box;font-family:ui-monospace,monospace;font-size:12px">${esc(deviceRoutines.allowHosts.join('\n'))}</textarea>
+    <div class="tool-actions"><button class="btn" id="drSaveHosts">Save endpoints</button><button class="btn" id="drNotify">Enable alerts</button></div>
+    <label>Your routines</label>
+    <div id="drList">${rows.length?rows.map(r=>`<div class="vault-row" style="align-items:center;flex-wrap:wrap">
+      <span style="flex:1;min-width:150px"><strong>${esc(r.name)}</strong><br/><small style="color:var(--muted)">${r.steps.length} step(s) · ${esc(r.trigger?.type||'manual')} ${r.trigger?.type==='at'?esc(r.trigger.time):''} ${r.trusted?'· approved':'· NEEDS APPROVAL'}</small></span>
+      <button class="btn" data-dr-run="${esc(r.id)}">Run</button>
+      ${r.trusted?'':`<button class="btn primary" data-dr-approve="${esc(r.id)}">Approve</button>`}
+      <button class="btn" data-dr-edit="${esc(r.id)}">Edit</button>
+      <button class="btn danger" data-dr-del="${esc(r.id)}">Delete</button>
+    </div>`).join(''):'<div class="status" style="text-align:left">No routines yet. Write one below or start from the template.</div>'}</div>
+    <div class="tool-actions"><button class="btn" id="drNew">＋ New routine</button></div>
+    <label>Let your private model write one</label>
+    <textarea id="drBrief" rows="2" style="width:100%;box-sizing:border-box" placeholder="e.g. call my webhook and speak the summary"></textarea>
+    <label>When should it run?</label>
+    <select id="drTrigger" style="width:100%;box-sizing:border-box">
+      <option value="manual">Only when I tap Run</option>
+      <option value="interval">Every hour (while this page is open)</option>
+      <option value="daily">Daily at 08:00 (while this page is open)</option>
+    </select>
+    <div class="tool-actions"><button class="btn" id="drWrite">Write routine with AI</button></div>
+    <div id="drEditor" style="${drEditorId||drEditorText?'':'display:none'}">
+      <label>Routine JSON — review before saving</label>
+      <textarea id="drJson" rows="12" style="width:100%;box-sizing:border-box;font-family:ui-monospace,monospace;font-size:12px">${esc(drEditorText)}</textarea>
+      <div class="tool-actions"><button class="btn" id="drCancelEdit">Cancel</button><button class="btn primary" id="drSaveRoutine">Save routine</button></div>
+    </div>
+    <div id="drOutput" class="status" style="text-align:left;white-space:pre-wrap;margin-top:10px">${esc(drOutput)}</div>
+    <p style="font-size:11.5px;color:var(--muted)">Steps: <code>fetch</code> (approved host only), <code>model</code>, <code>say</code>, <code>notify</code>, <code>share</code>, <code>wait</code>, <code>log</code>. Use <code>{{cred:NAME}}</code> for a vault secret (filled on device, never shown) and <code>{{var:NAME}}</code> for a saved result. Time triggers only run while this page is open.</p>
+    <div class="modal-actions"><button class="btn" id="mc">Close</button></div>
+  </div></div>`;
+  render();
+  const refresh=()=>{drEditorText=document.getElementById('drJson')?.value||drEditorText;openDeviceRoutines()};
+  document.getElementById('drSaveHosts')?.addEventListener('click',()=>{
+    const hosts=document.getElementById('drHosts').value.split('\n').map(s=>s.trim().toLowerCase()).filter(s=>/^[a-z0-9.-]+$/.test(s));
+    drEditorText=document.getElementById('drJson')?.value||drEditorText;
+    deviceRoutines.allowHosts=[...new Set(hosts)];drSave();
+    drOutput='Endpoints saved. '+deviceRoutines.allowHosts.length+' host(s) allowed.';openDeviceRoutines();
+  });
+  document.getElementById('drNotify')?.addEventListener('click',async()=>{
+    if(!('Notification' in window)){showToast('Alerts are not supported here');return}
+    const p=await Notification.requestPermission();showToast('Alerts: '+p);
+  });
+  document.getElementById('drNew')?.addEventListener('click',()=>{
+    drEditorId=null;drEditorText=JSON.stringify({name:'My routine',steps:[{op:'log',text:'Hello from this device'}],trigger:{type:'manual'}},null,2);openDeviceRoutines();
+  });
+  document.getElementById('drCancelEdit')?.addEventListener('click',()=>{drEditorId=null;drEditorText='';openDeviceRoutines()});
+  document.getElementById('drSaveRoutine')?.addEventListener('click',()=>{
+    try{
+      const parsed=JSON.parse(document.getElementById('drJson').value);
+      const v=drValidate(parsed);if(v.error){drOutput=v.error;openDeviceRoutines();return}
+      const id=drEditorId||v.routine.id;v.routine.id=id;
+      const prev=deviceRoutines.routines[id];if(prev)v.routine.created=prev.created;
+      deviceRoutines.routines[id]=v.routine;drSave();
+      drEditorId=null;drEditorText='';drOutput='Saved “'+v.routine.name+'”. Approve it before it can run.';openDeviceRoutines();
+    }catch(e){drOutput='Invalid JSON: '+e.message;openDeviceRoutines()}
+  });
+  document.getElementById('drWrite')?.addEventListener('click',async()=>{
+    const brief=document.getElementById('drBrief').value.trim();
+    const sched=document.getElementById('drTrigger')?.value||'manual';
+    if(!brief){showToast('Describe what the routine should do first');return}
+    const chosen=sched==='interval'?{type:'interval',minutes:60}
+      :sched==='daily'?{type:'at',time:'08:00'}:{type:'manual'};
+    drEditorText=document.getElementById('drJson')?.value||drEditorText;
+    drOutput='Asking your private model…';openDeviceRoutines();
+    const prompt='Write ONE device routine as a single JSON object and nothing else. No markdown, no explanation.\n'
+      +'Allowed step ops: fetch, model, say, notify, share, wait, log.\n'
+      +'fetch needs "url" (https only, host must be one of: '+(deviceRoutines.allowHosts.join(', ')||'none approved yet')+'), optional "method" GET/POST, "body", and "saveAs".\n'
+      +'model needs "prompt" and optional "saveAs". Use {{var:NAME}} to reuse a saved result.\n'
+      +'say needs "text". notify needs "title" and "body". log needs "text". wait needs "ms".\n'
+      +'The owner chose the trigger; do not change it. It must be exactly '+JSON.stringify(chosen)+'.\n'
+      +'Return exactly: {"name":"...","steps":[...],"trigger":'+JSON.stringify(chosen)+'}\nTask: '+brief;
+    try{
+      const answer=await deviceChat([{from:'user',text:prompt}]);
+      const a=String(answer).indexOf('{'),b=String(answer).lastIndexOf('}');
+      if(a<0||b<=a)throw new Error('the model did not return JSON');
+      const parsed=JSON.parse(String(answer).slice(a,b+1));
+      parsed.trigger=chosen; // owner intent wins; the model only drafts steps
+      const v=drValidate(parsed);if(v.error)throw new Error(v.error);
+      drEditorId=null;drEditorText=JSON.stringify(v.routine,null,2);
+      drOutput='Draft ready — review it below, then save and approve.';
+    }catch(e){drOutput='Could not write that routine: '+e.message}
+    if(document.querySelector('.modal'))openDeviceRoutines();
+  });
+  document.querySelectorAll('[data-dr-edit]').forEach(b=>b.onclick=()=>{
+    drEditorId=b.dataset.drEdit;drEditorText=JSON.stringify(deviceRoutines.routines[drEditorId],null,2);drOutput='';openDeviceRoutines();
+  });
+  document.querySelectorAll('[data-dr-del]').forEach(b=>b.onclick=()=>{
+    delete deviceRoutines.routines[b.dataset.drDel];drSave();drOutput='Routine deleted.';openDeviceRoutines();
+  });
+  document.querySelectorAll('[data-dr-approve]').forEach(b=>b.onclick=()=>{
+    const r=deviceRoutines.routines[b.dataset.drApprove];if(!r)return;
+    r.trusted=true;deviceRoutines.lastRun[r.id]=Date.now();drSave();
+    drOutput='“'+r.name+'” is approved and can now run.';openDeviceRoutines();
+  });
+  document.querySelectorAll('[data-dr-run]').forEach(b=>b.onclick=async()=>{
+    const r=deviceRoutines.routines[b.dataset.drRun];if(!r)return;
+    if(!r.trusted){
+      modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Approve before running</h3>
+        <p>“${esc(r.name)}” has not been approved. It can call the approved endpoints, speak, and use your device vault by name. Run it?</p>
+        <div class="modal-actions"><button class="btn" id="mc">Cancel</button><button class="btn primary" id="drOkRun">Approve &amp; run</button></div></div></div>`;render();
+      document.getElementById('drOkRun')?.addEventListener('click',async()=>{
+        r.trusted=true;deviceRoutines.lastRun[r.id]=Date.now();drSave();modal=null;render();
+        drOutput='Running “'+r.name+'”…';openDeviceRoutines();
+        drOutput=await drRun(r);if(document.querySelector('.modal'))openDeviceRoutines();
+      });
+      return;
+    }
+    drOutput='Running “'+r.name+'”…';openDeviceRoutines();
+    drOutput=await drRun(r);if(document.querySelector('.modal'))openDeviceRoutines();
   });
 }
 function openAddModel(){
@@ -1498,6 +1755,9 @@ async function sendMessage(e){
 }
 (async()=>{
   await gvInit();
+  // Routines are device-local: load this session's set and start the in-page
+  // scheduler only on the static/phone build. The host Mac is never involved.
+  if(staticMode){drLoad();drTick();setInterval(drTick,30000)}
   if(guestMode&&!staticMode){
     try{guestInfo=await api('/api/share/open')}catch(err){showToast('This share link is not valid.');guestInfo=null}
     if(!guestInfo){showToast('This share link is not valid.');guestInfo=null}
