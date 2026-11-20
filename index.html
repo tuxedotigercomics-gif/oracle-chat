@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#4a9861" />
-<meta name="oracle-build" content="2026-11-20f" />
+<meta name="oracle-build" content="2026-11-20g" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Oracle" />
@@ -522,6 +522,9 @@ const MODELS=[
     {id:'device-small',name:'Tiny on-device · 135M',sub:'phone-safe — about 105 MB once'},
     {id:'device',name:'Balanced on-device · 350M',sub:'better answers — about 229 MB once'}
   ]:[]),
+  ...((staticMode&&!guestMode)?[
+    {id:'device-free',name:'Unfiltered on-device · 350M',sub:'fewer refusals — about 219 MB once'}
+  ]:[]),
 ];
 if(staticMode)MODELS.splice(0,4);
 
@@ -793,16 +796,20 @@ function drTick(){
 const GGUF_MODELS={
   'smol2-135m':{repo:'bartowski/SmolLM2-135M-Instruct-GGUF',file:'SmolLM2-135M-Instruct-Q4_K_M.gguf',name:'Tiny · 135M',size:'about 105 MB'},
   'lfm2-350m':{repo:'LiquidAI/LFM2.5-350M-GGUF',file:'LFM2.5-350M-Q4_K_M.gguf',name:'Balanced · 350M',size:'about 229 MB'},
+  // Abliterated finetune of the same LFM2.5 350M base — same architecture,
+  // chat template and wllama runtime, with fewer refusals. Same memory budget.
+  'lfm2-350m-free':{repo:'mradermacher/LFM2.5-350M-abliterated-GGUF',file:'LFM2.5-350M-abliterated.Q4_K_M.gguf',name:'Unfiltered · 350M',size:'about 219 MB'},
 };
 const DEFAULT_DEVICE_MODEL='lfm2-350m';
 const SMALL_DEVICE_MODEL='smol2-135m';
+const FREE_DEVICE_MODEL='lfm2-350m-free';
 const PHONE=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 function ggufSpec(id){
   if(GGUF_MODELS[id])return GGUF_MODELS[id];
   if(typeof id==='string'&&id.includes('|')){const [repo,file]=id.split('|');return {repo,file,name:file,size:'your model file'}}
   return null;
 }
-function activeDeviceModel(){return backend==='device-small'?SMALL_DEVICE_MODEL:(customModels.find(m=>m.id===backend)?.model||DEFAULT_DEVICE_MODEL)}
+function activeDeviceModel(){return backend==='device-small'?SMALL_DEVICE_MODEL:backend==='device-free'?FREE_DEVICE_MODEL:(customModels.find(m=>m.id===backend)?.model||DEFAULT_DEVICE_MODEL)}
 function deviceModelStatus(){
   const id=activeDeviceModel(),spec=ggufSpec(id);
   if(devicePipe&&deviceModelId===id)return {title:'Private model is ready',sub:'Answers work offline on this device'};
@@ -1685,7 +1692,7 @@ function render(){
         <button class="icon-btn mobile-back" data-mobile-back title="Back to chats">←</button>
         <div class="chat-title-name" style="display:flex;align-items:center;gap:8px">${heroAvatar(c.hero,pendingTool?'asking':waiting?'walking':'')}<span class="chat-name-text">${esc(c.name)}</span></div>
         <div class="header-actions">
-          <span class="status-dot ${(backend==='device'||backend==='device-small'||!!customModels.find(m=>m.id===backend)||localOn)?'':'off'}">${(backend==='device'||backend==='device-small')?(devicePipe?'On-device ready':'On-device (loads on first message)'):customModels.find(m=>m.id===backend)?(customModels.find(m=>m.id===backend).type==='cloud'?'Your provider':'On-device (loads on first message)'):(localOn?'Local ready':'Local offline')}</span>
+          <span class="status-dot ${(backend==='device'||backend==='device-small'||backend==='device-free'||!!customModels.find(m=>m.id===backend)||localOn)?'':'off'}">${(backend==='device'||backend==='device-small'||backend==='device-free')?(devicePipe?'On-device ready':'On-device (loads on first message)'):customModels.find(m=>m.id===backend)?(customModels.find(m=>m.id===backend).type==='cloud'?'Your provider':'On-device (loads on first message)'):(localOn?'Local ready':'Local offline')}</span>
           <button class="model-pill" id="modelPill"><span class="model-name">${esc(allModels().find(m=>m.id===backend)?.name||backend)}</span> <span class="caret">▾</span></button>
           <button class="icon-btn ${voiceReplies?'active':''}" id="voiceBtn" title="Voice replies">${icon('volume')}</button>
           <button class="icon-btn ${callActive?'calling':''}" id="callBtn" title="Live voice call — talk hands-free">${icon('phone')}</button>
@@ -1925,7 +1932,7 @@ function bind(){
     if(!prev)return;
     c.messages.splice(i,1);
     draft=prev.text.replace(/\n\[Attached files:[^\]]*\]$/,'');
-    nextSendShort=backend==='device'||backend==='device-small'||!!customModels.find(m=>m.id===backend&&m.type==='device');
+    nextSendShort=backend==='device'||backend==='device-small'||backend==='device-free'||!!customModels.find(m=>m.id===backend&&m.type==='device');
     saveState();sendMessage({preventDefault(){}});
   });
   // Image generation is phone/static and owner-only. No bridge call is made.
@@ -2771,8 +2778,8 @@ async function sendMessage(e){
     const tone=personalityPrompt(c);
     if(tone)msgs.unshift({from:'system',text:tone});
     if(credSelected.length)msgs.push({from:'user',text:'[Saved credentials available by name only: '+credSelected.join(', ')+'. Never ask for their values.]'});
-    if(backend==='device'||backend==='device-small'||(cm&&cm.type==='device')){
-      const answer=await deviceChat(msgs,backend==='device-small'?SMALL_DEVICE_MODEL:cm?.model,shortSend);
+    if(backend==='device'||backend==='device-small'||backend==='device-free'||(cm&&cm.type==='device')){
+      const answer=await deviceChat(msgs,activeDeviceModel(),shortSend);
       c.messages.push({from:'bot',text:answer,note:(cm?cm.name:'On-device')+' · private'});
       c.preview=answer.slice(0,40);replyText=answer;
     }else if(cm&&cm.type==='cloud'){
@@ -2795,7 +2802,7 @@ async function sendMessage(e){
       }
     }
   }catch(err){
-    const own=backend==='device'||backend==='device-small'||!!cm;
+    const own=backend==='device'||backend==='device-small'||backend==='device-free'||!!cm;
     c.messages.push({from:'bot',text:(own?'Model error: ':'Bridge error: ')+err.message,retryable:own,
       note:own?(cm?.type==='cloud'?'Check the endpoint and key':'Try another model'):'Start the bridge from the Desktop launcher.'});
     replyText='';
