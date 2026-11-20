@@ -888,6 +888,7 @@ function render(){
       ${profileOpen?`<div class="dropdown profile-menu">
         ${staticMode?`<button class="menu-item" id="openGuestVault">${icon('lock',18)}<span><strong>My Vault</strong><span class="mi-sub">Encrypted on this device</span></span></button><div class="menu-sep"></div>`:`<button class="menu-item" id="openVault">${icon('lock',18)}<span><strong>Credential Vault</strong><span class="mi-sub">macOS Keychain — values hidden</span></span></button>
         <button class="menu-item" id="openMemory">${icon('spark',18)}<span><strong>My Memory</strong><span class="mi-sub">Notes &amp; skills the model recalls</span></span></button>
+        <button class="menu-item" id="openRoutines">${icon('spark',18)}<span><strong>Web Routines</strong><span class="mi-sub">Email, webhooks &amp; browser actions</span></span></button>
         <div class="menu-sep"></div>`}
         <button class="menu-item" id="editName">${icon('edit',18)}<span><strong>Change display name</strong><span class="mi-sub">Shown in the sidebar</span></span></button>
       </div>`:''}
@@ -969,6 +970,7 @@ function bind(){
   });
   document.querySelectorAll('[data-gvdel]').forEach(b=>b.onclick=()=>{gvDel(b.dataset.gvdel);render()});
   document.getElementById('openMemory')?.addEventListener('click',async()=>{await loadMemory();view='memory';mobileView='chat';profileOpen=false;render()});
+  document.getElementById('openRoutines')?.addEventListener('click',async()=>{profileOpen=false;await openRoutines()});
   document.getElementById('memoryBack')?.addEventListener('click',()=>{view='chat';render()});
   document.getElementById('addMemory')?.addEventListener('click',()=>{
     modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Add a memory</h3><p>A fact the model should remember later.</p>
@@ -1202,6 +1204,35 @@ function openCredPicker(){
 }
 function openAddCred(){
   modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Add credential</h3><p>Saved to macOS Keychain. Never shown again in the chat.</p><form id="credForm"><label>Name (the model sees this)</label><input id="ck" placeholder="e.g. email_login" required/><label>Secret value</label><input id="cv" type="password" placeholder="password / token" required/><div class="modal-actions"><button type="button" class="btn" id="mc">Cancel</button><button class="btn primary" type="submit">Save to Keychain</button></div></form></div></div>`;render();
+}
+async function openRoutines(){
+  let r;
+  try{r=await api('/api/routines')}catch(e){showToast('Routines unavailable: '+e.message);return}
+  const cfg=r.config||{}, emails=Object.keys(cfg.accounts?.email||{}),
+        hooks=Object.keys(cfg.webhooks||{}), brouts=r.browser?.routines||[], creds=r.credentialNames||[];
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal" style="max-width:720px">
+    <h3>Web routines</h3>
+    <p>These run on your Mac and the model can call them by name. <strong>Secrets stay in the vault</strong> — store passwords, tokens and webhook URLs there, then reference them by name below. Never paste a secret value here.</p>
+    <div class="status" style="text-align:left;margin:10px 0;line-height:1.7">
+      Email accounts: ${emails.length?emails.map(esc).join(', '):'none'}<br/>
+      Webhooks: ${hooks.length?hooks.map(esc).join(', '):'none'}<br/>
+      Browser routines: ${brouts.length?brouts.map(esc).join(', '):'none'} ${r.browser?.enabled?'':'<em>(browser disabled)</em>'}<br/>
+      Vault credential names: ${creds.length?creds.map(esc).join(', '):'none'}
+    </div>
+    <label>Configuration — names only, no secret values</label>
+    <textarea id="routineJson" rows="15" style="width:100%;box-sizing:border-box;font-family:ui-monospace,monospace;font-size:12px">${esc(JSON.stringify(cfg,null,2))}</textarea>
+    <p style="font-size:11.5px;color:var(--muted)">In browser steps use <code>{{cred:NAME}}</code> to fill a vault value silently and <code>{{param:name}}</code> for text the model supplies. Ask the model to “check my email” or “post using the social webhook”.</p>
+    <div class="modal-actions"><button class="btn" id="mc">Close</button><button class="btn primary" id="routineSave">Save configuration</button></div>
+  </div></div>`;
+  render();
+  document.getElementById('routineSave')?.addEventListener('click',async()=>{
+    try{
+      const parsed=JSON.parse(document.getElementById('routineJson').value);
+      const res=await api('/api/routines',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({config:parsed})});
+      if(!res.ok)throw new Error(res.error||'Could not save');
+      showToast('Routines saved');modal=null;render();
+    }catch(e){showToast('Invalid configuration: '+e.message)}
+  });
 }
 function openAddModel(){
   modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Add a model</h3>
