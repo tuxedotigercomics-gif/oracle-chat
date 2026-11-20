@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#4a9861" />
-<meta name="oracle-build" content="2026-11-20a" />
+<meta name="oracle-build" content="2026-11-20b" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Oracle" />
@@ -923,22 +923,26 @@ async function loadDeviceModel(modelId){
   return deviceLoads[modelId];
 }
 function isContextOverflow(err){
-  return /context size|context length|exceeds.*tokens|too many tokens|n_ctx/i.test(String((err&&err.message)||err||''));
+  // iOS wllama reports an exhausted KV buffer as "length out of range buffer",
+  // not as a token/context error. Treat both as overflow so the short-history
+  // retries below still run for long chats.
+  return /context size|context length|exceeds.*tokens|too many tokens|n_ctx|out of range|buffer|too long/i.test(String((err&&err.message)||err||''));
 }
 // Keep the newest turns first and stay inside a conservative character budget.
 // Older turns are dropped before the model sees them, so a long chat cannot
-// grow past the device context window.
-function fitDeviceMessages(messages){
+// grow past the device context window. The budget and system limit are tunable
+// for the final, tightest retry.
+function fitDeviceMessages(messages,budget=DEVICE_INPUT_CHARS,sysChars=1200){
   const list=Array.isArray(messages)?messages:[];
   const sys=list.find(m=>m&&m.from==='system'&&String(m.text||'').trim());
-  const out=sys?[{role:'system',content:String(sys.text).trim().slice(0,1200)}]:[];
+  const out=sys?[{role:'system',content:String(sys.text).trim().slice(0,sysChars)}]:[];
   let chars=out.reduce((n,m)=>n+m.content.length,0);
   for(let i=list.length-1;i>=0;i--){
     const m=list[i];
     if(!m||m.from==='system')continue;
     const text=String(m.text||'').trim();
     if(!text||out.length>=9)break;
-    const room=DEVICE_INPUT_CHARS-chars;
+    const room=budget-chars;
     if(room<=0)break;
     const piece=text.length>room?text.slice(-room):text;
     out.splice(sys?1:0,0,{role:m.from==='user'?'user':'assistant',content:piece});
@@ -947,7 +951,7 @@ function fitDeviceMessages(messages){
   }
   if(out.length===(sys?1:0)){
     const last=list.length?list[list.length-1]:null;
-    out.push({role:'user',content:String((last&&last.text)||'').slice(-DEVICE_INPUT_CHARS)});
+    out.push({role:'user',content:String((last&&last.text)||'').slice(-budget)});
   }
   return out;
 }
@@ -969,7 +973,10 @@ async function deviceChat(messages,modelId){
   const hist=list.filter(m=>!m||m.from!=='system');
   // First normal fit; if the runtime still reports an overflow, retry with only
   // the last exchange and finally only the newest message.
-  const attempts=[fitDeviceMessages([...sys,...hist]),fitDeviceMessages([...sys,...hist.slice(-2)]),fitDeviceMessages([...sys,...hist.slice(-1)])];
+  const attempts=[fitDeviceMessages([...sys,...hist]),fitDeviceMessages([...sys,...hist.slice(-2)]),fitDeviceMessages([...sys,...hist.slice(-1)]),
+    // Last resort for the phone's buffer-length error: keep only a short tone
+    // instruction and the newest question, well inside the context window.
+    fitDeviceMessages([...sys,...hist.slice(-1)],1600,400)];
   for(const chat of attempts){
     try{return await deviceCompletion(w,chat)}
     catch(err){if(!isContextOverflow(err))throw err}
