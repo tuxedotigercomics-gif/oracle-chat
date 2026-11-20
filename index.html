@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#4a9861" />
-<meta name="oracle-build" content="2026-11-20m" />
+<meta name="oracle-build" content="2026-11-21a" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Oracle" />
@@ -1018,6 +1018,10 @@ function imageSaved(){try{return localStorage.getItem('oracle.image.saved')===IM
 function iOSDevice(){
   return /iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 }
+// The U-Net compute kills iOS tabs under both WebGPU and CPU, and there is no
+// smaller browser-ready model. Rather than let the tab white-flash, image
+// generation is deliberately unavailable on iPhones/iPads.
+function imageUnsupported(){return iOSDevice()}
 function imageEngine(){
   try{
     let v=localStorage.getItem('oracle.image.engine');
@@ -1053,6 +1057,7 @@ async function imageGpuOk(){
   return imageGpuReady;
 }
 function imageModelStatus(){
+  if(imageUnsupported())return {title:'Images not available on iPhone',sub:'This device cannot run the image model'};
   if(!('gpu' in navigator)&&imageEngine()==='webgpu')return {title:'Image generation needs WebGPU',sub:'Choose the CPU engine in the image window'};
   const eng=imageEngineLabel();
   return imageSaved()?{title:'Image model saved on this device',sub:'NanoDiffuser · about '+Math.round(IMG_TOTAL/1048576)+' MB · '+eng+' · offline ready'}
@@ -1143,6 +1148,7 @@ async function loadImageRuntime(progress){
   if(imageRuntime)return imageRuntime;
   if(imageRuntimeLoad)return imageRuntimeLoad;
   imageRuntimeLoad=(async()=>{
+    if(imageUnsupported())throw new Error('Image generation is not available on this iPhone.');
     if(imageEngine()!=='wasm'&&!await imageGpuOk())throw new Error('WebGPU with float16 is unavailable for the text encoder. Choose the CPU engine in the image window.');
     progress(0,'Starting WebGPU…');
     const [ort,tf]=await imageStage('runtime scripts',()=>Promise.all([import(IMG_ORT_JS),import(IMG_TF_JS)]));
@@ -1323,6 +1329,13 @@ function setImageProgress(pct,text){
 }
 function openImageModal(){
   if(guestMode)return;
+  if(imageUnsupported()){
+    modal=`<div class="modal-backdrop" id="mb"><div class="modal" style="max-width:520px"><h3>Images aren't available on iPhone</h3>
+      <p>This iPhone can't run the image model — it closes the tab while drawing. Nothing is sent to the Mac, a cloud service or an API key.</p>
+      <p style="font-size:11px;color:var(--muted)">Image generation still works in a desktop browser. Chat, voice and every other feature work here as usual.</p>
+      <div class="modal-actions"><button class="btn" id="imgCancel">Close</button></div></div></div>`;
+    render();return;
+  }
   const last=active().messages.at(-1);
   if(!imagePrompt&&last&&last.from==='user')imagePrompt=last.text.replace(/\n\[Attached files:[^\]]*\]$/,'');
   const eng=imageEngine();
@@ -1344,6 +1357,7 @@ function openImageModal(){
     </div></div>`;render();
 }
 async function startImageGeneration(){
+  if(imageUnsupported()){openImageModal();return}
   if(imageBusy||guestMode)return;
   const prompt=imagePrompt.trim();
   if(!prompt){showToast('Describe the image first');return}
@@ -2625,7 +2639,7 @@ function commandItems(){
   items.push({label:'Install this web app',sub:'command · Add to Home Screen',art:icon('plus',16),run:openInstallApp});
   items.push({label:'About / Update status',sub:'command · build, model and service worker',art:icon('info',16),run:openAbout});
   if(!staticMode&&!guestMode)items.push({label:'See this',sub:'command · ask about the webcam view',art:icon('camera',16),run:openCameraModal});
-  if(staticMode&&!guestMode)items.push({label:'Make an image',sub:'command · on-device image generation',art:icon('spark',16),run:openImageModal});
+  if(staticMode&&!guestMode)items.push({label:'Make an image',sub:imageUnsupported()?'not available on iPhone':'command · on-device image generation',art:icon('spark',16),run:openImageModal});
   if(staticMode&&!guestMode)items.push({label:'Copy image diagnostics',sub:'command · recent image failures',art:icon('info',16),run:copyImageDiagnostics});
   items.push({label:'Appearance: '+themeLabel(),sub:'command · switch light and dark',art:icon('theme',16),run:cycleTheme});
   items.push({label:'Share / export this chat',sub:'command',art:icon('share',16),run:openShareModal});
