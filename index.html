@@ -2,7 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#4a9861" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="Oracle" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<link rel="manifest" href="./manifest.webmanifest" />
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png" />
+<link rel="apple-touch-icon" href="./apple-touch-icon.png" />
 <title>Oracle · Chat (Live)</title>
 <style>
   :root{
@@ -14,7 +22,8 @@
   html,body{height:100%;margin:0}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--main-bg);-webkit-font-smoothing:antialiased}
   button,input,textarea{font:inherit;color:inherit}
-  .app{display:flex;height:100vh;width:100%;overflow:hidden}
+  .app{display:flex;height:100vh;height:100dvh;width:100%;overflow:hidden}
+  @supports(padding:env(safe-area-inset-top)){.app{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}}
 
   .sidebar{width:20%;min-width:230px;max-width:320px;background:var(--sidebar-bg);border-right:1px solid var(--border);display:flex;flex-direction:column}
   .sidebar-top{display:flex;align-items:center;justify-content:space-between;padding:14px 14px 10px}
@@ -160,6 +169,25 @@
   .hero-choice.selected{border-color:var(--accent);background:#eef7f0;color:var(--text);font-weight:600}
   .hero-choice .agent-avatar{width:30px;height:30px}
   .hero-choice .agent-avatar svg{width:28px;height:28px}
+  .primary-badge{display:inline-block;margin-left:5px;padding:1px 4px;border-radius:4px;background:#e8f3ea;color:#2f7d47;font-size:8.5px;font-weight:800;letter-spacing:.04em;vertical-align:1px}
+  .bot-job{font-size:10.5px;color:#2f7d47;font-weight:650;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .check-row{display:flex;align-items:center;gap:8px;font-size:13px;margin-top:10px}
+  .check-row input{width:auto;margin:0}
+  .risk-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+  .risk-chip{background:#fff4d6;color:#7a5a12;border:1px solid #e8cd86;border-radius:999px;padding:2px 7px;font-size:10.5px;font-weight:600}
+  .tool-card.approved{border-color:#9bcfab}
+  .tool-card.denied{border-color:#e0a5a5}
+  .tool-actions .btn.tiny{padding:4px 7px;font-size:11px}
+  .cmd-modal{width:min(620px,94vw);padding:18px}
+  .cmd-results{margin-top:10px;max-height:46vh;overflow:auto}
+  .cmd-result{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:#fff;border:1px solid var(--border);border-radius:9px;padding:9px 10px;margin-bottom:6px;cursor:pointer}
+  .cmd-result:hover,.cmd-result:focus{background:var(--main-bg);border-color:var(--accent)}
+  .cmd-result .cmd-body{display:flex;flex-direction:column;min-width:0;flex:1}
+  .cmd-result strong{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cmd-result small{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dr-history{margin-top:8px;max-height:140px;overflow:auto}
+  .dr-history-row{background:var(--main-bg);border-radius:7px;padding:6px 8px;margin-bottom:5px;font-size:11.5px;color:var(--muted)}
+  .dr-history-row strong{color:var(--text)}
   .share-text{width:100%;height:180px;font-family:ui-monospace,Menlo,monospace;font-size:11px}
   .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:80;box-shadow:0 6px 20px rgba(0,0,0,.25);max-width:80vw}
   svg{flex-shrink:0}
@@ -301,22 +329,24 @@ function staticShareLink(payload){
 }
 let activeId='main', activeFolder='general';
 let convs=[
-  {id:'main',name:'Oracle',preview:'Ask me anything…',hero:'ironman',folder:'general',messages:[]},
-  {id:'assistant',name:'Icona Live Assistant',preview:'Saved notes',hero:'vision',folder:'general',messages:[{from:'bot',text:'I am ready. Ask me anything.'}]},
+  {id:'main',name:'Oracle',preview:'Ask me anything…',hero:'ironman',folder:'general',job:'General assistant',primary:true,messages:[]},
+  {id:'assistant',name:'Icona Live Assistant',preview:'Saved notes',hero:'vision',folder:'general',job:'Saved notes',primary:false,messages:[{from:'bot',text:'I am ready. Ask me anything.'}]},
 ];
 let folders=[{id:'general',name:'Oracle',open:true}];
 if(guestMode){
-  convs=[{id:'main',name:'My Oracle',preview:'Ask me anything…',hero:'ironman',folder:'general',messages:[]}];
+  convs=[{id:'main',name:'My Oracle',preview:'Ask me anything…',hero:'ironman',folder:'general',job:'General assistant',primary:true,messages:[]}];
   folders=[{id:'general',name:'My Chats',open:true}];
 }
 try{
   const saved=JSON.parse(localStorage.getItem(stateKey)||'null');
   if(saved&&Array.isArray(saved.convs)&&Array.isArray(saved.folders)&&saved.convs.length&&saved.folders.length){
     folders=saved.folders;
-    convs=saved.convs.map(c=>({hero:'ironman',folder:folders[0].id,...c}));
+    convs=saved.convs.map((c,i)=>({hero:'ironman',folder:folders[0].id,job:'General assistant',primary:i===0,...c}));
+    if(!convs.some(c=>c.primary))convs[0].primary=true;
     if(saved.activeId&&convs.some(c=>c.id===saved.activeId))activeId=saved.activeId;
   }
 }catch(e){}
+function botJob(c){return String((c&&c.job)||'General assistant').slice(0,60)}
 function saveState(){localStorage.setItem(stateKey,JSON.stringify({convs,folders,activeId}))}
 // A phone tab can be killed while a model loads. If the saved chat ends on a
 // user message, offer to resend it instead of silently losing the question.
@@ -354,7 +384,7 @@ let view='chat', listView=localStorage.getItem('oracle.listView')||'folders', ba
 let mobileView='list';
 if(!allModels().some(m=>m.id===backend))backend=DEFAULT_BACKEND;
 let devicePipe=null, deviceLoading=null, deviceStatus='', deviceModelId='';
-let plusOpen=false, modelOpen=false, profileOpen=false, moreOpen=false, modal=null, toastTimer=null;
+let plusOpen=false, modelOpen=false, profileOpen=false, moreOpen=false, modal=null, toastTimer=null, installPrompt=null;
 let files=[], credSelected=[], vaultKeys=[], status={}, memoryData={memories:[],notes:[]};
 let voiceReplies=localStorage.getItem('oracle.voiceReplies')==='1', listening=false, recognition=null;
 let callActive=false, callState='idle', finalTranscript='', speechGen=0, prevVoiceReplies=false;
@@ -402,22 +432,50 @@ async function gvGet(name){
 }
 function guestFill(text){return String(text).replace(/\[\[USE:([^|\]]+)\|([^\]]+)\]\]/g,(m,n)=>`[credential '${n}' — value stayed on this device]`)}
 
+// ---- Host-only approval rules ----
+// "Always allow" is an explicit owner choice stored in this browser. It matches
+// the exact tool object, so changing even one character requires a new approval.
+// The bridge has no rule API and guests never load this UI.
+const TR_KEY='oracle.toolRules.'+vaultId;
+let toolRules=[];
+try{const x=JSON.parse(localStorage.getItem(TR_KEY)||'[]');if(Array.isArray(x))toolRules=x.filter(s=>typeof s==='string').slice(0,100)}catch(e){}
+function saveToolRules(){try{localStorage.setItem(TR_KEY,JSON.stringify(toolRules))}catch(e){}}
+function canonicalValue(v){
+  if(Array.isArray(v))return '['+v.map(canonicalValue).join(',')+']';
+  if(v&&typeof v==='object')return '{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+canonicalValue(v[k])).join(',')+'}';
+  const s=JSON.stringify(v);return s===undefined?'null':s;
+}
+function toolKey(tool){const s=canonicalValue(tool);return s&&s.length<=6000?s:''}
+function toolRisk(tool){
+  const t=String((tool&&tool.tool)||'').toLowerCase(),act=String((tool&&tool.action)||'').toLowerCase(),out=[];
+  if(t==='shell')out.push('runs a command on your Mac');
+  else if(t==='write'||t==='patch')out.push('changes a file');
+  else if(['fetch','email','webhook','browser'].includes(t))out.push('sends data outside this app');
+  else if(t==='memory'&&act==='save')out.push('changes saved memory');
+  else if(['vault','skills','routines'].includes(t))out.push('changes private settings');
+  else out.push('uses a host tool');
+  if(['shell','write','patch','email','webhook','browser'].includes(t))out.push('review the target carefully');
+  return out.slice(0,2);
+}
+function toolAutoAllowed(tool){const k=toolKey(tool);return !!k&&!guestMode&&!staticMode&&toolRules.includes(k)}
+
 // ---- Device-local routines (static/phone build only) ----
 // The on-device model can DRAFT a routine, but nothing executes until the owner
 // approves it. Steps are a strict whitelist: model output is never eval'd, and
 // a routine can only call hosts the owner typed into the allowlist.
 const DR_KEY='oracle.routines.'+vaultId;
 const DR_OPS=['fetch','model','say','notify','share','wait','log'];
-let deviceRoutines={routines:{},allowHosts:[],lastRun:{}},drRunning=false,drEditorId=null,drEditorText='',drOutput='';
+let deviceRoutines={routines:{},allowHosts:[],lastRun:{},history:{}},drRunning=false,drEditorId=null,drEditorText='',drOutput='';
 function drLoad(){
   try{
     const x=JSON.parse(localStorage.getItem(DR_KEY)||'{}');
     deviceRoutines={
       routines:(x.routines&&typeof x.routines==='object')?x.routines:{},
       allowHosts:Array.isArray(x.allowHosts)?x.allowHosts:[],
-      lastRun:(x.lastRun&&typeof x.lastRun==='object')?x.lastRun:{}
+      lastRun:(x.lastRun&&typeof x.lastRun==='object')?x.lastRun:{},
+      history:(x.history&&typeof x.history==='object')?x.history:{}
     };
-  }catch(e){deviceRoutines={routines:{},allowHosts:[],lastRun:{}}}
+  }catch(e){deviceRoutines={routines:{},allowHosts:[],lastRun:{},history:{}}}
 }
 function drSave(){try{localStorage.setItem(DR_KEY,JSON.stringify(deviceRoutines))}catch(e){}}
 function drAllowed(url){
@@ -463,10 +521,25 @@ function drRedact(s,secrets){
   for(const v of secrets)if(v)o=o.split(v).join('[REDACTED]');
   return o.slice(0,4000);
 }
-async function drRun(r){
-  if(drRunning)return 'Another routine is still running.';
+function drSafePreview(text){
+  return String(text==null?'':text)
+    .replace(/\{\{cred:([^}]+)\}\}/g,(m,n)=>'[vault:'+n.trim()+']')
+    .replace(/\{\{var:([^}]+)\}\}/g,(m,n)=>'[result:'+n.trim()+']')
+    .slice(0,140);
+}
+async function drRun(r,opts={}){
+  if(drRunning&&!opts.dryRun)return 'Another routine is still running.';
   const v=drValidate(r);if(v.error)return v.error;
   const route=v.routine,secrets=[],vars={},log=[];
+  // Test is a real validation preview but performs no fetch/model/say/notify/
+  // share/wait step. It is safe to use on an unapproved routine.
+  if(opts.dryRun){
+    return 'DRY RUN — nothing was executed.\n'+route.steps.map((s,i)=>{
+      const blocked=s.op==='fetch'&&!drAllowed(s.url)?' [BLOCKED — host not allowed]':'';
+      const detail=s.url||s.prompt||s.text||s.title||'';
+      return (i+1)+'. '+s.op+blocked+(detail?' · '+drSafePreview(detail):'');
+    }).join('\n');
+  }
   drRunning=true;
   try{
     for(const s of route.steps){
@@ -506,8 +579,13 @@ async function drRun(r){
         }
       }catch(e){log.push(s.op+' failed: '+drRedact(e.message,secrets))}
     }
-    deviceRoutines.lastRun[route.id]=Date.now();drSave();
-    return log.join('\n')||'Routine finished.';
+    const output=log.join('\n')||'Routine finished.';
+    deviceRoutines.lastRun[route.id]=Date.now();
+    const hist=Array.isArray(deviceRoutines.history[route.id])?deviceRoutines.history[route.id]:[];
+    hist.push({at:Date.now(),name:route.name,output:output.slice(0,800)});
+    deviceRoutines.history[route.id]=hist.slice(-10);
+    drSave();
+    return output;
   }finally{drRunning=false}
 }
 function drTick(){
@@ -688,7 +766,7 @@ async function loadMemory(){try{memoryData=await api('/api/memory')}catch(e){mem
 function convRow(x,pendingTool){
   const state=x.id===activeId?(pendingTool?'asking':waiting?'walking':''):'';
   return `<div class="conv-wrap ${x.id===activeId&&view==='chat'?'active':''}" draggable="true" data-drag-chat="${x.id}" style="--hero:${heroColor(x.hero)}">
-    <button class="conv" data-id="${x.id}">${heroAvatar(x.hero,state)}<span class="conv-body"><span class="conv-name">${esc(x.name)}</span><span class="conv-preview">${esc(x.preview)}</span></span></button>
+    <button class="conv" data-id="${x.id}">${heroAvatar(x.hero,state)}<span class="conv-body"><span class="conv-name">${esc(x.name)}${x.primary?'<span class="primary-badge">PRIMARY</span>':''}</span><span class="bot-job">${esc(botJob(x))}</span><span class="conv-preview">${esc(x.preview)}</span></span></button>
     <button class="row-action" data-conv-menu="${x.id}" title="Chat options">⋯</button>
   </div>`;
 }
@@ -990,9 +1068,12 @@ function render(){
   } else {
     const msgs=c.messages.map((m,i)=>`<div class="row ${m.from}"><div class="bubble ${m.from}">${esc(m.text)}${m.note?`<div class="meta">${esc(m.note)}</div>`:''}${m.tool?`<div class="tool-card ${m.toolState||''}">
         <div class="tool-title">${icon('spark',14)} ${esc(m.toolSummary||'Tool action')}</div>
+        ${m.toolState==='pending'?`<div class="risk-chips">${toolRisk(m.tool).map(x=>`<span class="risk-chip">${esc(x)}</span>`).join('')}</div>`:''}
         ${m.tool.preview?`<pre class="tool-preview">${esc(m.tool.preview)}</pre>`:''}
         ${m.toolResult?`<pre class="tool-preview">${esc(String(m.toolResult.result||m.toolResult.error||'').slice(0,600))}</pre>`:''}
-        ${m.toolState==='pending'?`<div class="tool-actions"><button class="btn primary" data-tool-approve="${i}">Approve</button><button class="btn" data-tool-deny="${i}">Deny</button></div>`:''}
+        ${m.toolState==='pending'?`<div class="tool-actions"><button class="btn primary" data-tool-approve="${i}">Allow once</button>${guestMode||staticMode?'':`<button class="btn" data-tool-always="${i}">Always allow</button>`}<button class="btn ${guestMode||staticMode?'':'danger'}" data-tool-deny="${i}">Deny</button></div>`:''}
+        ${m.toolDecision==='always'?'<div class="meta">Allowed by a saved rule — remove it in More → Always-allow rules.</div>':''}
+        ${m.toolDecision==='auto'?'<div class="meta">Auto-allowed by your saved rule.</div>':''}
         ${m.toolState==='working'?'<div class="meta">Running…</div>':''}
       </div>`:''}</div></div>`).join('');
     mainContent=`
@@ -1010,7 +1091,8 @@ function render(){
           ${moreOpen?`<div class="dropdown more">
             <button class="menu-item" id="moreNewChat">${icon('plus',18)}<span><strong>New chat room</strong><span class="mi-sub">Name it and pick an agent</span></span></button>
             <button class="menu-item" id="moreNewFolder">${icon('file',18)}<span><strong>New folder</strong><span class="mi-sub">Group chats together</span></span></button>
-            ${staticMode?'':`<button class="menu-item" id="moreToolMode">${icon('spark',18)}<span><strong>Tools: ${toolMode==='auto'?'Auto':'Ask first'}</strong><span class="mi-sub">${toolMode==='auto'?'Local model can act — click to require approvals':'Click to allow automatic basic tools'}</span></span></button>`}
+            ${staticMode?'':`<button class="menu-item" id="moreToolMode">${icon('spark',18)}<span><strong>Tools: ${toolMode==='auto'?'Auto':'Ask first'}</strong><span class="mi-sub">${toolMode==='auto'?'Local model can act — click to require approvals':'Click to allow automatic basic tools'}</span></span></button>
+            <button class="menu-item" id="moreToolRules">${icon('lock',18)}<span><strong>Always-allow rules (${toolRules.length})</strong><span class="mi-sub">Review and remove saved approvals</span></span></button>`}
             <button class="menu-item" id="moreVoice">${icon('volume',18)}<span><strong>Voice replies: ${voiceReplies?'On':'Off'}</strong><span class="mi-sub">Jarvis-style voice when available</span></span></button>
             <button class="menu-item" id="moreVoicePick">${icon('spark',18)}<span><strong>Choose speaking voice</strong><span class="mi-sub">${esc(voiceName()?.name||'Device default')}</span></span></button>
             <div class="menu-sep"></div>
@@ -1071,6 +1153,10 @@ function render(){
         <button class="menu-item" id="openMemory">${icon('spark',18)}<span><strong>My Memory</strong><span class="mi-sub">Notes &amp; skills the model recalls</span></span></button>
         <button class="menu-item" id="openRoutines">${icon('spark',18)}<span><strong>Web Routines</strong><span class="mi-sub">Email, webhooks &amp; browser actions</span></span></button>
         <div class="menu-sep"></div>`}
+        <button class="menu-item" id="installApp">${icon('plus',18)}<span><strong>Install this web app</strong><span class="mi-sub">${installPrompt?'Add Oracle to your device':'Add to Home Screen / Install'}</span></span></button>
+        <button class="menu-item" id="openCommandPalette">${icon('search',18)}<span><strong>Command palette</strong><span class="mi-sub">Jump to any chat or routine</span></span></button>
+        <button class="menu-item" id="openBotRoster">${icon('spark',18)}<span><strong>Bot roster</strong><span class="mi-sub">Names, jobs and the primary bot</span></span></button>
+        <div class="menu-sep"></div>
         <button class="menu-item" id="editName">${icon('edit',18)}<span><strong>Change display name</strong><span class="mi-sub">Shown in the sidebar</span></span></button>
       </div>`:''}
     </aside>
@@ -1118,6 +1204,7 @@ function bind(){
       status.tools=r;moreOpen=false;render();showToast('Tool mode: '+(r.mode==='auto'?'Auto — no approvals':'Ask first'));
     }catch(err){showToast('Could not change tool mode: '+err.message)}
   });
+  document.getElementById('moreToolRules')?.addEventListener('click',()=>{moreOpen=false;openToolRules()});
   document.getElementById('moreRename')?.addEventListener('click',()=>{moreOpen=false;openRenameModal('chat',activeId)});
   document.getElementById('moreMove')?.addEventListener('click',()=>{moreOpen=false;openMoveModal(activeId)});
   document.getElementById('moreDelete')?.addEventListener('click',()=>{moreOpen=false;openDeleteChatModal(activeId)});
@@ -1153,6 +1240,9 @@ function bind(){
   document.getElementById('openMemory')?.addEventListener('click',async()=>{await loadMemory();view='memory';mobileView='chat';profileOpen=false;render()});
   document.getElementById('openRoutines')?.addEventListener('click',async()=>{profileOpen=false;await openRoutines()});
   document.getElementById('openDeviceRoutines')?.addEventListener('click',()=>{profileOpen=false;openDeviceRoutines()});
+  document.getElementById('installApp')?.addEventListener('click',()=>{profileOpen=false;openInstallApp()});
+  document.getElementById('openCommandPalette')?.addEventListener('click',()=>{profileOpen=false;openCommandPalette()});
+  document.getElementById('openBotRoster')?.addEventListener('click',()=>{profileOpen=false;openBotRoster()});
   document.getElementById('memoryBack')?.addEventListener('click',()=>{view='chat';render()});
   document.getElementById('addMemory')?.addEventListener('click',()=>{
     modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Add a memory</h3><p>A fact the model should remember later.</p>
@@ -1202,8 +1292,9 @@ function bind(){
   document.getElementById('backdrop')?.addEventListener('click',()=>{plusOpen=modelOpen=profileOpen=moreOpen=false;render()});
   document.querySelectorAll('[data-rmf]').forEach(b=>b.onclick=()=>{files.splice(+b.dataset.rmf,1);render()});
   document.querySelectorAll('[data-rmc]').forEach(b=>b.onclick=()=>{credSelected.splice(+b.dataset.rmc,1);render()});
-  document.querySelectorAll('[data-tool-approve]').forEach(b=>b.onclick=()=>toolAction(+b.dataset.toolApprove,true));
-  document.querySelectorAll('[data-tool-deny]').forEach(b=>b.onclick=()=>toolAction(+b.dataset.toolDeny,false));
+  document.querySelectorAll('[data-tool-approve]').forEach(b=>b.onclick=()=>toolAction(+b.dataset.toolApprove,'once'));
+  document.querySelectorAll('[data-tool-always]').forEach(b=>b.onclick=()=>toolAction(+b.dataset.toolAlways,'always'));
+  document.querySelectorAll('[data-tool-deny]').forEach(b=>b.onclick=()=>toolAction(+b.dataset.toolDeny,'deny'));
   document.getElementById('retrySend')?.addEventListener('click',()=>{
     const c=active(),last=c.messages.at(-1);
     if(!last||last.from!=='user')return;
@@ -1227,9 +1318,11 @@ function heroPicker(field){
 function openRoomModal(folderId=activeFolder){
   modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>New chat room</h3><p>Name the room and pick its pixel agent. The agent stands beside the room title.</p>
     <form id="roomForm"><label>Room name</label><input id="rn" placeholder="e.g. Marketing ideas" maxlength="50" required autofocus onfocus="this.select()" onclick="this.select()"/>
+    <label>Job / role</label><input id="rj" placeholder="e.g. Research assistant" maxlength="60"/>
     <label>Folder</label><select id="rf">${folders.map(f=>`<option value="${f.id}" ${f.id===folderId?'selected':''}>${esc(f.name)}</option>`).join('')}<option value="__new__">＋ Create new folder…</option></select>
     <input id="rfNew" placeholder="New folder name" maxlength="40" style="display:none;margin-top:6px"/>
     <label>Agent avatar</label><input type="hidden" id="rh" value="${hero(active()?.hero).id}"/>${heroPicker('rh')}
+    <label class="check-row"><input type="checkbox" id="rp"/> Make this the primary bot</label>
     <div class="modal-actions"><button type="button" class="btn" id="mc">Cancel</button><button class="btn primary" type="submit">Create room</button></div></form></div></div>`;render();
 }
 function openFolderModal(folderId=null){
@@ -1428,11 +1521,18 @@ function openDeviceRoutines(){
     <label>Your routines</label>
     <div id="drList">${rows.length?rows.map(r=>`<div class="vault-row" style="align-items:center;flex-wrap:wrap">
       <span style="flex:1;min-width:150px"><strong>${esc(r.name)}</strong><br/><small style="color:var(--muted)">${r.steps.length} step(s) · ${esc(r.trigger?.type||'manual')} ${r.trigger?.type==='at'?esc(r.trigger.time):''} ${r.trusted?'· approved':'· NEEDS APPROVAL'}</small></span>
-      <button class="btn" data-dr-run="${esc(r.id)}">Run</button>
-      ${r.trusted?'':`<button class="btn primary" data-dr-approve="${esc(r.id)}">Approve</button>`}
-      <button class="btn" data-dr-edit="${esc(r.id)}">Edit</button>
-      <button class="btn danger" data-dr-del="${esc(r.id)}">Delete</button>
+      <button class="btn tiny" data-dr-test="${esc(r.id)}">Test</button>
+      <button class="btn tiny" data-dr-run="${esc(r.id)}">Run</button>
+      ${r.trusted?'':`<button class="btn primary tiny" data-dr-approve="${esc(r.id)}">Approve</button>`}
+      <button class="btn tiny" data-dr-edit="${esc(r.id)}">Edit</button>
+      <button class="btn danger tiny" data-dr-del="${esc(r.id)}">Delete</button>
     </div>`).join(''):'<div class="status" style="text-align:left">No routines yet. Write one below or start from the template.</div>'}</div>
+    <label>Recent runs</label>
+    <div class="dr-history">${(()=>{
+      const all=Object.entries(deviceRoutines.history||{}).flatMap(([id,hs])=>(Array.isArray(hs)?hs:[]).map(h=>({id,...h})));
+      all.sort((a,b)=>(b.at||0)-(a.at||0));
+      return all.length?all.slice(0,8).map(h=>`<div class="dr-history-row"><strong>${esc(h.name||'Routine')}</strong> · ${new Date(h.at||Date.now()).toLocaleString()}<br/>${esc(String(h.output||'').split('\n')[0].slice(0,140))}</div>`).join(''):'<div class="status" style="text-align:left">No runs recorded yet.</div>';
+    })()}</div>
     <div class="tool-actions"><button class="btn" id="drNew">＋ New routine</button></div>
     <label>Let your private model write one</label>
     <textarea id="drBrief" rows="2" style="width:100%;box-sizing:border-box" placeholder="e.g. call my webhook and speak the summary"></textarea>
@@ -1505,6 +1605,10 @@ function openDeviceRoutines(){
     }catch(e){drOutput='Could not write that routine: '+e.message}
     if(document.querySelector('.modal'))openDeviceRoutines();
   });
+  document.querySelectorAll('[data-dr-test]').forEach(b=>b.onclick=async()=>{
+    const r=deviceRoutines.routines[b.dataset.drTest];if(!r)return;
+    drOutput=await drRun(r,{dryRun:true});openDeviceRoutines();
+  });
   document.querySelectorAll('[data-dr-edit]').forEach(b=>b.onclick=()=>{
     drEditorId=b.dataset.drEdit;drEditorText=JSON.stringify(deviceRoutines.routines[drEditorId],null,2);drOutput='';openDeviceRoutines();
   });
@@ -1532,6 +1636,128 @@ function openDeviceRoutines(){
     drOutput='Running “'+r.name+'”…';openDeviceRoutines();
     drOutput=await drRun(r);if(document.querySelector('.modal'))openDeviceRoutines();
   });
+}
+function openToolRules(){
+  const rows=toolRules.map((s,i)=>{
+    let t={};try{t=JSON.parse(s)}catch(e){}
+    const label=[t.tool,t.action,t.path,t.url,t.command,t.name,t.routine].filter(Boolean).join(' · ')||'Saved action';
+    return `<div class="vault-row"><span style="min-width:0;flex:1"><strong>${esc(label.slice(0,100))}</strong><br/><small style="color:var(--muted)">Exact action match only</small></span><button class="btn danger" data-tr-del="${i}">Remove</button></div>`;
+  }).join('');
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal" style="max-width:560px"><h3>Always-allow rules</h3>
+    <p>These host actions were approved once and will now run without another prompt. Every field must match exactly; changing the target needs a new approval.</p>
+    ${rows||'<div class="status" style="text-align:left">No saved rules.</div>'}
+    <div class="modal-actions"><button class="btn" id="mc">Close</button></div></div></div>`;
+  render();
+  document.querySelectorAll('[data-tr-del]').forEach(b=>b.onclick=()=>{toolRules.splice(+b.dataset.trDel,1);saveToolRules();openToolRules()});
+}
+function openInstallApp(){
+  if(installPrompt){
+    modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Install Oracle Chat</h3>
+      <p>Oracle will open in its own window, with its own icon. Your chats and model stay on this device.</p>
+      <div class="modal-actions"><button class="btn" id="mc">Cancel</button><button class="btn primary" id="doInstall">Install app</button></div></div></div>`;
+    render();
+    document.getElementById('doInstall')?.addEventListener('click',async()=>{
+      const p=installPrompt;modal=null;installPrompt=null;render();
+      try{await p.prompt();if(p.userChoice)await p.userChoice;showToast('Oracle installed')}
+      catch(e){showToast('Install was cancelled')}
+    });
+    return;
+  }
+  const iphone=/iPad|iPhone|iPod/.test(navigator.userAgent)||(/Macintosh/.test(navigator.userAgent)&&'maxTouchPoints' in navigator&&navigator.maxTouchPoints>1);
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Use Oracle like an app</h3>
+    <p>${iphone?'On iPhone or iPad, tap Safari’s <strong>Share</strong> button, then <strong>Add to Home Screen</strong>.':'In Chrome or Edge, open the browser menu and choose <strong>Install / Cast, save and share → Install page as app</strong>.'}
+    It opens full-screen with the Oracle icon. Nothing changes in your chats; the model and vault stay on this device.</p>
+    <div class="modal-actions"><button class="btn primary" id="mc">Got it</button></div></div></div>`;
+  render();
+}
+function openBotRoster(){
+  const rows=convs.map(x=>`<div class="vault-row" style="justify-content:flex-start;gap:9px;flex-wrap:wrap">
+    ${heroAvatar(x.hero)}<span style="flex:1;min-width:150px"><strong>${esc(x.name)}</strong>${x.primary?'<span class="primary-badge">PRIMARY</span>':''}<br/><small style="color:#2f7d47;font-weight:600">${esc(botJob(x))}</small></span>
+    <button class="btn tiny" data-bot-open="${esc(x.id)}">Open</button><button class="btn tiny" data-bot-edit="${esc(x.id)}">Edit</button></div>`).join('');
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal" style="max-width:620px"><h3>Bot roster</h3>
+    <p>Each chat is one local bot with a name, job and avatar. The primary bot is the one that opens first. Nothing here is synced or shared.</p>
+    ${rows}
+    <div class="modal-actions"><button class="btn" id="botNew">New bot</button><button class="btn primary" id="mc">Done</button></div></div></div>`;
+  render();
+  document.querySelectorAll('[data-bot-open]').forEach(b=>b.onclick=()=>{
+    activeId=b.dataset.botOpen;const c=convs.find(x=>x.id===activeId);if(c)activeFolder=c.folder;
+    view='chat';mobileView='chat';modal=null;saveState();render();
+  });
+  document.querySelectorAll('[data-bot-edit]').forEach(b=>b.onclick=()=>openBotEditModal(b.dataset.botEdit));
+  document.getElementById('botNew')?.addEventListener('click',()=>openRoomModal(activeFolder));
+}
+function openBotEditModal(id){
+  const c=convs.find(x=>x.id===id);if(!c)return;
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Edit bot</h3>
+    <form id="botEditForm"><input type="hidden" id="beId" value="${esc(c.id)}"/>
+    <label>Name</label><input id="bn" value="${esc(c.name)}" maxlength="50" required/>
+    <label>Job / role</label><input id="bj" value="${esc(botJob(c))}" maxlength="60" placeholder="e.g. Research assistant"/>
+    <label class="check-row"><input type="checkbox" id="bp" ${c.primary?'checked':''}/> Primary bot</label>
+    <div class="modal-actions"><button type="button" class="btn" id="mc">Cancel</button><button class="btn primary" type="submit">Save bot</button></div></form></div></div>`;
+  render();
+  document.getElementById('botEditForm')?.addEventListener('submit',e=>{
+    e.preventDefault();
+    const item=convs.find(x=>x.id===document.getElementById('beId').value);if(!item)return;
+    item.name=document.getElementById('bn').value.trim()||item.name;
+    item.job=document.getElementById('bj').value.trim()||'General assistant';
+    const primary=document.getElementById('bp').checked;
+    if(primary)convs.forEach(x=>x.primary=false);
+    item.primary=primary||item.primary;
+    if(!convs.some(x=>x.primary))convs[0].primary=true;
+    saveState();openBotRoster();showToast('Bot updated');
+  });
+}
+function commandItems(){
+  const items=[];
+  convs.forEach(c=>items.push({label:c.name,sub:botJob(c)+' · chat',art:heroAvatar(c.hero),run:()=>{
+    activeId=c.id;activeFolder=c.folder;view='chat';mobileView='chat';saveState();render();
+  }}));
+  folders.forEach(f=>items.push({label:f.name,sub:'folder · '+convs.filter(x=>x.folder===f.id).length+' chats',art:icon('file',16),run:()=>{
+    activeFolder=f.id;f.open=true;view='chat';saveState();render();
+  }}));
+  items.push({label:'New bot / chat room',sub:'command',art:icon('plus',16),run:()=>openRoomModal(activeFolder)});
+  items.push({label:'Bot roster',sub:'command · names and jobs',art:icon('spark',16),run:openBotRoster});
+  items.push({label:'Install this web app',sub:'command · Add to Home Screen',art:icon('plus',16),run:openInstallApp});
+  items.push({label:'Share / export this chat',sub:'command',art:icon('share',16),run:openShareModal});
+  if(staticMode){
+    items.push({label:'My Vault',sub:'device-local secrets',art:icon('lock',16),run:()=>{view='guestvault';mobileView='chat';render()}});
+    items.push({label:'My Routines',sub:'device-local automations',art:icon('spark',16),run:openDeviceRoutines});
+    Object.values(deviceRoutines.routines).forEach(r=>items.push({label:(r.trusted?'Run ':'Review ')+r.name,
+      sub:(r.trusted?'routine · approved':'routine · needs approval'),art:icon('spark',16),run:async()=>{
+        if(!r.trusted){openDeviceRoutines();return}
+        drOutput='Running “'+r.name+'”…';openDeviceRoutines();
+        drOutput=await drRun(r);if(document.querySelector('.modal'))openDeviceRoutines();
+      }}));
+  }else{
+    items.push({label:'Credential Vault',sub:'macOS Keychain',art:icon('lock',16),run:()=>{view='vault';mobileView='chat';render()}});
+    items.push({label:'My Memory',sub:'facts and notes',art:icon('spark',16),run:async()=>{await loadMemory();view='memory';mobileView='chat';render()}});
+    items.push({label:'Web Routines',sub:'host-only automations',art:icon('spark',16),run:openRoutines});
+    items.push({label:'Always-allow rules',sub:'host approvals · '+toolRules.length,art:icon('lock',16),run:openToolRules});
+  }
+  items.push({label:'Change display name',sub:'command',art:icon('edit',16),run:openNameModal});
+  return items;
+}
+function openCommandPalette(){
+  const items=commandItems();
+  let found=[];
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal cmd-modal"><h3>Command palette</h3>
+    <input id="cmdSearch" placeholder="Search chats, routines and commands…" autocomplete="off" />
+    <div class="cmd-results" id="cmdResults"></div>
+    <p style="margin:10px 0 0;font-size:11px">Enter opens the first match · Esc closes</p></div></div>`;
+  render();
+  const input=document.getElementById('cmdSearch'),results=document.getElementById('cmdResults');
+  if(!input||!results)return;
+  const choose=i=>{const it=found[i];if(!it)return;modal=null;render();it.run()};
+  const paint=()=>{
+    const q=(input.value||'').toLowerCase().trim();
+    found=items.filter(x=>(x.label+' '+x.sub).toLowerCase().includes(q)).slice(0,12);
+    results.innerHTML=found.length?found.map((x,i)=>`<button class="cmd-result" data-cmd="${i}">${x.art}<span class="cmd-body"><strong>${esc(x.label)}</strong><small>${esc(x.sub)}</small></span></button>`).join(''):'<div class="status" style="text-align:left">No matches.</div>';
+    results.querySelectorAll('[data-cmd]').forEach(b=>b.onclick=()=>choose(+b.dataset.cmd));
+  };
+  input.oninput=paint;
+  input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();choose(0)}else if(e.key==='Escape'){e.preventDefault();modal=null;render()}};
+  paint();
+  try{input.focus({preventScroll:true})}catch(e){input.focus()}
 }
 function openAddModel(){
   modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Add a model</h3>
@@ -1604,6 +1830,8 @@ function bindModal(){
   document.getElementById('roomForm')?.addEventListener('submit',e=>{
     e.preventDefault();
     const name=document.getElementById('rn').value.trim(),heroId=document.getElementById('rh').value;
+    const job=(document.getElementById('rj')?.value.trim()||'General assistant');
+    const primary=!!document.getElementById('rp')?.checked;
     let folder=document.getElementById('rf').value;
     if(!name)return;
     if(folder==='__new__'){
@@ -1613,7 +1841,8 @@ function bindModal(){
       folders.push(nf);folder=nf.id;
     }
     const id='chat-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
-    convs.push({id,name,preview:'Ask me anything…',hero:heroId,folder,messages:[]});
+    if(primary)convs.forEach(x=>x.primary=false);
+    convs.push({id,name,preview:'Ask me anything…',hero:heroId,folder,job,primary:primary||convs.length===0,messages:[]});
     const f=folders.find(x=>x.id===folder);if(f){f.open=true;activeFolder=f.id}
     activeId=id;mobileView='chat';modal=null;saveState();render();showToast('Room created: '+name);
   });
@@ -1719,9 +1948,16 @@ function bindModal(){
 
 function noteOf(r){return [r.backend&&'backend: '+r.backend,r.note].filter(Boolean).join(' · ')}
 
-async function toolAction(idx,approved){
+async function toolAction(idx,decision='once'){
   const c=active(), m=c.messages[idx];
   if(!m||!(m.toolState==='pending'||m.toolState==='working'))return;
+  const approved=decision===true||decision==='once'||decision==='always'||decision==='auto';
+  if(decision==='always'){
+    const key=toolKey(m.tool);
+    if(key&&!toolRules.includes(key)){toolRules.push(key);saveToolRules()}
+    else if(!key)showToast('This action is too large to save as a rule — approved once instead');
+  }
+  m.toolDecision=decision===true?'once':decision;
   m.toolState='working';waiting=true;render();
   let result=null;
   if(approved){
@@ -1777,11 +2013,13 @@ async function sendMessage(e){
     }else{
       const r=await api('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:msgs,backend,credentials:credSelected})});
       if(r.tool){
+        const auto=r.needsApproval&&toolAutoAllowed(r.tool);
         const m={from:'bot',text:r.answer||'',note:noteOf(r),tool:r.tool,toolSummary:r.toolSummary,
-                 needsApproval:r.needsApproval,toolState:r.needsApproval?'pending':'working'};
+                 needsApproval:r.needsApproval,toolState:(r.needsApproval&&!auto)?'pending':'working',
+                 toolDecision:auto?'auto':null};
         c.messages.push(m);replyText=r.answer||'';
         render();
-        if(!r.needsApproval){delegated=true;await toolAction(c.messages.indexOf(m),true)}
+        if(!r.needsApproval||auto){delegated=true;await toolAction(c.messages.indexOf(m),auto?'auto':true)}
       }else{
         c.messages.push({from:'bot',text:r.answer||'(no answer)',note:noteOf(r)});
         c.preview=(r.answer||'').slice(0,40);replyText=r.answer||'';
@@ -1795,6 +2033,14 @@ async function sendMessage(e){
   }
   if(!delegated){const last=c.messages.at(-1)?.text||replyText;afterReply(last)}
 }
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;render()});
+window.addEventListener('appinstalled',()=>{installPrompt=null;render()});
+document.addEventListener('keydown',e=>{
+  if(!(e.metaKey||e.ctrlKey)||String(e.key).toLowerCase()!=='k')return;
+  e.preventDefault();
+  if(modal&&document.getElementById('cmdSearch')){modal=null;render();return}
+  openCommandPalette();
+});
 (async()=>{
   await gvInit();
   // Routines are device-local: load this session's set and start the in-page

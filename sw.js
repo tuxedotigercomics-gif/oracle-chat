@@ -2,8 +2,8 @@
 // The app shell is updated from the network when available; downloaded model
 // files and the transformers.js library are cached so chat keeps working
 // without a connection after the first successful load.
-const CACHE = 'oracle-chat-v3';
-const SHELL = ['./', './index.html'];
+const CACHE = 'oracle-chat-v4';
+const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', event => {
   event.waitUntil(
