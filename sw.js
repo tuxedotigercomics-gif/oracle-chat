@@ -2,7 +2,7 @@
 // The app shell is updated from the network when available; downloaded model
 // files and the transformers.js library are cached so chat keeps working
 // without a connection after the first successful load.
-const CACHE = 'oracle-chat-v5';
+const CACHE = 'oracle-chat-v6';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', event => {
@@ -20,6 +20,12 @@ self.addEventListener('activate', event => {
       .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
+});
+
+// The page asks a freshly installed worker to take over immediately so an
+// installed Home Screen app can load the new build on its next foreground.
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 function remember(request, response) {

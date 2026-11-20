@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#4a9861" />
+<meta name="oracle-build" content="2026-11-19d" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Oracle" />
@@ -190,6 +191,10 @@
   .modal label{display:block;font-size:12.5px;font-weight:650;margin:12px 0 5px}
   .modal input,.modal textarea{width:100%;border:1px solid var(--border);border-radius:10px;padding:10px 11px;font-size:13.5px;outline:none;resize:vertical;background:var(--surface-2)}
   .modal input:focus,.modal textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .modal select{width:100%;border:1px solid var(--border);border-radius:10px;padding:10px 11px;font-size:13.5px;outline:none;background:var(--surface-2);color:var(--text)}
+  .modal select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .persona-list{display:grid;gap:6px;max-height:50vh;overflow:auto}
+  .persona-opt.selected{background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent)}
   .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
   .btn{border:1px solid var(--border);background:var(--surface-2);border-radius:10px;padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer}
   .btn:hover{background:var(--surface-3)}
@@ -333,6 +338,21 @@ const HEROES=[
 const HERO_COLORS={ironman:'#b3261e',captainamerica:'#2456a8',thor:'#b3261e',hulk:'#4c9a4f',blackwidow:'#222222',hawkeye:'#6a3f9e',spiderman:'#c0392b',wolverine:'#b8860b',storm:'#3c7fb1',cyclops:'#c0392b',jeangrey:'#b5471f',rogue:'#2b8a5a',gambit:'#8b1e1e',deadpool:'#c0392b',daredevil:'#c0392b',blackpanther:'#6c4acb',doctorstrange:'#b3261e',scarletwitch:'#a8272d',vision:'#2f9e6e',loki:'#2f6b32'};
 function heroColor(id){return HERO_COLORS[id]||'#4a9861'}
 function hero(id){return HEROES.find(h=>h.id===id)||HEROES[0]}
+// Grok-style tones, kept local: each is a short instruction stored on the chat,
+// never an account, cloud profile or extra model download.
+const PERSONALITIES=[
+  {id:'oracle',name:'Oracle',sub:'Calm, accurate, quietly warm',prompt:''},
+  {id:'concise',name:'Concise',sub:'One or two sentences, then stop',prompt:'Keep every reply to one or two short sentences. Answer first, skip preambles, and stop when the answer is complete.'},
+  {id:'tutor',name:'Tutor',sub:'Step by step, one question at a time',prompt:'Explain things step by step in plain language. Give the answer first, then the reason, and ask at most one helpful follow-up question.'},
+  {id:'formal',name:'Formal',sub:'Structured and professional',prompt:'Use a clear, professional tone. Structure longer answers with short headings or numbered points and avoid slang or jokes.'},
+  {id:'playful',name:'Playful',sub:'Witty and light, Grok-like',prompt:'Be warm, witty and a little playful. Keep it clever rather than silly, and never let the joke get in the way of a correct answer.'},
+  {id:'kids',name:'Kids',sub:'Simple, kind and safe',prompt:'Talk to a child: short sentences, simple words, kind and encouraging. Explain unfamiliar words and keep everything age-appropriate.'},
+  {id:'coach',name:'Coach',sub:'Encouraging and action-focused',prompt:'Be a supportive coach. Reflect the goal, give one concrete next step, and end with a short encouragement. Avoid long lectures.'},
+];
+function personality(id){return PERSONALITIES.find(p=>p.id===id)||PERSONALITIES[0]}
+function botPersona(c){return personality(c&&c.persona)}
+function personalityPrompt(c){return botPersona(c).prompt}
+function personalityLabel(c){return botPersona(c).name}
 function heroAvatar(id,state=''){
   const h=hero(id), rows=SPRITES[h.sprite]||SPRITES.mask;
   const rects=[];
@@ -341,11 +361,81 @@ function heroAvatar(id,state=''){
 }
 
 const staticMode=!['127.0.0.1','localhost','[::1]'].includes(location.hostname);
+let pendingDraft='';
 // Keep the hosted app and its downloaded model available without a connection.
+// Installed Home Screen apps resume instead of navigating, so they have to ask
+// for a new build themselves rather than wait for iOS to relaunch them.
 if(staticMode && 'serviceWorker' in navigator && location.protocol.startsWith('http')){
-  window.addEventListener('load',()=>{
-    navigator.serviceWorker.register(new URL('sw.js',location.href)).catch(()=>{});
-  });
+  (function autoUpdate(){
+    const meta=document.querySelector('meta[name="oracle-build"]');
+    const BUILD=meta?meta.content:'';
+    const DRAFT='oracle.pendingDraft', COUNT='oracle.reload.count';
+    let checking=0, newWorker=null, watching=false, reloading=false;
+
+    function reloadOnce(){
+      if(reloading)return;
+      let n=0;
+      try{n=+(sessionStorage.getItem(COUNT)||0)}catch(e){}
+      if(n>=2)return;
+      try{
+        sessionStorage.setItem(COUNT,String(n+1));
+        sessionStorage.setItem(DRAFT,draft||'');
+      }catch(e){}
+      reloading=true;
+      location.reload();
+    }
+
+    navigator.serviceWorker.addEventListener('controllerchange',()=>{
+      if(newWorker){newWorker=null;reloadOnce()}
+    });
+
+    async function check(){
+      const now=Date.now();
+      if(now-checking<15000)return;
+      checking=now;
+      // The build marker lives in index.html itself, so an HTML-only change is
+      // detected without keeping a separate version file in sync.
+      if(BUILD){
+        try{
+          const url=new URL('index.html',location.href);
+          url.search='?v='+now;
+          const res=await fetch(url,{cache:'no-store',headers:{Range:'bytes=0-8191'}});
+          const head=await res.text();
+          const m=head.match(/<meta name="oracle-build" content="([^"]+)">/);
+          if(m&&m[1]!==BUILD){reloadOnce();return}
+        }catch(e){}
+      }
+      try{
+        const reg=await navigator.serviceWorker.register(new URL('sw.js',location.href));
+        try{await reg.update()}catch(e){}
+        const takeOver=w=>{
+          if(!navigator.serviceWorker.controller)return;
+          newWorker=w;
+          try{w.postMessage({type:'SKIP_WAITING'})}catch(e){}
+        };
+        if(reg.waiting)takeOver(reg.waiting);
+        if(!watching){
+          watching=true;
+          reg.addEventListener('updatefound',()=>{
+            const nw=reg.installing;
+            if(!nw)return;
+            nw.addEventListener('statechange',()=>{
+              if((nw.state==='installed'||nw.state==='activating'||nw.state==='activated')&&navigator.serviceWorker.controller)takeOver(nw);
+            });
+          });
+        }
+      }catch(e){}
+    }
+
+    window.addEventListener('load',check);
+    window.addEventListener('pageshow',check);
+    window.addEventListener('focus',check);
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden)check()});
+    try{
+      pendingDraft=sessionStorage.getItem(DRAFT)||'';
+      if(pendingDraft)sessionStorage.removeItem(DRAFT);
+    }catch(e){}
+  })();
 }
 // On a hosted build, share links use whatever host served the page (GitHub Pages
 // or oracle-chat.pages.dev). On the Mac, use the neutral public site so family
@@ -420,7 +510,7 @@ function allModels(){return [
 ]}
 const DEFAULT_BACKEND=(guestMode||staticMode)?'device-small':'local';
 const savedBackend=localStorage.getItem('oracle.backend');
-let view='chat', listView=localStorage.getItem('oracle.listView')||'folders', backend=savedBackend||DEFAULT_BACKEND, draft='', waiting=false;
+let view='chat', listView=localStorage.getItem('oracle.listView')||'folders', backend=savedBackend||DEFAULT_BACKEND, draft=pendingDraft, waiting=false;
 // On phones the chat/folder list is the home screen; a chat opens full-screen.
 let mobileView='list';
 if(!allModels().some(m=>m.id===backend))backend=DEFAULT_BACKEND;
@@ -821,19 +911,23 @@ function isContextOverflow(err){
 // Older turns are dropped before the model sees them, so a long chat cannot
 // grow past the device context window.
 function fitDeviceMessages(messages){
-  const out=[],list=Array.isArray(messages)?messages:[];
-  let chars=0;
+  const list=Array.isArray(messages)?messages:[];
+  const sys=list.find(m=>m&&m.from==='system'&&String(m.text||'').trim());
+  const out=sys?[{role:'system',content:String(sys.text).trim().slice(0,1200)}]:[];
+  let chars=out.reduce((n,m)=>n+m.content.length,0);
   for(let i=list.length-1;i>=0;i--){
-    const m=list[i],text=String((m&&m.text)||'').trim();
-    if(!text||out.length>=8)break;
+    const m=list[i];
+    if(!m||m.from==='system')continue;
+    const text=String(m.text||'').trim();
+    if(!text||out.length>=9)break;
     const room=DEVICE_INPUT_CHARS-chars;
     if(room<=0)break;
     const piece=text.length>room?text.slice(-room):text;
-    out.unshift({role:m.from==='user'?'user':'assistant',content:piece});
+    out.splice(sys?1:0,0,{role:m.from==='user'?'user':'assistant',content:piece});
     chars+=piece.length;
     if(piece.length<text.length)break;
   }
-  if(!out.length){
+  if(out.length===(sys?1:0)){
     const last=list.length?list[list.length-1]:null;
     out.push({role:'user',content:String((last&&last.text)||'').slice(-DEVICE_INPUT_CHARS)});
   }
@@ -851,9 +945,13 @@ async function deviceCompletion(w,chat){
 }
 async function deviceChat(messages,modelId){
   const w=await loadDeviceModel(modelId),list=Array.isArray(messages)?messages:[];
+  // Keep the personality instruction on every retry: trimming history is fine,
+  // but dropping the system message would silently change the bot's tone.
+  const sys=list.filter(m=>m&&m.from==='system'&&String(m.text||'').trim()).slice(0,1);
+  const hist=list.filter(m=>!m||m.from!=='system');
   // First normal fit; if the runtime still reports an overflow, retry with only
   // the last exchange and finally only the newest message.
-  const attempts=[fitDeviceMessages(list),fitDeviceMessages(list.slice(-2)),fitDeviceMessages(list.slice(-1))];
+  const attempts=[fitDeviceMessages([...sys,...hist]),fitDeviceMessages([...sys,...hist.slice(-2)]),fitDeviceMessages([...sys,...hist.slice(-1)])];
   for(const chat of attempts){
     try{return await deviceCompletion(w,chat)}
     catch(err){if(!isContextOverflow(err))throw err}
@@ -868,7 +966,7 @@ async function customCloudChat(cm,messages){
   try{
     r=await fetch(cm.endpoint,{method:'POST',headers,body:JSON.stringify({
       model:cm.model,
-      messages:messages.map(m=>({role:m.from==='user'?'user':'assistant',content:m.text}))
+      messages:messages.map(m=>({role:m.from==='system'?'system':(m.from==='user'?'user':'assistant'),content:m.text}))
     })});
   }catch(err){throw new Error('Could not reach endpoint — it may block browser requests (CORS).')}
   try{d=await r.json()}catch(e){throw new Error('Endpoint returned non-JSON (HTTP '+r.status+')')}
@@ -1215,6 +1313,7 @@ function render(){
           ${moreOpen?`<div class="dropdown more">
             <button class="menu-item" id="moreNewChat">${icon('plus',18)}<span><strong>New chat room</strong><span class="mi-sub">Name it and pick an agent</span></span></button>
             <button class="menu-item" id="moreNewFolder">${icon('file',18)}<span><strong>New folder</strong><span class="mi-sub">Group chats together</span></span></button>
+            <button class="menu-item" id="morePersonality">${icon('spark',18)}<span><strong>Personality: ${esc(personalityLabel(c))}</strong><span class="mi-sub">${esc(botPersona(c).sub)} — tap to change this bot's tone</span></span></button>
             ${staticMode?'':`<button class="menu-item" id="moreToolMode">${icon('spark',18)}<span><strong>Tools: ${toolMode==='auto'?'Auto':'Ask first'}</strong><span class="mi-sub">${toolMode==='auto'?'Local model can act — click to require approvals':'Click to allow automatic basic tools'}</span></span></button>
             <button class="menu-item" id="moreToolRules">${icon('lock',18)}<span><strong>Always-allow rules (${toolRules.length})</strong><span class="mi-sub">Review and remove saved approvals</span></span></button>`}
             <button class="menu-item" id="moreVoice">${icon('volume',18)}<span><strong>Voice replies: ${voiceReplies?'On':'Off'}</strong><span class="mi-sub">Jarvis-style voice when available</span></span></button>
@@ -1323,6 +1422,7 @@ function bind(){
   if(mb)mb.onclick=e=>{e.stopPropagation();moreOpen=!moreOpen;plusOpen=modelOpen=profileOpen=false;modal=null;render()};
   document.getElementById('moreNewChat')?.addEventListener('click',()=>{moreOpen=false;openRoomModal(activeFolder)});
   document.getElementById('moreNewFolder')?.addEventListener('click',()=>{moreOpen=false;openFolderModal()});
+  document.getElementById('morePersonality')?.addEventListener('click',()=>{moreOpen=false;openPersonalityPicker()});
   document.getElementById('moreToolMode')?.addEventListener('click',async()=>{
     const next=(status.tools?.mode||'auto')==='auto'?'ask':'auto';
     try{
@@ -1446,6 +1546,7 @@ function openRoomModal(folderId=activeFolder){
   modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>New chat room</h3><p>Name the room and pick its pixel agent. The agent stands beside the room title.</p>
     <form id="roomForm"><label>Room name</label><input id="rn" placeholder="e.g. Marketing ideas" maxlength="50" required autofocus onfocus="this.select()" onclick="this.select()"/>
     <label>Job / role</label><input id="rj" placeholder="e.g. Research assistant" maxlength="60"/>
+    <label>Personality / tone</label><select id="rp-tone">${PERSONALITIES.map(p=>`<option value="${p.id}">${esc(p.name)} — ${esc(p.sub)}</option>`).join('')}</select>
     <label>Folder</label><select id="rf">${folders.map(f=>`<option value="${f.id}" ${f.id===folderId?'selected':''}>${esc(f.name)}</option>`).join('')}<option value="__new__">＋ Create new folder…</option></select>
     <input id="rfNew" placeholder="New folder name" maxlength="40" style="display:none;margin-top:6px"/>
     <label>Agent avatar</label><input type="hidden" id="rh" value="${hero(active()?.hero).id}"/>${heroPicker('rh')}
@@ -1801,9 +1902,20 @@ function openInstallApp(){
     <div class="modal-actions"><button class="btn primary" id="mc">Got it</button></div></div></div>`;
   render();
 }
+function openPersonalityPicker(){
+  const c=active();if(!c)return;
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal" style="max-width:520px"><h3>Personality · ${esc(c.name)}</h3>
+    <p>A short tone instruction stored with this chat only. No account, no cloud, no extra download — it works with every model, on or offline.</p>
+    <div class="persona-list">${PERSONALITIES.map(p=>`<button class="menu-item persona-opt ${botPersona(c).id===p.id?'selected':''}" data-persona="${p.id}">${icon('spark',18)}<span><strong>${esc(p.name)}</strong><span class="mi-sub">${esc(p.sub)}</span></span></button>`).join('')}</div>
+    <div class="modal-actions"><button class="btn primary" id="mc">Done</button></div></div></div>`;
+  render();
+  document.querySelectorAll('[data-persona]').forEach(b=>b.onclick=()=>{
+    c.persona=b.dataset.persona;saveState();modal=null;render();showToast('Personality: '+personalityLabel(c));
+  });
+}
 function openBotRoster(){
   const rows=convs.map(x=>`<div class="vault-row" style="justify-content:flex-start;gap:9px;flex-wrap:wrap">
-    ${heroAvatar(x.hero)}<span style="flex:1;min-width:150px"><strong>${esc(x.name)}</strong>${x.primary?'<span class="primary-badge">PRIMARY</span>':''}<br/><small style="color:var(--accent-2);font-weight:600">${esc(botJob(x))}</small></span>
+    ${heroAvatar(x.hero)}<span style="flex:1;min-width:150px"><strong>${esc(x.name)}</strong>${x.primary?'<span class="primary-badge">PRIMARY</span>':''}<br/><small style="color:var(--accent-2);font-weight:600">${esc(botJob(x))} · ${esc(personalityLabel(x))}</small></span>
     <button class="btn tiny" data-bot-open="${esc(x.id)}">Open</button><button class="btn tiny" data-bot-edit="${esc(x.id)}">Edit</button></div>`).join('');
   modal=`<div class="modal-backdrop" id="mb"><div class="modal" style="max-width:620px"><h3>Bot roster</h3>
     <p>Each chat is one local bot with a name, job and avatar. The primary bot is the one that opens first. Nothing here is synced or shared.</p>
@@ -1823,6 +1935,7 @@ function openBotEditModal(id){
     <form id="botEditForm"><input type="hidden" id="beId" value="${esc(c.id)}"/>
     <label>Name</label><input id="bn" value="${esc(c.name)}" maxlength="50" required/>
     <label>Job / role</label><input id="bj" value="${esc(botJob(c))}" maxlength="60" placeholder="e.g. Research assistant"/>
+    <label>Personality / tone</label><select id="bp-tone">${PERSONALITIES.map(p=>`<option value="${p.id}" ${botPersona(c).id===p.id?'selected':''}>${esc(p.name)} — ${esc(p.sub)}</option>`).join('')}</select>
     <label class="check-row"><input type="checkbox" id="bp" ${c.primary?'checked':''}/> Primary bot</label>
     <div class="modal-actions"><button type="button" class="btn" id="mc">Cancel</button><button class="btn primary" type="submit">Save bot</button></div></form></div></div>`;
   render();
@@ -1831,6 +1944,7 @@ function openBotEditModal(id){
     const item=convs.find(x=>x.id===document.getElementById('beId').value);if(!item)return;
     item.name=document.getElementById('bn').value.trim()||item.name;
     item.job=document.getElementById('bj').value.trim()||'General assistant';
+    item.persona=document.getElementById('bp-tone').value||'oracle';
     const primary=document.getElementById('bp').checked;
     if(primary)convs.forEach(x=>x.primary=false);
     item.primary=primary||item.primary;
@@ -1840,7 +1954,7 @@ function openBotEditModal(id){
 }
 function commandItems(){
   const items=[];
-  convs.forEach(c=>items.push({label:c.name,sub:botJob(c)+' · chat',art:heroAvatar(c.hero),run:()=>{
+  convs.forEach(c=>items.push({label:c.name,sub:botJob(c)+' · '+personalityLabel(c)+' · chat',art:heroAvatar(c.hero),run:()=>{
     activeId=c.id;activeFolder=c.folder;view='chat';mobileView='chat';saveState();render();
   }}));
   folders.forEach(f=>items.push({label:f.name,sub:'folder · '+convs.filter(x=>x.folder===f.id).length+' chats',art:icon('file',16),run:()=>{
@@ -1848,6 +1962,7 @@ function commandItems(){
   }}));
   items.push({label:'New bot / chat room',sub:'command',art:icon('plus',16),run:()=>openRoomModal(activeFolder)});
   items.push({label:'Bot roster',sub:'command · names and jobs',art:icon('spark',16),run:openBotRoster});
+  items.push({label:'Personality: '+personalityLabel(active()),sub:'command · choose this bot\'s tone',art:icon('spark',16),run:openPersonalityPicker});
   items.push({label:'Install this web app',sub:'command · Add to Home Screen',art:icon('plus',16),run:openInstallApp});
   items.push({label:'Appearance: '+themeLabel(),sub:'command · switch light and dark',art:icon('theme',16),run:cycleTheme});
   items.push({label:'Share / export this chat',sub:'command',art:icon('share',16),run:openShareModal});
@@ -1964,6 +2079,7 @@ function bindModal(){
     const name=document.getElementById('rn').value.trim(),heroId=document.getElementById('rh').value;
     const job=(document.getElementById('rj')?.value.trim()||'General assistant');
     const primary=!!document.getElementById('rp')?.checked;
+    const persona=document.getElementById('rp-tone')?.value||'oracle';
     let folder=document.getElementById('rf').value;
     if(!name)return;
     if(folder==='__new__'){
@@ -1974,7 +2090,7 @@ function bindModal(){
     }
     const id='chat-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
     if(primary)convs.forEach(x=>x.primary=false);
-    convs.push({id,name,preview:'Ask me anything…',hero:heroId,folder,job,primary:primary||convs.length===0,messages:[]});
+    convs.push({id,name,preview:'Ask me anything…',hero:heroId,folder,job,persona,primary:primary||convs.length===0,messages:[]});
     const f=folders.find(x=>x.id===folder);if(f){f.open=true;activeFolder=f.id}
     activeId=id;mobileView='chat';modal=null;saveState();render();showToast('Room created: '+name);
   });
@@ -2133,6 +2249,8 @@ async function sendMessage(e){
   const cm=customModels.find(m=>m.id===backend);
   try{
     const msgs=c.messages.map(m=>({from:m.from,text:m.text}));
+    const tone=personalityPrompt(c);
+    if(tone)msgs.unshift({from:'system',text:tone});
     if(credSelected.length)msgs.push({from:'user',text:'[Saved credentials available by name only: '+credSelected.join(', ')+'. Never ask for their values.]'});
     if(backend==='device'||backend==='device-small'||(cm&&cm.type==='device')){
       const answer=await deviceChat(msgs,backend==='device-small'?SMALL_DEVICE_MODEL:cm?.model);
