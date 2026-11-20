@@ -2,7 +2,7 @@
 // The app shell is updated from the network when available; downloaded model
 // files and the transformers.js library are cached so chat keeps working
 // without a connection after the first successful load.
-const CACHE = 'oracle-chat-v2';
+const CACHE = 'oracle-chat-v3';
 const SHELL = ['./', './index.html'];
 
 self.addEventListener('install', event => {
@@ -52,6 +52,11 @@ self.addEventListener('fetch', event => {
     );
     return;
   }
+
+  // wllama streams GGUF weights with HTTP Range requests. Never cache partial
+  // responses — a cached 206 would corrupt later model loads. Its own Cache
+  // API handling stores the completed model.
+  if (request.headers.has('range')) return;
 
   // Model weights and the browser model runtime: cache after first download.
   if (/cdn\.jsdelivr\.net|huggingface\.co|hf\.co|cdn-lfs/.test(url.hostname)) {

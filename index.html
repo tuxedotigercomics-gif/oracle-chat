@@ -332,8 +332,8 @@ const MODELS=[
   {id:'auto',name:'Cloud → Local',sub:'try Big Pickle, fall back'},
   {id:'cloud',name:'Big Pickle (cloud)',sub:'free OpenCode — quota resetting'},
   ...((guestMode||staticMode)?[
-    {id:'device-small',name:'Tiny on-device · 135M',sub:'smallest download — about 182 MB once'},
-    {id:'device',name:'On-device · 0.5B',sub:'better answers — about 786 MB once'}
+    {id:'device-small',name:'Tiny on-device · 135M',sub:'phone-safe — about 105 MB once'},
+    {id:'device',name:'Balanced on-device · 350M',sub:'better answers — about 229 MB once'}
   ]:[]),
 ];
 if(staticMode)MODELS.splice(0,4);
@@ -398,10 +398,22 @@ async function gvGet(name){
 }
 function guestFill(text){return String(text).replace(/\[\[USE:([^|\]]+)\|([^\]]+)\]\]/g,(m,n)=>`[credential '${n}' — value stayed on this device]`)}
 
-const DEFAULT_DEVICE_MODEL='onnx-community/Qwen2.5-0.5B-Instruct';
-const SMALL_DEVICE_MODEL='onnx-community/SmolLM2-135M-Instruct-ONNX-MHA';
+// Private models that fit a phone browser. wllama (llama.cpp compiled to
+// WebAssembly) is used instead of Transformers.js because Transformers.js is
+// the one browser runtime known to kill iPhone tabs during/after generation.
+// GGUF files are downloaded from Hugging Face once, then cached on the device.
+const GGUF_MODELS={
+  'smol2-135m':{repo:'bartowski/SmolLM2-135M-Instruct-GGUF',file:'SmolLM2-135M-Instruct-Q4_K_M.gguf',name:'Tiny · 135M',size:'about 105 MB'},
+  'lfm2-350m':{repo:'LiquidAI/LFM2.5-350M-GGUF',file:'LFM2.5-350M-Q4_K_M.gguf',name:'Balanced · 350M',size:'about 229 MB'},
+};
+const DEFAULT_DEVICE_MODEL='lfm2-350m';
+const SMALL_DEVICE_MODEL='smol2-135m';
 const PHONE=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-const IOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+function ggufSpec(id){
+  if(GGUF_MODELS[id])return GGUF_MODELS[id];
+  if(typeof id==='string'&&id.includes('|')){const [repo,file]=id.split('|');return {repo,file,name:file,size:'your model file'}}
+  return null;
+}
 function activeDeviceModel(){return backend==='device-small'?SMALL_DEVICE_MODEL:(customModels.find(m=>m.id===backend)?.model||DEFAULT_DEVICE_MODEL)}
 const devicePipes={}, deviceLoads={};
 // Update the progress text in place. A full render() here destroys the input
@@ -417,10 +429,10 @@ function setDeviceStatus(s){
 }
 let deviceOk=false;
 // Phones need an explicit go-ahead: the first answer downloads a real model.
-function confirmPhoneDownload(){
+function confirmPhoneDownload(spec){
   return new Promise(resolve=>{
     modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Private model for this phone</h3>
-      <p>The first answer downloads about 118 MB and keeps it on this device. It works offline afterwards.
+      <p>This downloads <strong>${esc(spec.name)}</strong> (${esc(spec.size)}) once and keeps it on this device. It works offline afterwards.
       If your phone closes the page while it loads, your question is saved — reopen the chat and tap "Try again".</p>
       <div class="modal-actions"><button class="btn" id="dlCancel">Not now</button><button class="btn primary" id="dlGo">Download &amp; continue</button></div></div></div>`;
     render();
@@ -428,55 +440,39 @@ function confirmPhoneDownload(){
     document.getElementById('dlGo')?.addEventListener('click',()=>{modal=null;render();resolve(true)});
   });
 }
+const WLLAMA_JS='https://cdn.jsdelivr.net/npm/@wllama/wllama@3.6.1/esm/index.js';
+const WLLAMA_WASM='https://cdn.jsdelivr.net/npm/@wllama/wllama@3.6.1/src/wasm/wllama.wasm';
 async function loadDeviceModel(modelId){
   modelId=modelId||DEFAULT_DEVICE_MODEL;
   if(devicePipes[modelId]){devicePipe=devicePipes[modelId];deviceModelId=modelId;return devicePipe}
   if(deviceLoads[modelId])return deviceLoads[modelId];
+  const spec=ggufSpec(modelId);
+  if(!spec)throw new Error('Unknown on-device model. Pick one of the private models.');
   if(PHONE&&!deviceOk){
-    if(!await confirmPhoneDownload())throw new Error('Model download not started. Tap "Try again" when you are ready.');
+    if(!await confirmPhoneDownload(spec))throw new Error('Model download not started. Tap "Try again" when you are ready.');
     deviceOk=true;
   }
-  setDeviceStatus('Preparing your private model — first time only, keep this page open');
+  setDeviceStatus('Preparing '+spec.name+' — first time only, keep this page open');
   deviceLoads[modelId]=(async()=>{
     try{
-      const mod=await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.5');
-      let pipe;
-      if(PHONE){
-        // WebGPU + q4f16 is the smallest single download (118 MB) and uses GPU
-        // memory instead of a large WASM heap — important on iPhone Safari.
-        try{pipe=await mod.pipeline('text-generation',modelId,{dtype:'q4f16',device:'webgpu'})}
-        catch(e){
-          setDeviceStatus('This phone needs the slower option — one moment…');
-          if(mod.env?.backends?.onnx?.wasm)mod.env.backends.onnx.wasm.numThreads=1;
-          pipe=await mod.pipeline('text-generation',modelId,{dtype:'int8',device:'wasm'});
-        }
-      }else{
-        try{pipe=await mod.pipeline('text-generation',modelId,{dtype:'q4',device:'webgpu'})}
-        catch(e){setDeviceStatus('Using this device instead — slower on the first load');pipe=await mod.pipeline('text-generation',modelId,{dtype:'q4',device:'wasm'})}
-      }
-      devicePipes[modelId]=pipe;devicePipe=pipe;deviceModelId=modelId;setDeviceStatus('');return pipe;
+      const {Wllama}=await import(WLLAMA_JS);
+      const w=new Wllama({default:WLLAMA_WASM});
+      await w.loadModelFromHF({repo:spec.repo,file:spec.file},{n_ctx:1024});
+      devicePipes[modelId]=w;devicePipe=w;deviceModelId=modelId;setDeviceStatus('');return w;
     }catch(err){setDeviceStatus('');throw err}
     finally{delete deviceLoads[modelId]}
   })();
   return deviceLoads[modelId];
 }
 async function deviceChat(messages,modelId){
-  const gen=await loadDeviceModel(modelId);
+  const w=await loadDeviceModel(modelId);
   const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error('This device took too long — tap retry to try again.')),120000));
-  // Pass role-tagged messages so the model's own chat template is applied.
-  // A plain "User:/Assistant:" string makes small instruction models repeat
-  // themselves and produce unusable answers.
+  // Role-tagged messages let the GGUF chat template produce a real reply.
   const chat=messages.map(m=>({role:m.from==='user'?'user':'assistant',content:m.text}));
-  let out;
-  try{out=await Promise.race([gen(chat,{max_new_tokens:160,do_sample:false}),timeout])}
-  catch(e){
-    const prompt=messages.map(m=>(m.from==='user'?'User':'Assistant')+': '+m.text).join('\n')+'\nAssistant:';
-    out=await Promise.race([gen(prompt,{max_new_tokens:160,do_sample:false}),timeout]);
-    return guestFill(String(out?.[0]?.generated_text||'').replace(prompt,'').trim()||'(no answer)');
-  }
-  const first=out?.[0]?.generated_text;
-  const text=(Array.isArray(first)?first.find(x=>x.role==='assistant')?.content:null)||(typeof first==='string'?first:'');
-  return guestFill(text.trim()||'(no answer)');
+  const stream=await Promise.race([w.createChatCompletion({messages:chat,stream:true,cache_prompt:true}),timeout]);
+  let out='';
+  for await(const chunk of stream){out+=chunk.choices?.[0]?.delta?.content||''}
+  return guestFill(out.trim()||'(no answer)');
 }
 async function customCloudChat(cm,messages){
   const key=await gvGet('model:'+cm.id);
@@ -1157,9 +1153,9 @@ function openAddModel(){
     </select>
     <label>Display name</label><input id="cmName" placeholder="e.g. Tiny Llama / My Groq" style="width:100%;box-sizing:border-box"/>
     <div id="cmDeviceFields">
-      <label>Hugging Face model ID</label>
+      <label>GGUF model</label>
       <input id="cmModel" value="${DEFAULT_DEVICE_MODEL}" style="width:100%;box-sizing:border-box"/>
-      <p style="margin-top:6px;font-size:11.5px">Any ONNX text-generation model with a WebGPU/WASM build works. Bigger models need more memory.</p>
+      <p style="margin-top:6px;font-size:11.5px">Use <code>smol2-135m</code> or <code>lfm2-350m</code>, or your own Hugging Face GGUF as <code>repo|filename.gguf</code>. Smaller models suit phones.</p>
     </div>
     <div id="cmCloudFields" style="display:none">
       <label>Endpoint (OpenAI-compatible /v1/chat/completions)</label>
