@@ -581,6 +581,12 @@ function confirmPhoneDownload(spec){
 }
 const WLLAMA_JS='https://cdn.jsdelivr.net/npm/@wllama/wllama@3.6.1/esm/index.js';
 const WLLAMA_WASM='https://cdn.jsdelivr.net/npm/@wllama/wllama@3.6.1/src/wasm/wllama.wasm';
+// 1024 was too small for a routine-authoring prompt plus chat history: a 1051
+// token request failed with "exceeds the available context size". 2048 leaves
+// room for the answer without an excessive KV cache on a phone.
+const DEVICE_CTX=2048;
+// Conservative input budget (~3 chars/token) so the template and reply still fit.
+const DEVICE_INPUT_CHARS=4800;
 async function loadDeviceModel(modelId){
   modelId=modelId||DEFAULT_DEVICE_MODEL;
   if(devicePipes[modelId]){devicePipe=devicePipes[modelId];deviceModelId=modelId;return devicePipe}
@@ -599,22 +605,58 @@ async function loadDeviceModel(modelId){
     try{
       const {Wllama}=await import(WLLAMA_JS);
       const w=new Wllama({default:WLLAMA_WASM});
-      await w.loadModelFromHF({repo:spec.repo,file:spec.file},{n_ctx:1024});
+      await w.loadModelFromHF({repo:spec.repo,file:spec.file},{n_ctx:DEVICE_CTX});
       devicePipes[modelId]=w;devicePipe=w;deviceModelId=modelId;setDeviceStatus('');return w;
     }catch(err){setDeviceStatus('');throw err}
     finally{delete deviceLoads[modelId]}
   })();
   return deviceLoads[modelId];
 }
+function isContextOverflow(err){
+  return /context size|context length|exceeds.*tokens|too many tokens|n_ctx/i.test(String((err&&err.message)||err||''));
+}
+// Keep the newest turns first and stay inside a conservative character budget.
+// Older turns are dropped before the model sees them, so a long chat cannot
+// grow past the device context window.
+function fitDeviceMessages(messages){
+  const out=[],list=Array.isArray(messages)?messages:[];
+  let chars=0;
+  for(let i=list.length-1;i>=0;i--){
+    const m=list[i],text=String((m&&m.text)||'').trim();
+    if(!text||out.length>=8)break;
+    const room=DEVICE_INPUT_CHARS-chars;
+    if(room<=0)break;
+    const piece=text.length>room?text.slice(-room):text;
+    out.unshift({role:m.from==='user'?'user':'assistant',content:piece});
+    chars+=piece.length;
+    if(piece.length<text.length)break;
+  }
+  if(!out.length){
+    const last=list.length?list[list.length-1]:null;
+    out.push({role:'user',content:String((last&&last.text)||'').slice(-DEVICE_INPUT_CHARS)});
+  }
+  return out;
+}
+async function deviceCompletion(w,chat){
+  let timer=null;
+  const timeout=new Promise((_,rej)=>{timer=setTimeout(()=>rej(new Error('This device took too long — tap retry to try again.')),120000)});
+  try{
+    const stream=await Promise.race([w.createChatCompletion({messages:chat,stream:true,cache_prompt:true}),timeout]);
+    let out='';
+    for await(const chunk of stream){out+=chunk.choices?.[0]?.delta?.content||''}
+    return guestFill(out.trim()||'(no answer)');
+  }finally{if(timer)clearTimeout(timer)}
+}
 async function deviceChat(messages,modelId){
-  const w=await loadDeviceModel(modelId);
-  const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error('This device took too long — tap retry to try again.')),120000));
-  // Role-tagged messages let the GGUF chat template produce a real reply.
-  const chat=messages.map(m=>({role:m.from==='user'?'user':'assistant',content:m.text}));
-  const stream=await Promise.race([w.createChatCompletion({messages:chat,stream:true,cache_prompt:true}),timeout]);
-  let out='';
-  for await(const chunk of stream){out+=chunk.choices?.[0]?.delta?.content||''}
-  return guestFill(out.trim()||'(no answer)');
+  const w=await loadDeviceModel(modelId),list=Array.isArray(messages)?messages:[];
+  // First normal fit; if the runtime still reports an overflow, retry with only
+  // the last exchange and finally only the newest message.
+  const attempts=[fitDeviceMessages(list),fitDeviceMessages(list.slice(-2)),fitDeviceMessages(list.slice(-1))];
+  for(const chat of attempts){
+    try{return await deviceCompletion(w,chat)}
+    catch(err){if(!isContextOverflow(err))throw err}
+  }
+  throw new Error('This chat is too long for the private model. Start a new chat or shorten the question, then tap retry.');
 }
 async function customCloudChat(cm,messages){
   const key=await gvGet('model:'+cm.id);
@@ -1446,7 +1488,7 @@ function openDeviceRoutines(){
     drOutput='Asking your private model…';openDeviceRoutines();
     const prompt='Write ONE device routine as a single JSON object and nothing else. No markdown, no explanation.\n'
       +'Allowed step ops: fetch, model, say, notify, share, wait, log.\n'
-      +'fetch needs "url" (https only, host must be one of: '+(deviceRoutines.allowHosts.join(', ')||'none approved yet')+'), optional "method" GET/POST, "body", and "saveAs".\n'
+      +'fetch needs "url" (https only, host must be one of: '+(deviceRoutines.allowHosts.slice(0,10).join(', ')||'none approved yet')+'), optional "method" GET/POST, "body", and "saveAs".\n'
       +'model needs "prompt" and optional "saveAs". Use {{var:NAME}} to reuse a saved result.\n'
       +'say needs "text". notify needs "title" and "body". log needs "text". wait needs "ms".\n'
       +'The owner chose the trigger; do not change it. It must be exactly '+JSON.stringify(chosen)+'.\n'
