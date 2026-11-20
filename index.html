@@ -359,6 +359,10 @@ let files=[], credSelected=[], vaultKeys=[], status={}, memoryData={memories:[],
 let voiceReplies=localStorage.getItem('oracle.voiceReplies')==='1', listening=false, recognition=null;
 let callActive=false, callState='idle', finalTranscript='', speechGen=0, prevVoiceReplies=false;
 let callFatal=false, callNoSpeech=0;
+// Call lifecycle guards: a generation token invalidates late callbacks, a Set
+// tracks every recognition instance so teardown releases the mic reliably, and
+// timers are cleared on end so no listener can restart after the call is over.
+let callGen=0, liveRecognitions=new Set(), listenTimer=null, speechFallbackTimer=null, speechUnlocked=false;
 let displayName=guestMode?(localStorage.getItem('oracle.guest.name.'+shareToken)||'Family Guest'):(localStorage.getItem('oracle.displayName')||'Michael Lynch');
 
 function active(){return convs.find(c=>c.id===activeId)||convs[0]}
@@ -580,54 +584,119 @@ function openVoicePicker(){
   });
 }
 if('speechSynthesis' in window)window.speechSynthesis.onvoiceschanged=()=>{if(view==='chat')render()};
+// Leaving the page (back button, tab switch, phone sleep) must release the mic.
+window.addEventListener('pagehide',()=>{
+  callActive=false;callGen++;
+  if(listenTimer){clearTimeout(listenTimer);listenTimer=null}
+  stopAllRecognition();
+  if(speechFallbackTimer){clearTimeout(speechFallbackTimer);speechFallbackTimer=null}
+  try{window.speechSynthesis?.cancel()}catch(e){}
+});
 function cancelSpeech(){
   speechGen++;
+  if(speechFallbackTimer){clearTimeout(speechFallbackTimer);speechFallbackTimer=null}
   if(!('speechSynthesis' in window))return;
   window.speechSynthesis.cancel();
   setTimeout(()=>window.speechSynthesis.cancel(),80);
 }
+// iOS Safari only allows speech after a user gesture and sometimes leaves the
+// synthesis engine paused with no voices loaded. Prime it from the call-button
+// tap (a real gesture) so the spoken reply actually plays on a phone.
+function primeSpeech(){
+  if(!('speechSynthesis' in window))return;
+  try{window.speechSynthesis.getVoices()}catch(e){}
+  try{window.speechSynthesis.resume()}catch(e){}
+  if(speechUnlocked)return;
+  try{
+    const u=new SpeechSynthesisUtterance(' ');u.volume=0;u.rate=1;
+    window.speechSynthesis.speak(u);
+    speechUnlocked=true;
+  }catch(e){}
+}
 function speak(text,onDone){
   const gen=++speechGen;
-  if(!voiceReplies||!('speechSynthesis' in window)){if(onDone)onDone();return}
+  let done=false;
+  if(speechFallbackTimer){clearTimeout(speechFallbackTimer);speechFallbackTimer=null}
+  const finish=()=>{
+    if(done||gen!==speechGen)return;
+    done=true;
+    if(speechFallbackTimer){clearTimeout(speechFallbackTimer);speechFallbackTimer=null}
+    if(onDone)onDone();
+  };
+  if(!voiceReplies||!('speechSynthesis' in window)){finish();return}
+  try{window.speechSynthesis.resume()}catch(e){}
   window.speechSynthesis.cancel();
   const clean=String(text||'').replace(/\[\[USE:[^\]]+\]\]/g,'').replace(/\s+/g,' ').slice(0,1200);
-  if(!clean.trim()){if(onDone)onDone();return}
+  if(!clean.trim()){finish();return}
   const u=new SpeechSynthesisUtterance(clean),v=voiceName();
   if(v)u.voice=v;
   u.rate=1.0;u.pitch=.8;
-  u.onend=()=>{if(gen===speechGen&&callActive&&onDone)onDone()};
-  u.onerror=()=>{if(gen===speechGen&&callActive&&onDone)onDone()};
+  u.onend=finish;u.onerror=finish;
   if(callActive)setCallState('speaking');
-  window.speechSynthesis.speak(u);
+  // iOS can silently never fire onend. A bounded fallback keeps the hands-free
+  // loop alive so the call does not freeze after replying once.
+  const est=Math.min(30000,Math.max(4000,clean.length*90));
+  speechFallbackTimer=setTimeout(()=>{if(gen===speechGen)finish()},est+3000);
+  try{window.speechSynthesis.speak(u)}catch(e){finish()}
 }
 function setCallState(s){callState=s;render()}
 function toggleVoice(){
   voiceReplies=!voiceReplies;localStorage.setItem('oracle.voiceReplies',voiceReplies?'1':'0');
   render();if(voiceReplies)speak('Voice mode on.');else cancelSpeech();
 }
+function trackRecognition(r){liveRecognitions.add(r);return r}
+// Release every recognition instance. Nulling the handlers first stops a stale
+// onend/onerror from re-entering the call loop while we are tearing it down.
+function stopAllRecognition(){
+  for(const r of liveRecognitions){
+    try{r.onstart=r.onresult=r.onerror=r.onend=null}catch(e){}
+    try{r.abort()}catch(e){}
+    try{r.stop()}catch(e){}
+  }
+  liveRecognitions.clear();
+  recognition=null;listening=false;
+}
+function endCall(message){
+  if(!callActive)return;
+  callActive=false;callState='idle';
+  callGen++;
+  if(listenTimer){clearTimeout(listenTimer);listenTimer=null}
+  stopAllRecognition();
+  // Restore the speaker setting from before the call — ending a call must not
+  // leave later chat replies talking out loud or the mic indicator on.
+  voiceReplies=prevVoiceReplies;
+  try{localStorage.setItem('oracle.voiceReplies',voiceReplies?'1':'0')}catch(e){}
+  cancelSpeech();render();
+  showToast(message||(voiceReplies?'Voice call ended — spoken replies still on':'Voice call ended — replies back to text'));
+}
 function toggleListen(){
-  if(callActive){toggleCall();return}
+  if(callActive){endCall();return}
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){showToast('Voice typing is not supported in this browser');return}
-  if(listening){recognition?.stop();return}
+  if(listening&&recognition){try{recognition.stop()}catch(e){};return}
   try{
-    recognition=new SR();recognition.lang='en-US';recognition.continuous=false;recognition.interimResults=true;
-    recognition.onstart=()=>{listening=true;render()};
-    recognition.onresult=e=>{let t='';for(let i=0;i<e.results.length;i++)t+=e.results[i][0].transcript;draft=t.trim();render()};
-    recognition.onerror=e=>showToast('Voice error: '+e.error);
-    recognition.onend=()=>{listening=false;render()};
-    recognition.start();
+    const r=trackRecognition(new SR());recognition=r;
+    r.lang='en-US';r.continuous=false;r.interimResults=true;
+    r.onstart=()=>{listening=true;render()};
+    r.onresult=e=>{let t='';for(let i=0;i<e.results.length;i++)t+=e.results[i][0].transcript;draft=t.trim();render()};
+    r.onerror=e=>showToast('Voice error: '+e.error);
+    r.onend=()=>{liveRecognitions.delete(r);if(recognition===r)recognition=null;listening=false;render()};
+    r.start();
   }catch(err){showToast('Could not start voice typing: '+err.message)}
 }
 function listenLoop(){
   if(!callActive)return;
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){showToast('Live voice needs Chrome or Android Chrome');toggleCall();return}
+  if(!SR){showToast('Live voice needs Chrome or Android Chrome');endCall();return}
   finalTranscript='';callFatal=false;
+  const gen=callGen,active=()=>callActive&&gen===callGen;
+  if(listenTimer){clearTimeout(listenTimer);listenTimer=null}
   try{
-    recognition=new SR();recognition.lang='en-US';recognition.continuous=false;recognition.interimResults=true;
-    recognition.onstart=()=>{listening=true;setCallState('listening')};
-    recognition.onresult=e=>{
+    const r=trackRecognition(new SR());recognition=r;
+    r.lang='en-US';r.continuous=false;r.interimResults=true;
+    r.onstart=()=>{if(active()){listening=true;setCallState('listening')}};
+    r.onresult=e=>{
+      if(!active())return;
       let fin='',inter='';
       for(let i=e.resultIndex;i<e.results.length;i++){
         const seg=e.results[i];
@@ -639,54 +708,45 @@ function listenLoop(){
       const send=document.getElementById('send');if(send)send.disabled=!shown;
       draft=shown;
     };
-    recognition.onerror=e=>{
+    r.onerror=e=>{
+      if(!active())return;
       if(e.error==='no-speech'||e.error==='aborted')return;
-      // Permission, missing microphone or service errors will repeat forever if
-      // we auto-retry. End the call so the page stays responsive.
+      // Permission, missing microphone or service errors repeat forever if we
+      // auto-retry. End the call so the page stays responsive and mic releases.
       callFatal=true;
-      if(callActive)toggleCall();
-      showToast('Voice unavailable ('+e.error+') — check mic permission, then tap call again');
+      endCall('Voice unavailable ('+e.error+') — check mic permission, then tap call again');
     };
-    recognition.onend=()=>{
+    r.onend=()=>{
+      liveRecognitions.delete(r);
+      if(!active())return;
       listening=false;
-      if(!callActive||callFatal)return;
       const t=finalTranscript.trim();
       if(t){draft=t;callNoSpeech=0;sendMessage({preventDefault(){}});return}
       callNoSpeech++;
-      if(callNoSpeech>=4){
-        toggleCall();
-        showToast('No speech heard — tap the call button to try again');return;
-      }
-      if(!waiting&&callState!=='speaking')setTimeout(()=>{if(callActive)listenLoop()},400);
+      if(callNoSpeech>=4){endCall('No speech heard — tap the call button to try again');return}
+      if(!waiting&&callState!=='speaking')listenTimer=setTimeout(()=>{if(active())listenLoop()},400);
     };
-    recognition.start();
-  }catch(err){showToast('Could not start live voice: '+err.message);toggleCall()}
+    r.start();
+  }catch(err){showToast('Could not start live voice: '+err.message);endCall()}
 }
 function toggleCall(){
-  if(callActive){
-    callActive=false;listening=false;
-    try{recognition?.abort()}catch(e){}
-    recognition=null;
-    // Restore the speaker setting that was active before the call — ending a
-    // call must not leave later chat replies talking out loud.
-    voiceReplies=prevVoiceReplies;
-    localStorage.setItem('oracle.voiceReplies',voiceReplies?'1':'0');
-    cancelSpeech();render();
-    showToast(voiceReplies?'Voice call ended — spoken replies still on':'Voice call ended — replies back to text');
-    return;
-  }
+  if(callActive){endCall();return}
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){showToast('Live voice needs Chrome or Android Chrome');return}
+  primeSpeech();
   prevVoiceReplies=voiceReplies;
   callNoSpeech=0;callFatal=false;
-  callActive=true;voiceReplies=true;localStorage.setItem('oracle.voiceReplies','1');
+  callActive=true;voiceReplies=true;
+  try{localStorage.setItem('oracle.voiceReplies','1')}catch(e){}
   render();showToast('Voice call started — just talk');listenLoop();
 }
 function afterReply(text){
   waiting=false;credSelected=[];saveState();render();
   if(!text)return;
-  if(callActive)speak(text,()=>{if(callActive){setCallState('listening');listenLoop()}});
-  else speak(text);
+  if(callActive){
+    const gen=callGen;
+    speak(text,()=>{if(callActive&&gen===callGen){setCallState('listening');listenLoop()}});
+  }else speak(text);
 }
 
 function render(){
