@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#4a9861" />
-<meta name="oracle-build" content="2026-11-20g" />
+<meta name="oracle-build" content="2026-11-20h" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Oracle" />
@@ -397,8 +397,19 @@ if(staticMode && 'serviceWorker' in navigator && location.protocol.startsWith('h
       reloads:+(sessionStorage.getItem(COUNT)||0)});
     window.oracleCheckUpdate=async()=>{checking=0;await check();return window.oracleUpdateInfo()};
 
+    let updateReloadTimer=null;
+    function updateBusy(){
+      // Never yank the page away while an image is generating or a chat reply
+      // is pending. On a phone that showed as a white flash and a lost result.
+      try{return !!(imageBusy||waiting)}catch(e){return false}
+    }
     function reloadOnce(){
       if(reloading)return;
+      if(updateBusy()){
+        if(!updateReloadTimer)updateReloadTimer=setTimeout(()=>{updateReloadTimer=null;reloadOnce()},5000);
+        return;
+      }
+      if(updateReloadTimer){clearTimeout(updateReloadTimer);updateReloadTimer=null}
       let n=0;
       try{n=+(sessionStorage.getItem(COUNT)||0)}catch(e){}
       if(n>=2)return;
@@ -909,6 +920,10 @@ async function loadDeviceModel(modelId){
   if(deviceLoads[modelId])return deviceLoads[modelId];
   const spec=ggufSpec(modelId);
   if(!spec)throw new Error('Unknown on-device model. Pick one of the private models.');
+  // Only one chat model may stay resident. Tiny + Balanced + Unfiltered is
+  // about 553 MB, far over a phone tab's budget. Exit every other pipe before
+  // loading a new one; the GGUF weights stay in OPFS and reload silently.
+  await releaseOtherDevicePipes(modelId);
   deviceLoads[modelId]=(async()=>{
     try{
       const {Wllama}=await import(WLLAMA_JS);
@@ -944,11 +959,17 @@ async function loadDeviceModel(modelId){
 // WebGPU) cannot both stay resident on an iPhone. Release every wllama pipe
 // before image generation; the GGUF weights remain in OPFS, so the chat model
 // reloads silently from the device on the next message.
-async function releaseDevicePipes(){
-  const pipes=Object.values(devicePipes);
-  for(const k of Object.keys(devicePipes))delete devicePipes[k];
-  devicePipe=null;deviceModelId='';
+async function releaseOtherDevicePipes(keepId){
+  const pipes=[];
+  for(const k of Object.keys(devicePipes)){
+    if(k===keepId)continue;
+    const w=devicePipes[k];delete devicePipes[k];pipes.push(w);
+  }
   await Promise.all(pipes.map(w=>{try{return Promise.resolve(w&&w.exit&&w.exit())}catch(e){}}));
+}
+async function releaseDevicePipes(){
+  await releaseOtherDevicePipes(null);
+  devicePipe=null;deviceModelId='';
 }
 // ---- On-device image generation — NanoDiffuser (phone/static, owner only) ----
 // One-step SDXS text-to-image. CLIP tokenizer/encoder, one U-Net step and a tiny
