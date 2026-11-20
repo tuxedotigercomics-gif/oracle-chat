@@ -43,3 +43,8 @@ who created it is offline.
 ## Local development
 The full local app (bridge, tools, vault, memory, auto-start) lives beside the
 desktop source files; this repository is only the browser-only published build.
+
+## For future maintainers and AI assistants
+[`AI-HANDOFF/README.md`](AI-HANDOFF/README.md) records the current build, open
+items, privacy rules, the change/verification workflow, the full image-generation
+investigation, and snapshots of the regression checklists. Start there.

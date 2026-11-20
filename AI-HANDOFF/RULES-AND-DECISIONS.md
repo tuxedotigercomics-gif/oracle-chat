@@ -1,0 +1,98 @@
+# Rules and settled decisions
+
+These are constraints from the owner, not suggestions. Preserve them across
+every change. When in doubt, choose the more private/local option.
+
+## Hard rules
+
+- `Oracle-Chat-Offline.html` stays frozen. All live work is in
+  `Oracle-Chat-Live.html` (and `oracle_bridge.py` for host behaviour).
+- Keep phone/guest users private and offline-first. The host bridge stays
+  owner-only.
+- Guests cannot use host tools, vault, memory, skills, routines or approval
+  rules. No host credentials, routines or tools are exposed; the model sees
+  credential **names only**.
+- Phone/static routines are device-local, per-session, owner-approved and
+  whitelist-based. Mac web routines are owner-only and hidden on static/phone.
+- Office remains read-only/frozen unless explicitly approved after review.
+- The local/private chat model stays saved on the device with no repeat
+  download, and the download progress bar stays.
+- Installed Home Screen apps pick up updates automatically.
+- About/Update status stays local, guest-safe and free of host credentials/tools.
+- No continuous iPhone live video. Host camera is phased: still-image answer
+  first, phone photo Q&A later.
+
+## Preserve existing behaviour
+
+Do not regress: voice input and spoken replies, folder sidebar, hero sprites and
+colour coding, send/call visibility, back navigation, offline caching, and the
+seven offline hero personality presets.
+
+## Settled design decisions
+
+### Static vs guest vs host
+
+- Static detection: `location.hostname` not in `127.0.0.1`, `localhost`, `[::1]`.
+- Guest detection: a `share` token is present (`?share=...`).
+- Owner/static sees private on-device models and the image command.
+- Guest sees on-device chat models only; no image command, diagnostics, host
+  tools or bridge capabilities.
+- Host (localhost via the bridge) sees Mac models and bridge features; no
+  static-only update code and no image command.
+
+### Chat model loading
+
+- Uses `w.loadModelFromUrl({url})` with a direct Hugging Face resolve URL.
+- OPFS cache is the source of truth for the chat GGUF.
+- No HF/GGUF files are cached in the service worker (app shell only).
+- Context overflow: treat `length out of range buffer` as overflow;
+  `DEVICE_CTX=2048`, `DEVICE_INPUT_CHARS=4800`, with tight retries and a retry
+  button.
+
+### Theme
+
+System-aware light/dark with a manual override stored under `oracle.theme`.
+
+### Home Screen auto-update
+
+`oracle-build` meta drives checks on load and foreground/pageshow/focus;
+`reg.update()`, `SKIP_WAITING`, a guarded single reload on `controllerchange`,
+draft preservation via `oracle.pendingDraft`, and a reload cap of 2 in
+`oracle.reload.count`. Busy image work defers reload via `updateBusy()`.
+
+### Personality
+
+Seven local per-chat tones are injected as a system instruction; the picker is
+in the chat More menu. Works for guests, survives reload, stays out of visible
+history.
+
+### Host vision / status
+
+- Host vision uses `qwen2.5vl:3b`; `/api/vision` is owner-only, hidden on
+  static/guest, and returns 403 to guests.
+- `/api/status` is bridge-only and hardened: owner keeps full mode/scope; guest
+  receives only `{"mode":"guest — chat only"}`.
+
+### Image generation (read the history file too)
+
+- Model: `utkucoban/NanoDiffuser`, pinned revision
+  `14cff72356365c3586ee38a2237332525889b69c`, ~382 MB, WebGPU + float16.
+- No bridge endpoint, cloud key or API call. Generated PNGs live in IndexedDB
+  `oracle-images`; model files in Cache Storage `oracle-image-v1` (streamed one
+  model pair at a time via `imageFile()` / `imageSession()`).
+- Sizes 1:1, 4:5, 9:16, 16:9 plus model choice; copy/download controls attach
+  the result to the chat.
+- `halfToFloat()` applies only to `Uint16Array`; decoder uses
+  `tensorFloatGetter(out.type, d)`.
+- Chat pipes are released before image generation.
+- **iOS:** image generation is deliberately unavailable.
+  `imageUnsupported()` detects iPhone/iPad, shows a clear message, and guards
+  both `startImageGeneration()` and `loadImageRuntime()` so no download or
+  U-Net run occurs. Desktop WebGPU generation is unchanged.
+
+### Unfiltered local model
+
+`mradermacher/LFM2.5-350M-abliterated-GGUF`, file
+`LFM2.5-350M-abliterated.Q4_K_M.gguf`, ~219 MiB. Owner/static only, id
+`device-free` → `lfm2-350m-free`. Guests do not see it; hosts have zero device
+models.
