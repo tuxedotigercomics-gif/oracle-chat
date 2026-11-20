@@ -4,7 +4,7 @@ Run this at **320 / 360 / 390 / 430 px** on the real iPhone in Safari, and in
 an emulated iPhone viewport against `https://oracle-chat.pages.dev/`.
 The backup host is `https://tuxedotigercomics-gif.github.io/oracle-chat/`.
 
-Baseline SHA (live UI): `1aa44729b87ba0123ce49b96e05eb2f02fab3b3612b51406f21e2618f6d975f0`
+Baseline SHA (live UI): `82a1ab7ddb26a3671f7b3f6cef96b023aa47ad039af88391b8af79a7a0839aaa`
 Service-worker SHA: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`
 Rollback: `restore-live.command`
 
@@ -35,6 +35,12 @@ Rollback: `restore-live.command`
 - [x] No reload loop; typed draft survives the reload and the guard caps reloads
 - [ ] First-install no-reload guard and offline shell/model with the network blocked — needs the physical phone
 - [ ] Zero console errors across update, reload, send and offline reuse — offline pass still open
+
+## Web search for current info — 2026-11-21 (harness verified; device pass open)
+- [x] Web search is off by default and the app still works fully offline (harness — 0 fetches with search off)
+- [x] Owner-only setting and city field are visible on static/phone, hidden from guests and host (harness)
+- [ ] Enabling search injects current sources into the on-device prompt and shows links (harness done; physical iPhone pending)
+- [x] No host credentials/tools/bridge endpoints are exposed by the phone path (harness + live)
 
 ## Graceful iOS image message — 2026-11-21 (published; device pass open)
 - [x] iPhone image window shows a clear unsupported message with no Generate control (harness)

@@ -73,6 +73,24 @@ history.
 - `/api/status` is bridge-only and hardened: owner keeps full mode/scope; guest
   receives only `{"mode":"guest — chat only"}`.
 
+### Web search (added in `2026-11-21b`)
+
+The 135M/350M phone models cannot know current events. A 3B/4B host model needs
+a search tool. Do not try to fix this with prompts alone.
+
+- Host: owner-only `search` tool in `oracle_bridge.py`, backed by GDELT DOC 2.0
+  news and Wikipedia. Read-only (no approval prompt); guests have no tools and
+  cannot call it. The system prompt directs current/local/recent questions to
+  search first.
+- Phone/static: owner-only, **off by default** setting under Profile → Web
+  search (also in the command palette), with an optional city field stored in
+  `oracle.city`. Enable flag is `oracle.websearch`. When on, GDELT results are
+  fetched directly from the browser (CORS allowed, no key, no Mac, no cloud),
+  injected as a labelled system context before the local model answers, and
+  shown as links under the reply. Wikipedia is a fallback for general topics.
+- Guests and the host/www build never see the setting or make these requests.
+  With search off the phone makes zero network calls and stays fully offline.
+
 ### Image generation (read the history file too)
 
 - Model: `utkucoban/NanoDiffuser`, pinned revision

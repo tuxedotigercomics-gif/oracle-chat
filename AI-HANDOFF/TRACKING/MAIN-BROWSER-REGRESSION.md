@@ -4,7 +4,7 @@ Run this on **Chrome, Edge or Safari on the Mac**, against the bridge-served app
 (`Oracle-Chat-Live.html` via `oracle_bridge.py`) and against
 `https://oracle-chat.pages.dev/`.
 
-Baseline SHA (live UI): `1aa44729b87ba0123ce49b96e05eb2f02fab3b3612b51406f21e2618f6d975f0`
+Baseline SHA (live UI): `82a1ab7ddb26a3671f7b3f6cef96b023aa47ad039af88391b8af79a7a0839aaa`
 Rollback: `restore-live.command`
 
 > The phone-only checklist lives in `PHONE-BROWSER-REGRESSION.md`.
@@ -38,6 +38,12 @@ Rollback: `restore-live.command`
 - [x] Host app still loads and chats through the bridge with zero console errors
 - [x] Update check code stays in the static/phone build only (no host/local effect)
 - [x] Both published sites serve the updated app and SW with matching SHAs
+
+## Web search for current info — 2026-11-21 (harness verified; live smoke pending)
+- [x] Owner `search` tool returns current article titles/dates/URLs via GDELT/Wikipedia (harness — real results verified)
+- [x] Model prompt directs current/local/recent questions to the search tool (harness)
+- [x] Guest tool scope still chat-only; host status still owner-only (harness + live)
+- [x] Zero console errors on host, guest and live pages (harness; host static-harness 404 on `/api/status` expected)
 
 ## Graceful iOS image message — 2026-11-21 (published)
 - [x] Desktop image generation is unchanged; full WebGPU path still works (harness)

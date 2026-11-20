@@ -79,6 +79,10 @@ console errors. Expected matrix:
 | Guest static | 2 (no `device-free`) | no | no |
 | Host via bridge | 0 | no | no |
 
+Web search visibility must match the same owner/static-only pattern: Profile →
+Web search exists only for owner static; guest and host do not see it. With the
+setting off, `webSources()` must return `null` with zero fetches.
+
 ## 6. Finish bookkeeping
 
 - Change the changelog entry to **published and verified** with final SHA and

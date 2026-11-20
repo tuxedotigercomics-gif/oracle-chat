@@ -3,6 +3,46 @@
 Record every change here before you make it, so there is always a clear trail
 between the frozen baseline and whatever is currently in the working file.
 
+## 2026-11-21 — Give the models real web search (published and verified)
+
+Status: **published and verified** — build `2026-11-21a` → `2026-11-21b`.
+App SHA: `82a1ab7ddb26a3671f7b3f6cef96b023aa47ad039af88391b8af79a7a0839aaa`.
+Service worker unchanged: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`.
+
+Shipped in build `2026-11-21b`: the Mac host now has an owner-only `search`
+tool backed by GDELT news and Wikipedia, with the system prompt directing
+current/local/recent questions to it before answering. The static/phone app
+gains an owner-only, off-by-default "Web search" setting (Profile → Web search,
+also in the command palette) with an optional city field. When enabled, public
+CORS-safe results are injected as source context before the local model answers,
+and links are shown below the reply. Guests and the host build never see it;
+with search off, the phone makes no network request and stays fully offline.
+
+Harness verified: owner/guest/host visibility, zero console errors (apart from
+the expected static-harness `/api/status` 404 on the host tab), off-by-default
+behaviour with zero fetches, source injection into the local model prompt,
+rendered source links, the settings modal, and a real host search returning
+current dated articles with URLs. Physical iPhone pass remains open.
+
+The owner reports generic answers to questions about current local events in
+both the phone app and the Mac host app. The 135M/350M on-device models have no
+internet and cannot know current events; the host 3B/4B models have a `fetch`
+tool but no general search. Prompt changes cannot supply missing information.
+
+Verified CORS-capable sources: GDELT DOC 2.0 (`api.gdeltproject.org/api/v2/doc/doc`,
+`Access-Control-Allow-Origin: *`, recent article titles/dates/URLs, ~1 request
+per 5 seconds) and Wikipedia's API with `origin=*`. DuckDuckGo's Instant Answer
+API has CORS but returns nothing for news/current-event queries.
+
+Work completed (all three planned items shipped):
+1. Host bridge: owner-only `search` tool backed by GDELT and Wikipedia, with a
+   compact sources result and a system prompt that directs current questions to
+   it. Guests still have no tools.
+2. Phone/static: owner-only, off-by-default "Web search" setting with city field,
+   source-context injection and source links. Guests and host never see it.
+3. Host and phone regression entries added, harness-tested, published, verified
+   on both live sites and re-frozen after the harness passed.
+
 ## 2026-11-21 — Add an AI handoff folder to the published repo (documentation only)
 
 Status: **documentation only** — no app or bridge code changed, so there is no

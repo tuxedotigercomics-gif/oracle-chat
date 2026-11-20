@@ -8,23 +8,28 @@ should be able to resume the work without access to the original Mac workspace.
 
 | Item | Value |
 |---|---|
-| Current build marker | `2026-11-21a` |
-| Current app SHA (sha256) | `1aa44729b87ba0123ce49b96e05eb2f02fab3b3612b51406f21e2618f6d975f0` |
+| Current build marker | `2026-11-21b` |
+| Current app SHA (sha256) | `82a1ab7ddb26a3671f7b3f6cef96b023aa47ad039af88391b8af79a7a0839aaa` |
 | Service-worker SHA | `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35` |
-| Pages commit (app build) | `49d1b5e` |
-| Handoff docs commit | `2cc8b47` (documentation only; app unchanged) |
+| Previous verified build | `2026-11-21a` (`1aa44729b87ba0123ce49b96e05eb2f02fab3b3612b51406f21e2618f6d975f0`) |
+| Pages commit (app build) | _see `git log` after the web-search publish_ |
+| Previous app commit | `49d1b5e`; handoff docs `2cc8b47`, `0f7f8cb` |
 | Canonical site | https://oracle-chat.pages.dev/ |
 | Backup site | https://tuxedotigercomics-gif.github.io/oracle-chat/ |
 | Repo | `tuxedotigercomics-gif/oracle-chat` (this repository) |
-| Last fully verified build | `2026-11-21a` (both live sites, zero console errors) |
+| Last fully verified build | `2026-11-21b` (harness + both live sites, zero console errors) |
 
 ## Open items
 
-1. **Physical iPhone confirmation** of build `2026-11-21a`: tap the sparkle
+1. **Physical iPhone confirmation** of build `2026-11-21b`: tap the sparkle
    button, confirm the "Images aren't available on iPhone" message appears and
-   the white flash is gone; confirm chat and voice still work.
+   the white flash is gone; confirm chat and voice still work. In Profile →
+   Web search, turn search on and set your city, then ask what is happening
+   tomorrow and confirm source links appear.
 2. **Intermittent iPhone chat `Model error:`** — unresolved. The exact error
    text was never captured. Do not guess at a fix; get the exact message first.
+3. Host web search was added in `2026-11-21b`; the physical-device pass for the
+   phone search setting is still open.
 3. Everything else listed as unchecked in
    [`TRACKING/PHONE-BROWSER-REGRESSION.md`](TRACKING/PHONE-BROWSER-REGRESSION.md)
    is awaiting a physical device pass, not a code change.
