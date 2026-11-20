@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#4a9861" />
-<meta name="oracle-build" content="2026-11-20i" />
+<meta name="oracle-build" content="2026-11-20j" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Oracle" />
@@ -988,6 +988,9 @@ const IMG_FILES=[
   ['tokenizer/tokenizer.json',3642073],['tokenizer/tokenizer_config.json',391]
 ];
 const IMG_TOTAL=IMG_FILES.reduce((n,f)=>n+f[1],0);
+// Only these tiny support files stay in memory. The three model pairs are read
+// from Cache Storage on demand so a phone never holds all ~382 MB at once.
+const IMG_SMALL=new Set(['manifest.json','tokenizer/tokenizer.json','tokenizer/tokenizer_config.json']);
 const IMG_SIZES=[
   {id:'auto',label:'Smart',sub:'model picks',w:0,h:0},
   {id:'1:1',label:'Square',sub:'1:1 feed',w:512,h:512},
@@ -1042,8 +1045,10 @@ async function imageStoreGet(id){
   }catch(e){return null}
 }
 // Download once into Cache Storage, verify every byte length, and reuse offline.
-async function getImageFiles(progress){
-  const files=new Map();let done=0;
+// Only the small support files are kept in memory; large model files are read
+// back from the cache one model at a time when a session needs them.
+async function ensureImageFiles(progress){
+  const small=new Map();let done=0;
   const cache=await caches.open(IMG_CACHE).catch(()=>null);
   for(const [path,bytes] of IMG_FILES){
     const url=imageFileUrl(path);let blob=null;
@@ -1059,10 +1064,23 @@ async function getImageFiles(progress){
       if(blob.size!==bytes){if(cache)try{await cache.delete(url)}catch(e){};throw new Error('Download of '+path+' was incomplete. Try again.')}
       if(cache)try{await cache.put(url,new Response(blob))}catch(e){}
     }
-    files.set(path,new File([blob],path.split('/').at(-1),{lastModified:0}));
+    if(IMG_SMALL.has(path))small.set(path,new File([blob],path.split('/').at(-1),{lastModified:0}));
     done+=bytes;progress(done);
+    blob=null; // release large blobs instead of retaining all ~382 MB
   }
-  return files;
+  return small;
+}
+// Read one model file from the device cache only when a session needs it.
+async function imageFile(path){
+  const url=imageFileUrl(path);
+  const cache=await caches.open(IMG_CACHE).catch(()=>null);
+  if(!cache)throw new Error('Image model cache unavailable — download the model again.');
+  const hit=await cache.match(url);
+  if(!hit)throw new Error('Image model file missing from this device: '+path+' — download the model again.');
+  const blob=await hit.blob();
+  const spec=IMG_FILES.find(f=>f[0]===path);
+  if(spec&&blob.size!==spec[1])throw new Error('Image model file damaged: '+path+' — download the model again.');
+  return new File([blob],path.split('/').at(-1),{lastModified:0});
 }
 function confirmImageDownload(){
   return new Promise(resolve=>{
@@ -1090,10 +1108,12 @@ async function loadImageRuntime(progress){
     if(ort.env.webgpu)ort.env.webgpu.powerPreference='high-performance';
     progress(2,imageSaved()?'Loading saved image model…':'Checking image model on this device…');
     if(PHONE&&!imageOk&&!imageSaved()&&!await confirmImageDownload())throw new Error('Image model download not started.');
-    const files=await imageStage('model files',()=>getImageFiles(p=>progress(2+Math.round(p/IMG_TOTAL*38),'Saving image model — '+Math.round(p/1048576)+' / '+Math.round(IMG_TOTAL/1048576)+' MB')));
+    const files=await imageStage('model files',()=>ensureImageFiles(p=>progress(2+Math.round(p/IMG_TOTAL*38),'Saving image model — '+Math.round(p/1048576)+' / '+Math.round(IMG_TOTAL/1048576)+' MB')));
     const manifest=await imageStage('model manifest',async()=>JSON.parse(await files.get('manifest.json').text()));
     const tokenizer=await imageStage('tokenizer',async()=>new tf.CLIPTokenizer(JSON.parse(await files.get('tokenizer/tokenizer.json').text()),JSON.parse(await files.get('tokenizer/tokenizer_config.json').text())));
     try{localStorage.setItem('oracle.image.saved',IMG_MODEL_REV)}catch(e){}
+    // `files` holds only the small support files; weights stay in the device
+    // cache and are read one model at a time in imageSession().
     imageRuntime={ort,tf,files,tokenizer,manifest};return imageRuntime;
   })();
   try{return await imageRuntimeLoad}finally{imageRuntimeLoad=null}
@@ -1129,9 +1149,11 @@ async function tensorFloats(t){
   for(let i=0;i<d.length;i++)f[i]=get(i);
   return f;
 }
-async function imageSession(ort,name,files){
-  const key=name.toLowerCase(),graph=files.get(key),data=files.get(key+'.data');
-  if(!graph||!data)throw new Error('Image model is missing '+key);
+async function imageSession(ort,name){
+  // Read only this model's pair from the device cache. The blobs go out of
+  // scope as soon as create() resolves, so the next model can reuse the memory.
+  const key=name.toLowerCase();
+  const graph=await imageFile(key),data=await imageFile(key+'.data');
   return ort.InferenceSession.create(new Uint8Array(await graph.arrayBuffer()),{
     executionProviders:[{name:'webgpu',preferredLayout:'NCHW'}],graphOptimizationLevel:'all',
     externalData:[{path:key+'.data',data}]
@@ -1190,7 +1212,7 @@ async function imageStage(name,fn){
 async function generateImageBlob(prompt,sizeId,seed,progress){
   const rt=await imageStage('runtime',()=>loadImageRuntime(progress)),sch=rt.manifest.scheduler;
   progress(40,'Loading text encoder…');
-  const enc=await imageStage('text encoder load',()=>imageSession(rt.ort,rt.manifest.models.textEncoder,rt.files));
+  const enc=await imageStage('text encoder load',()=>imageSession(rt.ort,rt.manifest.models.textEncoder));
   let embF,chosen=sizeId;
   try{
     embF=await imageStage('prompt embedding',()=>clipEmbed(rt,enc,prompt));
@@ -1200,7 +1222,7 @@ async function generateImageBlob(prompt,sizeId,seed,progress){
   const n=4*64*64,noise=imageNoise(n,seed),latent=new Float32Array(n),modelIn=new Float32Array(n);
   for(let i=0;i<n;i++){latent[i]=noise[i]*sch.initNoiseSigma;modelIn[i]=latent[i]*sch.modelInputScale}
   progress(56,'Generating latent · one step…');
-  const unet=await imageStage('unet load',()=>imageSession(rt.ort,rt.manifest.models.unet,rt.files));
+  const unet=await imageStage('unet load',()=>imageSession(rt.ort,rt.manifest.models.unet));
   let pred;
   try{
     const sample=toHalfTensor(rt.ort,modelIn,[1,4,64,64]);
@@ -1214,7 +1236,7 @@ async function generateImageBlob(prompt,sizeId,seed,progress){
   const denoised=new Float32Array(n);
   for(let i=0;i<n;i++)denoised[i]=sch.sampleCoefficient*latent[i]+sch.outputCoefficient*pred[i];
   progress(82,'Decoding pixels…');
-  const dec=await imageStage('decoder load',()=>imageSession(rt.ort,rt.manifest.models.decoder,rt.files));
+  const dec=await imageStage('decoder load',()=>imageSession(rt.ort,rt.manifest.models.decoder));
   let rgba,blankOutput=false;
   try{
     const lt=toHalfTensor(rt.ort,denoised,[1,4,64,64]);
