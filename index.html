@@ -75,6 +75,9 @@
   .call-bar.thinking{background:var(--warn-soft);color:var(--warn)}
   .call-bar.speaking{background:var(--info-soft);color:var(--info)}
   .call-bar button{margin-left:auto;border:0;background:var(--danger);color:var(--danger-contrast);border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer}
+  .progress-track{height:5px;background:var(--surface-3);border-radius:999px;overflow:hidden;margin-top:7px;box-shadow:inset 0 0 0 1px var(--border)}
+  .progress-fill{height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .25s ease;animation:progress-pulse 1.2s ease-in-out infinite alternate}
+  @keyframes progress-pulse{from{opacity:.72}to{opacity:1}}
   .section-label{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding:10px 14px 5px;font-weight:750;display:flex;align-items:center;justify-content:space-between}
   .mini-add{background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:15px;line-height:1;border-radius:7px;padding:3px 6px}
   .mini-add:hover{background:var(--sidebar-hover);color:var(--text)}
@@ -421,7 +424,7 @@ let view='chat', listView=localStorage.getItem('oracle.listView')||'folders', ba
 // On phones the chat/folder list is the home screen; a chat opens full-screen.
 let mobileView='list';
 if(!allModels().some(m=>m.id===backend))backend=DEFAULT_BACKEND;
-let devicePipe=null, deviceLoading=null, deviceStatus='', deviceModelId='';
+let devicePipe=null, deviceLoading=null, deviceStatus='', deviceModelId='', deviceProgress=0, deviceProgressActive=false;
 let plusOpen=false, modelOpen=false, profileOpen=false, moreOpen=false, modal=null, toastTimer=null, installPrompt=null;
 let files=[], credSelected=[], vaultKeys=[], status={}, memoryData={memories:[],notes:[]};
 let voiceReplies=localStorage.getItem('oracle.voiceReplies')==='1', listening=false, recognition=null;
@@ -691,11 +694,25 @@ const devicePipes={}, deviceLoads={};
 // Update the progress text in place. A full render() here destroys the input
 // and closes the phone keyboard, which makes a slow first load look like a
 // page reset.
-function setDeviceStatus(s){
+function setDeviceStatus(s,pct){
   deviceStatus=s;
+  if(typeof pct==='number'){
+    deviceProgress=Math.max(0,Math.min(100,pct));
+    deviceProgressActive=true;
+  }else{
+    deviceProgressActive=false;
+    if(!s)deviceProgress=0;
+  }
   const bar=document.getElementById('deviceBar'),txt=document.getElementById('deviceBarText');
   if(txt)txt.textContent=s;
   if(bar)bar.style.display=s?'':'none';
+  const prog=document.getElementById('deviceProgress');
+  if(prog){
+    prog.style.display=deviceProgressActive?'':'none';
+    prog.setAttribute('aria-valuenow',String(Math.round(deviceProgress)));
+    const fill=prog.querySelector('.progress-fill');
+    if(fill)fill.style.width=deviceProgress+'%';
+  }
   const st=document.getElementById('waitingStatus');
   if(st)st.textContent=s||'Thinking — your private model is working…';
 }
@@ -779,11 +796,11 @@ async function loadDeviceModel(modelId){
         deviceOk=true;
         try{localStorage.setItem('oracle.device.ok','1')}catch(e){}
       }
-      setDeviceStatus(onDevice?'Loading saved '+spec.name+' from this device…':'Saving '+spec.name+' on this device — keep this page open');
+      setDeviceStatus(onDevice?'Loading saved '+spec.name+' from this device…':'Saving '+spec.name+' on this device — keep this page open',onDevice?undefined:0);
       const opts={n_ctx:DEVICE_CTX,progressCallback:({loaded,total})=>{
         if(onDevice||!total)return;
         const pct=Math.min(99,Math.round(loaded/total*100));
-        setDeviceStatus('Saving '+spec.name+' on this device — '+pct+'% ('+Math.round(loaded/1048576)+' / '+Math.round(total/1048576)+' MB)');
+        setDeviceStatus('Saving '+spec.name+' on this device — '+pct+'% ('+Math.round(loaded/1048576)+' / '+Math.round(total/1048576)+' MB)',pct);
       }};
       // The direct URL skips the Hugging Face repo API call, so a saved model
       // opens from OPFS even offline. Older wllama builds fall back to loadModelFromHF.
@@ -1223,6 +1240,7 @@ function render(){
       </div></div>
       <div class="composer-wrap">
         <div class="call-bar thinking" id="deviceBar" style="${deviceStatus?'':'display:none'}"><span class="call-dot"></span><span id="deviceBarText">${esc(deviceStatus)}</span></div>
+        <div class="progress-track" id="deviceProgress" role="progressbar" aria-label="Model download progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(deviceProgress)}" style="${deviceProgressActive?'':'display:none'}"><div class="progress-fill" style="width:${deviceProgress}%"></div></div>
         ${callActive?`<div class="call-bar ${callState}"><span class="call-dot"></span><span>${callState==='listening'?'Listening — talk now…':callState==='thinking'?'Thinking…':'Speaking…'}</span><button id="endCall">End call</button></div>`:''}
         ${(files.length||credSelected.length)?`<div class="attach-chips">
           ${files.map((f,i)=>`<span class="chip">📎 ${esc(f)} <button data-rmf="${i}">×</button></span>`).join('')}
