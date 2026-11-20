@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#4a9861" />
-<meta name="oracle-build" content="2026-11-20k" />
+<meta name="oracle-build" content="2026-11-20l" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Oracle" />
@@ -1011,6 +1011,20 @@ function imageCheckpoint(stage){
   }catch(e){}
 }
 function imageSaved(){try{return localStorage.getItem('oracle.image.saved')===IMG_MODEL_REV}catch(e){return false}}
+// The pinned U-Net works on WebGPU on desktop but iOS WebKit kills the tab on
+// its first compute dispatch. ORT's CPU provider runs the same float16 model
+// correctly, so phones default to it and can switch back if they want.
+function iOSDevice(){
+  return /iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+}
+function imageEngine(){
+  try{const v=localStorage.getItem('oracle.image.engine');if(v==='wasm'||v==='webgpu')return v}catch(e){}
+  return iOSDevice()?'wasm':'webgpu';
+}
+function setImageEngine(v){
+  try{localStorage.setItem('oracle.image.engine',v==='wasm'?'wasm':'webgpu')}catch(e){}
+  imageRuntime=null;imageRuntimeLoad=null;
+}
 function imageFileUrl(path){return 'https://huggingface.co/utkucoban/NanoDiffuser/resolve/'+IMG_MODEL_REV+'/'+path}
 // This quantized model feeds float16 tensors to WebGPU. Safari can expose
 // navigator.gpu without the shader-f16 feature, so check the adapter itself.
@@ -1022,9 +1036,10 @@ async function imageGpuOk(){
   return imageGpuReady;
 }
 function imageModelStatus(){
-  if(!('gpu' in navigator))return {title:'Image generation needs WebGPU',sub:'Use Safari 26+ or another WebGPU browser'};
-  return imageSaved()?{title:'Image model saved on this device',sub:'NanoDiffuser · about '+Math.round(IMG_TOTAL/1048576)+' MB · offline ready'}
-    :{title:'Prepare image model',sub:'NanoDiffuser · about '+Math.round(IMG_TOTAL/1048576)+' MB · download once'};
+  if(!('gpu' in navigator)&&imageEngine()==='webgpu')return {title:'Image generation needs WebGPU',sub:'Choose the CPU engine in the image window'};
+  const eng=imageEngine()==='wasm'?'CPU':'WebGPU';
+  return imageSaved()?{title:'Image model saved on this device',sub:'NanoDiffuser · about '+Math.round(IMG_TOTAL/1048576)+' MB · '+eng+' · offline ready'}
+    :{title:'Prepare image model',sub:'NanoDiffuser · about '+Math.round(IMG_TOTAL/1048576)+' MB · '+eng+' · download once'};
 }
 // Generated PNGs live in IndexedDB so a long chat does not bloat localStorage.
 // The in-memory map also keeps them working if storage is denied.
@@ -1111,7 +1126,7 @@ async function loadImageRuntime(progress){
   if(imageRuntime)return imageRuntime;
   if(imageRuntimeLoad)return imageRuntimeLoad;
   imageRuntimeLoad=(async()=>{
-    if(!await imageGpuOk())throw new Error('Image generation needs WebGPU with float16 support. Use Safari 26+ or another WebGPU browser.');
+    if(imageEngine()==='webgpu'&&!await imageGpuOk())throw new Error('WebGPU with float16 is unavailable. Choose the CPU engine in the image window.');
     progress(0,'Starting WebGPU…');
     const [ort,tf]=await imageStage('runtime scripts',()=>Promise.all([import(IMG_ORT_JS),import(IMG_TF_JS)]));
     ort.env.logLevel='warning';ort.env.wasm.numThreads=1;ort.env.wasm.wasmPaths=IMG_ORT_WASM;
@@ -1162,10 +1177,12 @@ async function tensorFloats(t){
 async function imageSession(ort,name){
   // Read only this model's pair from the device cache. The blobs go out of
   // scope as soon as create() resolves, so the next model can reuse the memory.
-  const key=name.toLowerCase();
+  const key=name.toLowerCase(),engine=imageEngine();
+  imageCheckpoint('session '+key+' ('+engine+')');
   const graph=await imageFile(key),data=await imageFile(key+'.data');
+  const ep=engine==='wasm'?'wasm':{name:'webgpu',preferredLayout:'NCHW'};
   return ort.InferenceSession.create(new Uint8Array(await graph.arrayBuffer()),{
-    executionProviders:[{name:'webgpu',preferredLayout:'NCHW'}],graphOptimizationLevel:'all',
+    executionProviders:[ep],graphOptimizationLevel:'all',
     externalData:[{path:key+'.data',data}]
   });
 }
@@ -1292,10 +1309,17 @@ function openImageModal(){
   if(guestMode)return;
   const last=active().messages.at(-1);
   if(!imagePrompt&&last&&last.from==='user')imagePrompt=last.text.replace(/\n\[Attached files:[^\]]*\]$/,'');
+  const eng=imageEngine();
   modal=`<div class="modal-backdrop" id="mb"><div class="modal" style="max-width:520px"><h3>Make an image · on this device</h3>
-    <p>NanoDiffuser draws one still image from your prompt. It runs on this phone through WebGPU — nothing goes to the Mac, a cloud service or an API key.</p>
+    <p>NanoDiffuser draws one still image from your prompt. It runs on this phone through WebGPU or CPU — nothing goes to the Mac, a cloud service or an API key.</p>
     <textarea id="imgPrompt" class="share-text" style="min-height:84px" placeholder="Describe the image you want…" ${imageBusy?'disabled':''}>${esc(imagePrompt)}</textarea>
     <div class="img-size-grid">${IMG_SIZES.map(s=>`<button class="btn ${imageSize===s.id?'primary':''}" data-img-size="${s.id}" ${imageBusy?'disabled':''}><strong>${esc(s.label)}</strong><br><span style="font-size:10px;opacity:.8">${esc(s.sub)}</span></button>`).join('')}</div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px">
+      <span style="font-size:11px;color:var(--muted)">Engine:</span>
+      <button class="btn tiny ${eng==='webgpu'?'primary':''}" data-img-engine="webgpu" ${imageBusy?'disabled':''}>WebGPU · fast</button>
+      <button class="btn tiny ${eng==='wasm'?'primary':''}" data-img-engine="wasm" ${imageBusy?'disabled':''}>CPU · wider support</button>
+    </div>
+    <p style="font-size:10px;color:var(--muted);margin:4px 0 0">${eng==='wasm'?'CPU works on more iPhones but is slower.':'WebGPU is faster but can crash on some iPhones.'}</p>
     <div class="progress-track" id="imageProgress" role="progressbar" aria-label="Image generation progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(imagePct)}" style="${imageBusy?'':'display:none'}"><div class="progress-fill" style="width:${imagePct}%"></div></div>
     <div class="meta" id="imageStatusText">${esc(imageStatusText)}</div>
     ${imageResultUrl?`<div class="img-preview"><img src="${esc(imageResultUrl)}" alt="Generated image" /></div><div class="img-actions" style="justify-content:center"><button class="btn" id="imgResultCopy">Copy image</button><button class="btn primary" id="imgResultDownload">Download PNG</button></div>`:''}
@@ -1350,7 +1374,7 @@ function copyImageDiagnostics(){
   const build=document.querySelector('meta[name="oracle-build"]')?.content||'unknown';
   let cp='none';
   try{const x=JSON.parse(localStorage.getItem('oracle.image.checkpoint')||'null');if(x)cp=new Date(x.at).toISOString()+'  ['+(x.build||'?')+']  '+x.stage}catch(e){}
-  const text=['Oracle Chat image diagnostics','Build: '+build,'Last checkpoint: '+cp,
+  const text=['Oracle Chat image diagnostics','Build: '+build,'Engine: '+imageEngine(),'Last checkpoint: '+cp,
     'Update: '+JSON.stringify(window.oracleUpdateInfo?.()||{}),'',
     ...(rows.length?rows.map(r=>new Date(r.at).toISOString()+'  '+r.message):['No image errors recorded.'])].join('\n');
   const done=()=>showToast('Image diagnostics copied');
@@ -2035,6 +2059,7 @@ function bind(){
   document.getElementById('preloadImage')?.addEventListener('click',e=>{e.stopPropagation();modelOpen=false;imageResultBlob=null;if(imageResultUrl)URL.revokeObjectURL(imageResultUrl);imageResultUrl='';imageStatusText='';openImageModal()});
   document.getElementById('imgPrompt')?.addEventListener('input',e=>{imagePrompt=e.target.value});
   document.querySelectorAll('[data-img-size]').forEach(b=>b.onclick=()=>{imageSize=b.dataset.imgSize;openImageModal()});
+  document.querySelectorAll('[data-img-engine]').forEach(b=>b.onclick=()=>{setImageEngine(b.dataset.imgEngine);openImageModal()});
   document.getElementById('imgGo')?.addEventListener('click',startImageGeneration);
   document.getElementById('imgCancel')?.addEventListener('click',()=>{modal=null;render()});
   document.getElementById('imgResultDownload')?.addEventListener('click',()=>downloadImageBlob(imageResultBlob,'oracle-image-latest.png'));
