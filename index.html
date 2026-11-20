@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#4a9861" />
-<meta name="oracle-build" content="2026-11-19d" />
+<meta name="oracle-build" content="2026-11-20a" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Oracle" />
@@ -195,6 +195,14 @@
   .modal select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
   .persona-list{display:grid;gap:6px;max-height:50vh;overflow:auto}
   .persona-opt.selected{background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent)}
+  .about-grid{display:grid;gap:8px;margin-top:14px}
+  .about-row{display:flex;justify-content:space-between;gap:14px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);font-size:12.5px}
+  .about-row span:first-child{color:var(--muted)}
+  .about-row span:last-child{text-align:right;font-weight:600;overflow-wrap:anywhere}
+  .camera-stage{position:relative;width:100%;aspect-ratio:4/3;border-radius:14px;overflow:hidden;background:#0b0f0d;border:1px solid var(--border)}
+  .camera-stage video,.camera-stage canvas{width:100%;height:100%;object-fit:cover;display:block}
+  .camera-stage video{transform:scaleX(-1)}
+  .camera-note{font-size:11.5px;color:var(--muted);line-height:1.45;margin-top:9px}
   .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
   .btn{border:1px solid var(--border);background:var(--surface-2);border-radius:10px;padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer}
   .btn:hover{background:var(--surface-3)}
@@ -300,6 +308,8 @@ const ICONS={
   volume:'<path d="M11 5 6 9H3v6h3l5 4Z"/><path d="M15 9a4 4 0 0 1 0 6M18 6a8 8 0 0 1 0 12"/>',
   phone:'<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.9a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.9.3 1.9.6 2.9.7a2 2 0 0 1 1.7 2Z"/>',
   theme:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  camera:'<path d="M4 7h3l1.6-2h6.8L17 7h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/><circle cx="12" cy="13" r="3.5"/>',
+  info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
 };
 function icon(n,s=18){return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${ICONS[n]}</svg>`}
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
@@ -371,6 +381,12 @@ if(staticMode && 'serviceWorker' in navigator && location.protocol.startsWith('h
     const BUILD=meta?meta.content:'';
     const DRAFT='oracle.pendingDraft', COUNT='oracle.reload.count';
     let checking=0, newWorker=null, watching=false, reloading=false;
+    let lastResult='Not checked yet', lastChecked=0;
+    // The About screen uses these; no host data or chat content is exposed.
+    window.oracleUpdateInfo=()=>({build:BUILD,result:lastResult,checked:lastChecked,
+      controller:!!navigator.serviceWorker.controller,waiting:!!newWorker,
+      reloads:+(sessionStorage.getItem(COUNT)||0)});
+    window.oracleCheckUpdate=async()=>{checking=0;await check();return window.oracleUpdateInfo()};
 
     function reloadOnce(){
       if(reloading)return;
@@ -392,7 +408,7 @@ if(staticMode && 'serviceWorker' in navigator && location.protocol.startsWith('h
     async function check(){
       const now=Date.now();
       if(now-checking<15000)return;
-      checking=now;
+      checking=now;lastChecked=now;
       // The build marker lives in index.html itself, so an HTML-only change is
       // detected without keeping a separate version file in sync.
       if(BUILD){
@@ -402,8 +418,8 @@ if(staticMode && 'serviceWorker' in navigator && location.protocol.startsWith('h
           const res=await fetch(url,{cache:'no-store',headers:{Range:'bytes=0-8191'}});
           const head=await res.text();
           const m=head.match(/<meta name="oracle-build" content="([^"]+)">/);
-          if(m&&m[1]!==BUILD){reloadOnce();return}
-        }catch(e){}
+          if(m&&m[1]!==BUILD){lastResult='New build found — reloading';reloadOnce();return}
+        }catch(e){lastResult='Could not reach the site — trying the service worker'}
       }
       try{
         const reg=await navigator.serviceWorker.register(new URL('sw.js',location.href));
@@ -424,7 +440,8 @@ if(staticMode && 'serviceWorker' in navigator && location.protocol.startsWith('h
             });
           });
         }
-      }catch(e){}
+        if(!lastResult.startsWith('Could not reach'))lastResult=newWorker?'New worker taking over':'Up to date';
+      }catch(e){lastResult='Service worker unavailable'}
     }
 
     window.addEventListener('load',check);
@@ -516,6 +533,7 @@ let mobileView='list';
 if(!allModels().some(m=>m.id===backend))backend=DEFAULT_BACKEND;
 let devicePipe=null, deviceLoading=null, deviceStatus='', deviceModelId='', deviceProgress=0, deviceProgressActive=false;
 let plusOpen=false, modelOpen=false, profileOpen=false, moreOpen=false, modal=null, toastTimer=null, installPrompt=null;
+let cameraStream=null, cameraShot=null;
 let files=[], credSelected=[], vaultKeys=[], status={}, memoryData={memories:[],notes:[]};
 let voiceReplies=localStorage.getItem('oracle.voiceReplies')==='1', listening=false, recognition=null;
 let callActive=false, callState='idle', finalTranscript='', speechGen=0, prevVoiceReplies=false;
@@ -1347,6 +1365,7 @@ function render(){
         </div>`:''}
         <form class="composer" id="composer">
           <button type="button" class="composer-plus ${plusOpen?'open':''}" id="plusBtn" title="Add">${icon('plus')}</button>
+          ${staticMode||guestMode?'':`<button type="button" class="composer-plus" id="seeThis" title="See this — ask the local model about the webcam view">${icon('camera')}</button>`}
           <button type="button" class="composer-plus ${listening?'listening':''}" id="micBtn" title="Speak instead of type">${icon('mic')}</button>
           <input id="draft" value="${esc(draft)}" placeholder="Message ${esc(c.name)}" autocomplete="off" />
           <button type="submit" class="composer-send" id="send" ${draft.trim()||files.length?'':'disabled'}>${icon('arrow')}</button>
@@ -1378,6 +1397,7 @@ function render(){
         <button class="menu-item" id="openRoutines">${icon('spark',18)}<span><strong>Web Routines</strong><span class="mi-sub">Email, webhooks &amp; browser actions</span></span></button>
         <div class="menu-sep"></div>`}
         <button class="menu-item" id="installApp">${icon('plus',18)}<span><strong>Install this web app</strong><span class="mi-sub">${installPrompt?'Add Oracle to your device':'Add to Home Screen / Install'}</span></span></button>
+        <button class="menu-item" id="openAbout">${icon('info',18)}<span><strong>About / Update status</strong><span class="mi-sub">Build, model and service worker</span></span></button>
         <button class="menu-item" id="toggleTheme">${icon('theme',18)}<span><strong>Appearance: ${themeLabel()}</strong><span class="mi-sub">System, light or dark — tap to change</span></span></button>
         <button class="menu-item" id="openCommandPalette">${icon('search',18)}<span><strong>Command palette</strong><span class="mi-sub">Jump to any chat or routine</span></span></button>
         <button class="menu-item" id="openBotRoster">${icon('spark',18)}<span><strong>Bot roster</strong><span class="mi-sub">Names, jobs and the primary bot</span></span></button>
@@ -1443,6 +1463,7 @@ function bind(){
   document.getElementById('moreVoice')?.addEventListener('click',()=>{moreOpen=false;toggleVoice()});
   document.getElementById('moreVoicePick')?.addEventListener('click',()=>{moreOpen=false;openVoicePicker()});
   document.getElementById('micBtn')?.addEventListener('click',()=>toggleListen());
+  document.getElementById('seeThis')?.addEventListener('click',()=>{if(!staticMode&&!guestMode)openCameraModal()});
   document.getElementById('shareBtn')?.addEventListener('click',()=>{moreOpen=false;modal=null;openShareModal()});
   document.getElementById('moreShare')?.addEventListener('click',()=>{moreOpen=false;openShareModal()});
   document.getElementById('vaultBack')?.addEventListener('click',()=>{view='chat';render()});
@@ -1467,6 +1488,7 @@ function bind(){
   document.getElementById('openRoutines')?.addEventListener('click',async()=>{profileOpen=false;await openRoutines()});
   document.getElementById('openDeviceRoutines')?.addEventListener('click',()=>{profileOpen=false;openDeviceRoutines()});
   document.getElementById('installApp')?.addEventListener('click',()=>{profileOpen=false;openInstallApp()});
+  document.getElementById('openAbout')?.addEventListener('click',()=>{profileOpen=false;openAbout()});
   document.getElementById('toggleTheme')?.addEventListener('click',()=>cycleTheme());
   document.getElementById('openCommandPalette')?.addEventListener('click',()=>{profileOpen=false;openCommandPalette()});
   document.getElementById('openBotRoster')?.addEventListener('click',()=>{profileOpen=false;openBotRoster()});
@@ -1878,6 +1900,101 @@ function openToolRules(){
   render();
   document.querySelectorAll('[data-tr-del]').forEach(b=>b.onclick=()=>{toolRules.splice(+b.dataset.trDel,1);saveToolRules();openToolRules()});
 }
+async function openAbout(){
+  const build=document.querySelector('meta[name="oracle-build"]')?.content||'unknown';
+  const backendName=allModels().find(m=>m.id===backend)?.name||backend;
+  const model=deviceModelStatus().title;
+  let sw='Not available',cache='—',update='Not available';
+  if('serviceWorker' in navigator){
+    try{
+      const reg=await navigator.serviceWorker.getRegistration();
+      sw=reg?(navigator.serviceWorker.controller?'Active':'Installing'):'Not registered';
+    }catch(e){}
+    try{
+      const keys=await caches.keys();
+      cache=keys.find(k=>k.startsWith('oracle-chat-'))||'None';
+    }catch(e){}
+    if(window.oracleUpdateInfo){
+      const u=window.oracleUpdateInfo();
+      update=u.result||update;
+      if(u.build&&u.build!==build)update='Build changed — reloading';
+    }
+  }
+  const rows=[
+    ['Build',build],['Mode',staticMode?'Home Screen / static':'Mac host'],
+    ['Current model',backendName],['Private model',model],
+    ['Service worker',sw],['Offline cache',cache],['Update check',update],
+  ];
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>About / Update status</h3>
+    <p>Local status only. Nothing here reads your chats or private data.</p>
+    <div class="about-grid">${rows.map(r=>`<div class="about-row"><span>${esc(r[0])}</span><span>${esc(r[1])}</span></div>`).join('')}</div>
+    <p class="camera-note">${staticMode?'An installed Home Screen app checks for a new build when it opens or returns to the foreground.':'Host updates are served by the Mac bridge; no service worker is used here.'}</p>
+    <div class="modal-actions">${staticMode?'<button class="btn" id="checkUpdate">Check for updates</button>':''}<button class="btn primary" id="mc">Done</button></div></div></div>`;
+  render();
+  document.getElementById('checkUpdate')?.addEventListener('click',async e=>{
+    const b=e.currentTarget;b.disabled=true;b.textContent='Checking…';
+    let u=null;
+    try{u=await window.oracleCheckUpdate?.()}catch(err){}
+    if(!u){showToast('Update check unavailable offline');b.disabled=false;b.textContent='Check for updates';return}
+    showToast(u.result||'Update check complete');
+    if(!u.result?.includes('reload'))openAbout();
+  });
+}
+function stopCameraStream(){
+  try{cameraStream?.getTracks().forEach(t=>t.stop())}catch(e){}
+  cameraStream=null;cameraShot=null;
+}
+async function openCameraModal(){
+  if(staticMode||guestMode)return;
+  stopCameraStream();
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>See this</h3>
+    <p>Show the Mac webcam one still frame. The image goes only to the local Ollama vision model — never to a cloud service, and it is not saved in chat history.</p>
+    <div class="camera-stage"><video id="camVideo" autoplay playsinline></video><canvas id="camCanvas" style="display:none"></canvas></div>
+    <label>Question</label><input id="camQuestion" value="What do you see?" maxlength="200"/>
+    <p class="camera-note" id="camNote">Allow camera access, then capture a frame. You can retake it before asking.</p>
+    <div class="modal-actions"><button class="btn" id="camCapture">Capture</button><button class="btn primary" id="camAsk" disabled>Ask Oracle</button><button class="btn" id="mc">Cancel</button></div></div></div>`;
+  render();
+  const video=document.getElementById('camVideo'),canvas=document.getElementById('camCanvas');
+  const note=document.getElementById('camNote'),capture=document.getElementById('camCapture'),ask=document.getElementById('camAsk');
+  if(!navigator.mediaDevices?.getUserMedia){note.textContent='Camera access is not available in this browser.';return}
+  try{
+    cameraStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1280},height:{ideal:960}},audio:false});
+    video.srcObject=cameraStream;await video.play();
+  }catch(e){note.textContent='Camera unavailable: '+(e?.name||'permission denied');return}
+  capture.onclick=()=>{
+    if(cameraShot){
+      cameraShot=null;canvas.style.display='none';video.style.display='block';
+      capture.textContent='Capture';ask.disabled=true;note.textContent='Frame cleared — capture again when ready.';return;
+    }
+    const vw=video.videoWidth||1280,vh=video.videoHeight||960;
+    const scale=Math.min(1,1024/Math.max(vw,vh));
+    canvas.width=Math.round(vw*scale);canvas.height=Math.round(vh*scale);
+    const ctx=canvas.getContext('2d');
+    ctx.translate(canvas.width,0);ctx.scale(-1,1);ctx.drawImage(video,0,0,canvas.width,canvas.height);
+    cameraShot=canvas.toDataURL('image/jpeg',0.82).split(',')[1];
+    video.style.display='none';canvas.style.display='block';
+    capture.textContent='Retake';ask.disabled=false;
+    note.textContent='Frame captured privately on this Mac. Ask Oracle when ready.';
+  };
+  ask.onclick=async()=>{
+    if(!cameraShot)return;
+    ask.disabled=true;const original=ask.textContent;ask.textContent='Asking…';
+    note.textContent='The local vision model is looking at the frame…';
+    try{
+      const q=document.getElementById('camQuestion').value.trim()||'What do you see?';
+      const d=await api('/api/vision',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({image:cameraShot,question:q,personality:personalityPrompt(active())})});
+      if(d.error)throw new Error(d.error);
+      const c=active();
+      c.messages.push({from:'user',text:'[See this] '+q});
+      c.messages.push({from:'bot',text:String(d.answer||'').trim()||'I could not describe that frame.',note:d.note||'Local vision'});
+      c.preview='See this: '+q;saveState();stopCameraStream();modal=null;render();
+      showToast('Vision answer added');
+    }catch(e){
+      note.textContent='Vision failed: '+e.message;ask.disabled=false;ask.textContent=original;
+    }
+  };
+}
 function openInstallApp(){
   if(installPrompt){
     modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Install Oracle Chat</h3>
@@ -1964,6 +2081,8 @@ function commandItems(){
   items.push({label:'Bot roster',sub:'command · names and jobs',art:icon('spark',16),run:openBotRoster});
   items.push({label:'Personality: '+personalityLabel(active()),sub:'command · choose this bot\'s tone',art:icon('spark',16),run:openPersonalityPicker});
   items.push({label:'Install this web app',sub:'command · Add to Home Screen',art:icon('plus',16),run:openInstallApp});
+  items.push({label:'About / Update status',sub:'command · build, model and service worker',art:icon('info',16),run:openAbout});
+  if(!staticMode&&!guestMode)items.push({label:'See this',sub:'command · ask about the webcam view',art:icon('camera',16),run:openCameraModal});
   items.push({label:'Appearance: '+themeLabel(),sub:'command · switch light and dark',art:icon('theme',16),run:cycleTheme});
   items.push({label:'Share / export this chat',sub:'command',art:icon('share',16),run:openShareModal});
   if(staticMode){
@@ -2060,8 +2179,8 @@ function openNameModal(){
   modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Change display name</h3><p>Only used in the sidebar on this Mac.</p><form id="nameForm"><label>Display name</label><input id="dn" value="${esc(displayName)}" maxlength="40" required autofocus onfocus="this.select()" onclick="this.select()"/><div class="modal-actions"><button type="button" class="btn" id="mc">Cancel</button><button class="btn primary" type="submit">Save name</button></div></form></div></div>`;render();
 }
 function bindModal(){
-  document.getElementById('mc')?.addEventListener('click',()=>{modal=null;render()});
-  document.getElementById('mb')?.addEventListener('click',e=>{if(e.target.id==='mb'){modal=null;render()}});
+  document.getElementById('mc')?.addEventListener('click',()=>{stopCameraStream();modal=null;render()});
+  document.getElementById('mb')?.addEventListener('click',e=>{if(e.target.id==='mb'){stopCameraStream();modal=null;render()}});
   const rh=document.getElementById('rh');
   if(rh)document.querySelectorAll('[data-hero-field="rh"]').forEach(b=>b.classList.toggle('selected',b.dataset.hero===rh.value));
   document.querySelectorAll('[data-hero]').forEach(b=>b.onclick=()=>{
