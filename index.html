@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#4a9861" />
-<meta name="oracle-build" content="2026-11-20d" />
+<meta name="oracle-build" content="2026-11-20e" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Oracle" />
@@ -538,7 +538,7 @@ const DEFAULT_BACKEND=(guestMode||staticMode)?'device-small':'local';
 const savedBackend=localStorage.getItem('oracle.backend');
 let view='chat', listView=localStorage.getItem('oracle.listView')||'folders', backend=savedBackend||DEFAULT_BACKEND, draft=pendingDraft, waiting=false;
 // On phones the chat/folder list is the home screen; a chat opens full-screen.
-let mobileView='list';
+let mobileView=localStorage.getItem('oracle.mobileView')==='chat'?'chat':'list';
 if(!allModels().some(m=>m.id===backend))backend=DEFAULT_BACKEND;
 let devicePipe=null, deviceLoading=null, deviceStatus='', deviceModelId='', deviceProgress=0, deviceProgressActive=false;
 // Set by a "Retry with short history" button so the next send ignores old turns.
@@ -1227,11 +1227,14 @@ async function startImageGeneration(){
     const r=await generateImageBlob(prompt,imageSize,imageSeed,(p,t)=>setImageProgress(p,t));
     imageResultBlob=r.blob;imageResultUrl=URL.createObjectURL(r.blob);
     const id='img'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
-    await imageStorePut(id,r.blob);
+    // Save the transcript first. If iOS reclaims the tab during the IndexedDB
+    // write, the reload still shows the result message and its prompt.
     const c=active();
     c.messages.push({from:'bot',text:'Generated '+r.size.id+' image',note:'On-device image · private',imageId:id,imageSize:r.size.id,imagePrompt:prompt});
     c.preview='Generated '+r.size.id+' image';
-    saveState();imageBusy=false;imagePct=0;imageStatusText='';openImageModal();showToast('Image added to this chat');
+    saveState();
+    await imageStorePut(id,r.blob);
+    imageBusy=false;imagePct=0;imageStatusText='';openImageModal();showToast('Image added to this chat');
   }catch(err){
     imageBusy=false;imagePct=0;imageStatusText='';openImageModal();showToast('Image failed: '+err.message);
   }
@@ -1750,6 +1753,10 @@ function render(){
     ${(plusOpen||modelOpen||profileOpen||moreOpen)?'<div class="backdrop" id="backdrop"></div>':''}
     ${modal||''}
     <input type="file" id="fileInput" style="display:none" multiple />`;
+  // A phone tab can be reclaimed during WebGPU generation. Remember the last
+  // screen so a reload returns to the chat with the generated image, not to the
+  // chat list where it looks like the image vanished.
+  try{localStorage.setItem('oracle.mobileView',mobileView)}catch(e){}
   document.getElementById('app').dataset.mobile=mobileView;
   const m=document.getElementById('messages');if(m)m.scrollTop=m.scrollHeight;
   bind();
