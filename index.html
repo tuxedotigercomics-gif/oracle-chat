@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#4a9861" />
-<meta name="oracle-build" content="2026-11-20c" />
+<meta name="oracle-build" content="2026-11-20d" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Oracle" />
@@ -159,6 +159,13 @@
   .bubble.bot{background:var(--hero,var(--accent));color:#fff;border-bottom-right-radius:5px}
   .bubble-retry{display:inline-block;margin-top:8px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.55);color:#fff;border-radius:10px;padding:4px 9px;font-size:11.5px;cursor:pointer}
   .bubble-retry:hover{background:rgba(255,255,255,.26)}
+  .chat-image{display:block;max-width:100%;max-height:360px;border-radius:12px;border:1px solid var(--border);margin:8px 0}
+  .img-actions{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 2px}
+  .img-actions .btn{padding:4px 9px;font-size:11.5px}
+  .img-size-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:6px;margin:10px 0}
+  .img-size-grid button{padding:8px 4px;font-size:11.5px}
+  .img-preview{display:flex;justify-content:center;margin-top:12px}
+  .img-preview img{max-width:100%;max-height:300px;border-radius:12px;border:1px solid var(--border)}
   .meta{font-size:11px;color:var(--muted);margin-top:5px;font-style:italic}
   .status{font-size:12.5px;color:var(--muted);font-style:italic;align-self:flex-start;padding-left:2px}
   .composer-wrap{flex-shrink:0;width:calc(100% - 40px);max-width:780px;margin:0 auto 18px}
@@ -926,6 +933,329 @@ async function loadDeviceModel(modelId){
   })();
   return deviceLoads[modelId];
 }
+// ---- On-device image generation — NanoDiffuser (phone/static, owner only) ----
+// One-step SDXS text-to-image. CLIP tokenizer/encoder, one U-Net step and a tiny
+// image decoder all run on the device through WebGPU. No bridge call, no API
+// key, no image bytes in the model prompt. The model chooses the social size
+// from the prompt by comparing CLIP embeddings against four format labels.
+const IMG_ORT_JS='https://cdn.jsdelivr.net/npm/onnxruntime-web@1.29.0/dist/ort.webgpu.bundle.min.mjs';
+const IMG_ORT_WASM='https://cdn.jsdelivr.net/npm/onnxruntime-web@1.29.0/dist/';
+const IMG_TF_JS='https://esm.sh/@huggingface/transformers@4.2.0?bundle&target=es2022';
+const IMG_MODEL_REV='14cff72356365c3586ee38a2237332525889b69c';
+const IMG_CACHE='oracle-image-v1';
+const IMG_FILES=[
+  ['manifest.json',679],['text_encoder_q4.onnx',165192],['text_encoder_q4.onnx.data',66276792],
+  ['unet_mixed_q4q8.onnx',58597136],['unet_mixed_q4q8.onnx.data',269300480],
+  ['vae_decoder_fp16.onnx',29879],['vae_decoder_fp16.onnx.data',2441088],
+  ['tokenizer/tokenizer.json',3642073],['tokenizer/tokenizer_config.json',391]
+];
+const IMG_TOTAL=IMG_FILES.reduce((n,f)=>n+f[1],0);
+const IMG_SIZES=[
+  {id:'auto',label:'Smart',sub:'model picks',w:0,h:0},
+  {id:'1:1',label:'Square',sub:'1:1 feed',w:512,h:512},
+  {id:'4:5',label:'Portrait',sub:'4:5 feed',w:410,h:512},
+  {id:'9:16',label:'Story',sub:'9:16 story',w:288,h:512},
+  {id:'16:9',label:'Wide',sub:'16:9 banner',w:512,h:288}
+];
+let imageRuntime=null,imageRuntimeLoad=null,imageBusy=false,imagePct=0,imageStatusText='';
+let imagePrompt='',imageSize='auto',imageSeed=0,imageResultBlob=null,imageResultUrl='';
+let imageOk=localStorage.getItem('oracle.image.ok')==='1',imageGpuReady=null;
+function imageSaved(){try{return localStorage.getItem('oracle.image.saved')===IMG_MODEL_REV}catch(e){return false}}
+function imageFileUrl(path){return 'https://huggingface.co/utkucoban/NanoDiffuser/resolve/'+IMG_MODEL_REV+'/'+path}
+// This quantized model feeds float16 tensors to WebGPU. Safari can expose
+// navigator.gpu without the shader-f16 feature, so check the adapter itself.
+async function imageGpuOk(){
+  if(!('gpu' in navigator))return false;
+  if(imageGpuReady!==null)return imageGpuReady;
+  try{const a=await navigator.gpu.requestAdapter({powerPreference:'high-performance'});imageGpuReady=!!a&&a.features.has('shader-f16')}
+  catch(e){imageGpuReady=false}
+  return imageGpuReady;
+}
+function imageModelStatus(){
+  if(!('gpu' in navigator))return {title:'Image generation needs WebGPU',sub:'Use Safari 26+ or another WebGPU browser'};
+  return imageSaved()?{title:'Image model saved on this device',sub:'NanoDiffuser · about '+Math.round(IMG_TOTAL/1048576)+' MB · offline ready'}
+    :{title:'Prepare image model',sub:'NanoDiffuser · about '+Math.round(IMG_TOTAL/1048576)+' MB · download once'};
+}
+// Generated PNGs live in IndexedDB so a long chat does not bloat localStorage.
+// The in-memory map also keeps them working if storage is denied.
+const imageBlobs={};let imageDb=null;
+async function imageDbOpen(){
+  if(imageDb)return imageDb;
+  if(!('indexedDB' in window))return null;
+  imageDb=await new Promise((res,rej)=>{
+    const r=indexedDB.open('oracle-images',1);
+    r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains('images'))r.result.createObjectStore('images')};
+    r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);
+  });
+  return imageDb;
+}
+async function imageStorePut(id,blob){
+  imageBlobs[id]=blob;
+  try{
+    const db=await imageDbOpen();if(!db)return;
+    await new Promise((res,rej)=>{const tx=db.transaction('images','readwrite');tx.objectStore('images').put(blob,id);tx.oncomplete=res;tx.onerror=()=>rej(tx.error)});
+  }catch(e){}
+}
+async function imageStoreGet(id){
+  if(imageBlobs[id])return imageBlobs[id];
+  try{
+    const db=await imageDbOpen();if(!db)return null;
+    return await new Promise(res=>{const tx=db.transaction('images','readonly');const q=tx.objectStore('images').get(id);q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null)});
+  }catch(e){return null}
+}
+// Download once into Cache Storage, verify every byte length, and reuse offline.
+async function getImageFiles(progress){
+  const files=new Map();let done=0;
+  const cache=await caches.open(IMG_CACHE).catch(()=>null);
+  for(const [path,bytes] of IMG_FILES){
+    const url=imageFileUrl(path);let blob=null;
+    if(cache){try{const hit=await cache.match(url);if(hit)blob=await hit.blob()}catch(e){}}
+    if(!blob||blob.size!==bytes){
+      const r=await fetch(url);
+      if(!r.ok)throw new Error('Could not download '+path+'. Check your connection and try again.');
+      if(r.body){
+        const reader=r.body.getReader(),parts=[];let got=0;
+        for(;;){const {done:end,value}=await reader.read();if(end)break;parts.push(value);got+=value.byteLength;progress(done+got)}
+        blob=new Blob(parts);
+      }else{blob=await r.blob()}
+      if(blob.size!==bytes){if(cache)try{await cache.delete(url)}catch(e){};throw new Error('Download of '+path+' was incomplete. Try again.')}
+      if(cache)try{await cache.put(url,new Response(blob))}catch(e){}
+    }
+    files.set(path,new File([blob],path.split('/').at(-1),{lastModified:0}));
+    done+=bytes;progress(done);
+  }
+  return files;
+}
+function confirmImageDownload(){
+  return new Promise(resolve=>{
+    modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Image model for this phone</h3>
+      <p>This saves <strong>NanoDiffuser</strong> (about ${Math.round(IMG_TOTAL/1048576)} MB) on this device once, then reuses it offline. Generation stays on the phone — no cloud, no Mac, no key.</p>
+      <p style="font-size:11px;color:var(--muted)">Do this from the installed Home Screen app: Safari and an installed app keep separate device storage.</p>
+      <div class="modal-actions"><button class="btn" id="imgDlCancel">Not now</button><button class="btn primary" id="imgDlGo">Download &amp; continue</button></div></div></div>`;
+    render();
+    document.getElementById('imgDlCancel')?.addEventListener('click',()=>{modal=null;render();resolve(false)});
+    document.getElementById('imgDlGo')?.addEventListener('click',()=>{
+      imageOk=true;try{localStorage.setItem('oracle.image.ok','1')}catch(e){}
+      // Put the live progress modal back before the download starts.
+      openImageModal();resolve(true);
+    });
+  });
+}
+async function loadImageRuntime(progress){
+  if(imageRuntime)return imageRuntime;
+  if(imageRuntimeLoad)return imageRuntimeLoad;
+  imageRuntimeLoad=(async()=>{
+    if(!await imageGpuOk())throw new Error('Image generation needs WebGPU with float16 support. Use Safari 26+ or another WebGPU browser.');
+    progress(0,'Starting WebGPU…');
+    const [ort,tf]=await Promise.all([import(IMG_ORT_JS),import(IMG_TF_JS)]);
+    ort.env.logLevel='warning';ort.env.wasm.numThreads=1;ort.env.wasm.wasmPaths=IMG_ORT_WASM;
+    if(ort.env.webgpu)ort.env.webgpu.powerPreference='high-performance';
+    progress(2,imageSaved()?'Loading saved image model…':'Checking image model on this device…');
+    if(PHONE&&!imageOk&&!imageSaved()&&!await confirmImageDownload())throw new Error('Image model download not started.');
+    const files=await getImageFiles(p=>progress(2+Math.round(p/IMG_TOTAL*38),'Saving image model — '+Math.round(p/1048576)+' / '+Math.round(IMG_TOTAL/1048576)+' MB'));
+    const manifest=JSON.parse(await files.get('manifest.json').text());
+    const tokenizer=new tf.CLIPTokenizer(JSON.parse(await files.get('tokenizer/tokenizer.json').text()),JSON.parse(await files.get('tokenizer/tokenizer_config.json').text()));
+    try{localStorage.setItem('oracle.image.saved',IMG_MODEL_REV)}catch(e){}
+    imageRuntime={ort,tf,files,tokenizer,manifest};return imageRuntime;
+  })();
+  try{return await imageRuntimeLoad}finally{imageRuntimeLoad=null}
+}
+function floatToHalf(v){
+  const f=new Float32Array(1),u=new Uint32Array(f.buffer);f[0]=v;
+  const x=u[0],sign=x>>>16&32768,exp=x>>>23&255,mant=x&8388607;
+  if(exp===255)return sign|31744|(mant?512:0);
+  const e=exp-127+15;
+  if(e>=31)return sign|31744;
+  if(e<=0)return e<-10?sign:sign|(((mant|8388608)>>(1-e))+4096)>>>13;
+  return sign|(e<<10)|((mant+4096)>>13);
+}
+function halfToFloat(h){
+  const sign=h&32768?-1:1,exp=h>>>10&31,mant=h&1023;
+  if(exp===0)return sign*2**-14*(mant/1024);
+  if(exp===31)return mant?NaN:sign*Infinity;
+  return sign*2**(exp-15)*(1+mant/1024);
+}
+function toHalfTensor(ort,arr,dims){
+  const out=new Uint16Array(arr.length);
+  for(let i=0;i<arr.length;i++)out[i]=floatToHalf(arr[i]);
+  return new ort.Tensor('float16',out,dims);
+}
+// ONNX Runtime builds differ: some return float16 data as Uint16Array bit
+// patterns, others as native Float16Array values. Converting bit patterns as
+// numbers would flatten every image to black.
+function tensorFloatGetter(type,d){
+  return type==='float16'&&d instanceof Uint16Array?(i=>halfToFloat(d[i])):(i=>Number(d[i]));
+}
+async function tensorFloats(t){
+  const d=await t.getData(),get=tensorFloatGetter(t.type,d),f=new Float32Array(d.length);
+  for(let i=0;i<d.length;i++)f[i]=get(i);
+  return f;
+}
+async function imageSession(ort,name,files){
+  const key=name.toLowerCase(),graph=files.get(key),data=files.get(key+'.data');
+  if(!graph||!data)throw new Error('Image model is missing '+key);
+  return ort.InferenceSession.create(new Uint8Array(await graph.arrayBuffer()),{
+    executionProviders:[{name:'webgpu',preferredLayout:'NCHW'}],graphOptimizationLevel:'all',
+    externalData:[{path:key+'.data',data}]
+  });
+}
+async function clipEmbed(rt,session,text){
+  const n=rt.manifest.maxPromptTokens||77;
+  const ids=rt.tokenizer([text],{padding:'max_length',truncation:true,max_length:n}).input_ids.data;
+  const a=new Int32Array(ids.length);for(let i=0;i<ids.length;i++)a[i]=Number(ids[i]);
+  const input=new rt.ort.Tensor('int32',a,[1,n]);
+  try{
+    const out=(await session.run({input_ids:input})).encoder_hidden_states;
+    if(out.dims.join(',')!==`1,${n},768`)throw new Error('Unexpected text embedding shape: '+out.dims.join(' × '));
+    try{return await tensorFloats(out)}finally{out.dispose()}
+  }finally{input.dispose()}
+}
+function cosine(a,b){
+  let d=0,x=0,y=0;
+  for(let i=0;i<a.length;i++){d+=a[i]*b[i];x+=a[i]*a[i];y+=b[i]*b[i]}
+  return d/(Math.sqrt(x)*Math.sqrt(y)||1);
+}
+// The format choice is made by the model that is already loaded for the image,
+// not by a keyword list. CLIP compares the prompt with four format descriptions.
+async function modelPicksSize(rt,session,prompt){
+  const labels=[['1:1','a square social media feed post'],['4:5','a tall portrait social media feed post'],
+    ['9:16','a vertical story or reel'],['16:9','a wide landscape banner or thumbnail']];
+  const pv=await clipEmbed(rt,session,prompt);let best='1:1',score=-Infinity;
+  for(const [id,label] of labels){const v=await clipEmbed(rt,session,label);const s=cosine(pv,v);if(s>score){score=s;best=id}}
+  return best;
+}
+function imageNoise(n,seed){
+  let t=seed>>>0;
+  const rnd=()=>{t=(t+1831565813)>>>0;let x=t;x=Math.imul(x^x>>>15,x|1);x^=x+Math.imul(x^x>>>7,x|61);return ((x^x>>>14)>>>0)/4294967296};
+  const out=new Float32Array(n);
+  for(let i=0;i<n;i+=2){const u=Math.max(rnd(),2**-52),v=rnd(),r=Math.sqrt(-2*Math.log(u)),a=2*Math.PI*v;out[i]=r*Math.cos(a);if(i+1<n)out[i+1]=r*Math.sin(a)}
+  return out;
+}
+function cropImageData(img,w,h){
+  const src=document.createElement('canvas');src.width=512;src.height=512;
+  src.getContext('2d').putImageData(img,0,0);
+  const cw=Math.min(512,Math.round(512*w/h)),ch=Math.min(512,Math.round(512*h/w));
+  const x=Math.floor((512-cw)/2),y=Math.floor((512-ch)/2);
+  const out=document.createElement('canvas');out.width=w;out.height=h;
+  out.getContext('2d').drawImage(src,x,y,cw,ch,0,0,w,h);
+  return new Promise(res=>out.toBlob(res,'image/png'));
+}
+async function generateImageBlob(prompt,sizeId,seed,progress){
+  const rt=await loadImageRuntime(progress),sch=rt.manifest.scheduler;
+  progress(40,'Loading text encoder…');
+  const enc=await imageSession(rt.ort,rt.manifest.models.textEncoder,rt.files);
+  let embF,chosen=sizeId;
+  try{
+    embF=await clipEmbed(rt,enc,prompt);
+    if(sizeId==='auto'){chosen=await modelPicksSize(rt,enc,prompt);progress(48,'Model chose '+chosen+' — generating…')}
+  }finally{await enc.release()}
+  const emb=toHalfTensor(rt.ort,embF,[1,rt.manifest.maxPromptTokens||77,768]);
+  const n=4*64*64,noise=imageNoise(n,seed),latent=new Float32Array(n),modelIn=new Float32Array(n);
+  for(let i=0;i<n;i++){latent[i]=noise[i]*sch.initNoiseSigma;modelIn[i]=latent[i]*sch.modelInputScale}
+  progress(56,'Generating latent · one step…');
+  const unet=await imageSession(rt.ort,rt.manifest.models.unet,rt.files);
+  let pred;
+  try{
+    const sample=toHalfTensor(rt.ort,modelIn,[1,4,64,64]);
+    const timestep=new rt.ort.Tensor('float32',new Float32Array([sch.timestep]),[1]);
+    try{
+      const out=(await unet.run({sample,timestep,encoder_hidden_states:emb})).noise_pred;
+      if(out.dims.join(',')!=='1,4,64,64')throw new Error('Unexpected U-Net shape: '+out.dims.join(' × '));
+      try{pred=await tensorFloats(out)}finally{out.dispose()}
+    }finally{sample.dispose();timestep.dispose()}
+  }finally{await unet.release()}
+  const denoised=new Float32Array(n);
+  for(let i=0;i<n;i++)denoised[i]=sch.sampleCoefficient*latent[i]+sch.outputCoefficient*pred[i];
+  progress(82,'Decoding pixels…');
+  const dec=await imageSession(rt.ort,rt.manifest.models.decoder,rt.files);
+  let rgba;
+  try{
+    const lt=toHalfTensor(rt.ort,denoised,[1,4,64,64]);
+    try{
+      const out=(await dec.run({latent:lt})).image;
+      if(out.dims.join(',')!=='1,3,512,512')throw new Error('Unexpected decoder shape: '+out.dims.join(' × '));
+      try{
+        const d=await out.getData(),get=tensorFloatGetter(out.type,d);
+        const px=512*512;rgba=new Uint8ClampedArray(px*4);
+        for(let i=0;i<px;i++){
+          rgba[i*4]=Math.round(255*Math.min(1,Math.max(0,get(i))));
+          rgba[i*4+1]=Math.round(255*Math.min(1,Math.max(0,get(px+i))));
+          rgba[i*4+2]=Math.round(255*Math.min(1,Math.max(0,get(px*2+i))));
+          rgba[i*4+3]=255;
+        }
+      }finally{out.dispose()}
+    }finally{lt.dispose()}
+  }finally{await dec.release()}
+  emb.dispose();
+  const spec=IMG_SIZES.find(s=>s.id===chosen)||IMG_SIZES[1];
+  const blob=await cropImageData(new ImageData(rgba,512,512),spec.w,spec.h);
+  progress(100,'Image ready');
+  return {blob,size:spec};
+}
+function setImageProgress(pct,text){
+  imagePct=Math.max(0,Math.min(100,pct||0));imageStatusText=text||'';
+  const bar=document.getElementById('imageProgress'),txt=document.getElementById('imageStatusText');
+  if(txt&&text)txt.textContent=text;
+  if(bar){
+    bar.style.display='';bar.setAttribute('aria-valuenow',String(Math.round(imagePct)));
+    const fill=bar.querySelector('.progress-fill');if(fill)fill.style.width=imagePct+'%';
+  }
+}
+function openImageModal(){
+  if(guestMode)return;
+  const last=active().messages.at(-1);
+  if(!imagePrompt&&last&&last.from==='user')imagePrompt=last.text.replace(/\n\[Attached files:[^\]]*\]$/,'');
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal" style="max-width:520px"><h3>Make an image · on this device</h3>
+    <p>NanoDiffuser draws one still image from your prompt. It runs on this phone through WebGPU — nothing goes to the Mac, a cloud service or an API key.</p>
+    <textarea id="imgPrompt" class="share-text" style="min-height:84px" placeholder="Describe the image you want…" ${imageBusy?'disabled':''}>${esc(imagePrompt)}</textarea>
+    <div class="img-size-grid">${IMG_SIZES.map(s=>`<button class="btn ${imageSize===s.id?'primary':''}" data-img-size="${s.id}" ${imageBusy?'disabled':''}><strong>${esc(s.label)}</strong><br><span style="font-size:10px;opacity:.8">${esc(s.sub)}</span></button>`).join('')}</div>
+    <div class="progress-track" id="imageProgress" role="progressbar" aria-label="Image generation progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(imagePct)}" style="${imageBusy?'':'display:none'}"><div class="progress-fill" style="width:${imagePct}%"></div></div>
+    <div class="meta" id="imageStatusText">${esc(imageStatusText)}</div>
+    ${imageResultUrl?`<div class="img-preview"><img src="${esc(imageResultUrl)}" alt="Generated image" /></div><div class="img-actions" style="justify-content:center"><button class="btn" id="imgResultCopy">Copy image</button><button class="btn primary" id="imgResultDownload">Download PNG</button></div>`:''}
+    <div class="modal-actions"><button class="btn" id="imgCancel">${imageBusy?'Close':'Cancel'}</button>${imageBusy?'':`<button class="btn primary" id="imgGo">Generate image</button>`}</div>
+    </div></div>`;render();
+}
+async function startImageGeneration(){
+  if(imageBusy||guestMode)return;
+  const prompt=imagePrompt.trim();
+  if(!prompt){showToast('Describe the image first');return}
+  imageBusy=true;imageResultBlob=null;
+  if(imageResultUrl)URL.revokeObjectURL(imageResultUrl);
+  imageResultUrl='';imagePct=0;imageStatusText='Starting…';openImageModal();
+  try{
+    imageSeed=(Date.now()^Math.floor(Math.random()*1000000000))>>>0;
+    const r=await generateImageBlob(prompt,imageSize,imageSeed,(p,t)=>setImageProgress(p,t));
+    imageResultBlob=r.blob;imageResultUrl=URL.createObjectURL(r.blob);
+    const id='img'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+    await imageStorePut(id,r.blob);
+    const c=active();
+    c.messages.push({from:'bot',text:'Generated '+r.size.id+' image',note:'On-device image · private',imageId:id,imageSize:r.size.id,imagePrompt:prompt});
+    c.preview='Generated '+r.size.id+' image';
+    saveState();imageBusy=false;imagePct=0;imageStatusText='';openImageModal();showToast('Image added to this chat');
+  }catch(err){
+    imageBusy=false;imagePct=0;imageStatusText='';openImageModal();showToast('Image failed: '+err.message);
+  }
+}
+function downloadImageBlob(blob,name){
+  if(!blob){showToast('Nothing to download yet');return}
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+async function copyImageBlob(blob){
+  try{
+    if(!blob)throw new Error('missing');
+    await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);
+    showToast('Image copied');
+  }catch(e){showToast('Copy not supported here — use Download')}
+}
+function hydrateImages(){
+  document.querySelectorAll('.chat-image[data-img-id]:not([data-loaded])').forEach(async img=>{
+    const blob=await imageStoreGet(img.dataset.imgId);
+    if(!blob)return;
+    img.dataset.loaded='1';img.src=URL.createObjectURL(blob);
+  });
+}
 function isContextOverflow(err){
   // iOS wllama reports an exhausted KV buffer as "length out of range buffer",
   // not as a token/context error. Treat both as overflow so the short-history
@@ -1316,7 +1646,7 @@ function render(){
         <div style="margin-top:14px">${vaultKeys.length?vaultKeys.map(k=>`<div class="vault-row"><span>${esc(k)}</span><span><code>••••••••</code> <button class="btn danger" data-del="${esc(k)}" style="padding:4px 8px;font-size:11px">Remove</button></span></div>`).join(''):'<p style="color:var(--muted);font-size:13px">No saved credentials yet.</p>'}</div>
       </div></div>`;
   } else {
-    const msgs=c.messages.map((m,i)=>`<div class="row ${m.from}"><div class="bubble ${m.from}">${esc(m.text)}${m.retryable&&i===c.messages.length-1?`<button class="bubble-retry" data-retry-msg="${i}">Retry with short history</button>`:''}${m.note?`<div class="meta">${esc(m.note)}</div>`:''}${m.tool?`<div class="tool-card ${m.toolState||''}">
+    const msgs=c.messages.map((m,i)=>`<div class="row ${m.from}"><div class="bubble ${m.from}">${esc(m.text)}${m.retryable&&i===c.messages.length-1?`<button class="bubble-retry" data-retry-msg="${i}">Retry with short history</button>`:''}${m.imageId?`<div class="img-msg"><img class="chat-image" data-img-id="${esc(m.imageId)}" alt="${esc(m.imagePrompt||'Generated image')}" /><div class="img-actions"><button class="btn" data-img-copy="${esc(m.imageId)}">Copy</button><button class="btn" data-img-download="${esc(m.imageId)}">Download</button></div></div>`:''}${m.note?`<div class="meta">${esc(m.note)}</div>`:''}${m.tool?`<div class="tool-card ${m.toolState||''}">
         <div class="tool-title">${icon('spark',14)} ${esc(m.toolSummary||'Tool action')}</div>
         ${m.toolState==='pending'?`<div class="risk-chips">${toolRisk(m.tool).map(x=>`<span class="risk-chip">${esc(x)}</span>`).join('')}</div>`:''}
         ${m.tool.preview?`<pre class="tool-preview">${esc(m.tool.preview)}</pre>`:''}
@@ -1337,7 +1667,7 @@ function render(){
           <button class="icon-btn ${callActive?'calling':''}" id="callBtn" title="Live voice call — talk hands-free">${icon('phone')}</button>
           <button class="icon-btn ${moreOpen?'open':''}" id="moreBtn" title="Chat and folder options">${icon('more')}</button>
           <button class="share-btn" id="shareBtn">${icon('share',16)} Share</button>
-          ${modelOpen?`<div class="dropdown model">${allModels().map(m=>`<button class="menu-item" data-model="${m.id}"><span>${m.id===backend?'✓':'&nbsp;&nbsp;'}</span><span><strong>${esc(m.name)}</strong><span class="mi-sub">${esc(m.sub)}</span></span>${m.custom?`<span class="model-remove" data-model-remove="${m.id}" role="button" tabindex="0" title="Remove model">✕</span>`:''}</button>`).join('')}<div class="menu-sep"></div>${staticMode?(()=>{const s=deviceModelStatus();return `<button class="menu-item" id="preloadDevice">${icon('spark',18)}<span><strong>${s.title}</strong><span class="mi-sub">${s.sub}</span></span></button><div class="mi-note">These private models run on your own device. The Mac-only models need the Mac.</div>`})():''}<button class="menu-item" id="addModel">${icon('plus',18)}<span><strong>Add a model…</strong><span class="mi-sub">On-device or your own provider</span></span></button></div>`:''}
+          ${modelOpen?`<div class="dropdown model">${allModels().map(m=>`<button class="menu-item" data-model="${m.id}"><span>${m.id===backend?'✓':'&nbsp;&nbsp;'}</span><span><strong>${esc(m.name)}</strong><span class="mi-sub">${esc(m.sub)}</span></span>${m.custom?`<span class="model-remove" data-model-remove="${m.id}" role="button" tabindex="0" title="Remove model">✕</span>`:''}</button>`).join('')}<div class="menu-sep"></div>${staticMode?(()=>{const s=deviceModelStatus(),im=imageModelStatus();return `<button class="menu-item" id="preloadDevice">${icon('spark',18)}<span><strong>${s.title}</strong><span class="mi-sub">${s.sub}</span></span></button>${guestMode?'':`<button class="menu-item" id="preloadImage">${icon('spark',18)}<span><strong>${im.title}</strong><span class="mi-sub">${im.sub}</span></span></button>`}<div class="mi-note">These private models run on your own device. The Mac-only models need the Mac.</div>`})():''}<button class="menu-item" id="addModel">${icon('plus',18)}<span><strong>Add a model…</strong><span class="mi-sub">On-device or your own provider</span></span></button></div>`:''}
           ${moreOpen?`<div class="dropdown more">
             <button class="menu-item" id="moreNewChat">${icon('plus',18)}<span><strong>New chat room</strong><span class="mi-sub">Name it and pick an agent</span></span></button>
             <button class="menu-item" id="moreNewFolder">${icon('file',18)}<span><strong>New folder</strong><span class="mi-sub">Group chats together</span></span></button>
@@ -1376,6 +1706,7 @@ function render(){
         <form class="composer" id="composer">
           <button type="button" class="composer-plus ${plusOpen?'open':''}" id="plusBtn" title="Add">${icon('plus')}</button>
           ${staticMode||guestMode?'':`<button type="button" class="composer-plus" id="seeThis" title="See this — ask the local model about the webcam view">${icon('camera')}</button>`}
+          ${staticMode&&!guestMode?`<button type="button" class="composer-plus" id="imageBtn" title="Make an image on this device">${icon('spark')}</button>`:''}
           <button type="button" class="composer-plus ${listening?'listening':''}" id="micBtn" title="Speak instead of type">${icon('mic')}</button>
           <input id="draft" value="${esc(draft)}" placeholder="Message ${esc(c.name)}" autocomplete="off" />
           <button type="submit" class="composer-send" id="send" ${draft.trim()||files.length?'':'disabled'}>${icon('arrow')}</button>
@@ -1569,6 +1900,26 @@ function bind(){
     nextSendShort=backend==='device'||backend==='device-small'||!!customModels.find(m=>m.id===backend&&m.type==='device');
     saveState();sendMessage({preventDefault(){}});
   });
+  // Image generation is phone/static and owner-only. No bridge call is made.
+  document.getElementById('imageBtn')?.addEventListener('click',()=>{imageResultBlob=null;if(imageResultUrl)URL.revokeObjectURL(imageResultUrl);imageResultUrl='';imageStatusText='';openImageModal()});
+  document.getElementById('preloadImage')?.addEventListener('click',e=>{e.stopPropagation();modelOpen=false;imageResultBlob=null;if(imageResultUrl)URL.revokeObjectURL(imageResultUrl);imageResultUrl='';imageStatusText='';openImageModal()});
+  document.getElementById('imgPrompt')?.addEventListener('input',e=>{imagePrompt=e.target.value});
+  document.querySelectorAll('[data-img-size]').forEach(b=>b.onclick=()=>{imageSize=b.dataset.imgSize;openImageModal()});
+  document.getElementById('imgGo')?.addEventListener('click',startImageGeneration);
+  document.getElementById('imgCancel')?.addEventListener('click',()=>{modal=null;render()});
+  document.getElementById('imgResultDownload')?.addEventListener('click',()=>downloadImageBlob(imageResultBlob,'oracle-image-latest.png'));
+  document.getElementById('imgResultCopy')?.addEventListener('click',()=>copyImageBlob(imageResultBlob));
+  document.querySelectorAll('[data-img-download]').forEach(b=>b.onclick=async()=>{
+    const blob=await imageStoreGet(b.dataset.imgDownload);
+    if(!blob){showToast('Image is no longer on this device');return}
+    downloadImageBlob(blob,'oracle-image-'+b.dataset.imgDownload+'.png');
+  });
+  document.querySelectorAll('[data-img-copy]').forEach(b=>b.onclick=async()=>{
+    const blob=await imageStoreGet(b.dataset.imgCopy);
+    if(!blob){showToast('Image is no longer on this device');return}
+    copyImageBlob(blob);
+  });
+  hydrateImages();
   document.getElementById('fileInput')?.addEventListener('change',async e=>{
     for(const f of e.target.files){files.push(f.name)}
     e.target.value='';render();showToast(files.length+' file(s) attached (name shown)');
@@ -1641,7 +1992,7 @@ function openDeleteChatModal(id){
     <div class="modal-actions"><button class="btn" id="mc">Cancel</button><button class="btn danger" id="confirmDeleteChat" data-id="${id}">Delete chat</button></div></div></div>`;render();
 }
 function chatTranscript(c){
-  return c.messages.map(m=>`${m.from==='user'?'You':c.name}: ${m.text}`).join('\n\n');
+  return c.messages.map(m=>`${m.from==='user'?'You':c.name}: ${m.text}${m.imageId?`\n[Image: ${m.imagePrompt||'generated'} · ${m.imageSize} · saved on this device]`:''}`).join('\n\n');
 }
 function openShareModal(){
   const c=active(),text=chatTranscript(c);
@@ -2102,6 +2453,7 @@ function commandItems(){
   items.push({label:'Install this web app',sub:'command · Add to Home Screen',art:icon('plus',16),run:openInstallApp});
   items.push({label:'About / Update status',sub:'command · build, model and service worker',art:icon('info',16),run:openAbout});
   if(!staticMode&&!guestMode)items.push({label:'See this',sub:'command · ask about the webcam view',art:icon('camera',16),run:openCameraModal});
+  if(staticMode&&!guestMode)items.push({label:'Make an image',sub:'command · on-device image generation',art:icon('spark',16),run:openImageModal});
   items.push({label:'Appearance: '+themeLabel(),sub:'command · switch light and dark',art:icon('theme',16),run:cycleTheme});
   items.push({label:'Share / export this chat',sub:'command',art:icon('share',16),run:openShareModal});
   if(staticMode){

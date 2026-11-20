@@ -17,7 +17,9 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      // The image model is 382 MB. Keep it across shell updates; only the
+      // app-shell cache should be replaced when CACHE changes.
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE && k !== 'oracle-image-v1').map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -62,10 +64,10 @@ self.addEventListener('fetch', event => {
   // Never cache partial responses — a cached 206 would corrupt an asset.
   if (request.headers.has('range')) return;
 
-  // Only the wllama JS/WASM runtime lives here. GGUF weights are persisted by
-  // wllama itself in OPFS; caching them here would store a second full copy on
-  // the phone and be wiped by every service-worker cache version bump.
-  if (/cdn\.jsdelivr\.net/.test(url.hostname)) {
+  // Only the wllama / ONNX Runtime JS+WASM runtimes and the tokenizer helper
+  // live here. GGUF weights stay in OPFS and NanoDiffuser weights stay in the
+  // app's own Cache API, so a cache version bump never stores duplicate copies.
+  if (/cdn\.jsdelivr\.net|esm\.sh/.test(url.hostname)) {
     event.respondWith(
       caches.match(request).then(hit => {
         if (hit) return hit;
