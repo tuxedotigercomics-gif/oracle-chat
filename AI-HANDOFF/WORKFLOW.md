@@ -75,7 +75,7 @@ console errors. Expected matrix:
 
 | Page | Device models | Image cmd | Diagnostics |
 |---|---|---|---|
-| Owner static | 3 (`device-small`, `device`, `device-free`) | yes | yes |
+| Owner static | 4 (`device-small`, `device`, `device-smart`, `device-free`) | yes | yes |
 | Guest static | 2 (no `device-free`) | no | no |
 | Host via bridge | 0 | no | no |
 

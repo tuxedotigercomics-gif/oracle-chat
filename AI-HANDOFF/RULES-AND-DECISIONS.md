@@ -73,6 +73,24 @@ history.
 - `/api/status` is bridge-only and hardened: owner keeps full mode/scope; guest
   receives only `{"mode":"guest — chat only"}`.
 
+### Smarter model options (added in `2026-11-21c`)
+
+- Exactly one larger private GGUF was added: `qwen3-1.7b-smart`
+  (`bartowski/Qwen_Qwen3-1.7B-GGUF`, `Qwen_Qwen3-1.7B-Q4_K_M.gguf`, ~1.28 GB).
+  It is owner/static only. Guests still see 2 device models; host sees 0.
+  Do not add a second similar GGUF without a measured reason.
+- The existing download-confirmation UI now adds a Wi-Fi/size warning for GB
+  files. The one-time flag, OPFS caching and progress bar are unchanged.
+- Cloud provider presets only fill the **existing** Add a model fields. Keys
+  still go directly into the AES-GCM device vault; no new key system.
+- Direct Anthropic API blocks browser CORS, so Claude is offered via OpenRouter
+  (`anthropic/claude-sonnet-5.5`). Presets: OpenAI, OpenRouter, Anthropic via
+  OpenRouter.
+- The owner-only, off-by-default `webSources()` search now also supplies source
+  context to custom cloud chats. The bridge supplies the same public source
+  context to Big Pickle only for owner current-event questions. Guests get none.
+- No new host local model: the Mac has 8 GB RAM and ~5.5 GB free disk.
+
 ### Web search (added in `2026-11-21b`)
 
 The 135M/350M phone models cannot know current events. A 3B/4B host model needs

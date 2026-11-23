@@ -4,7 +4,7 @@ Run this at **320 / 360 / 390 / 430 px** on the real iPhone in Safari, and in
 an emulated iPhone viewport against `https://oracle-chat.pages.dev/`.
 The backup host is `https://tuxedotigercomics-gif.github.io/oracle-chat/`.
 
-Baseline SHA (live UI): `82a1ab7ddb26a3671f7b3f6cef96b023aa47ad039af88391b8af79a7a0839aaa`
+Baseline SHA (live UI): `039d48c90ef3f4a1e52d29ce1bd9947da8399eaa9ae42c35c70abeba86316554`
 Service-worker SHA: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`
 Rollback: `restore-live.command`
 
@@ -35,6 +35,13 @@ Rollback: `restore-live.command`
 - [x] No reload loop; typed draft survives the reload and the guard caps reloads
 - [ ] First-install no-reload guard and offline shell/model with the network blocked — needs the physical phone
 - [ ] Zero console errors across update, reload, send and offline reuse — offline pass still open
+
+## Smarter model options — 2026-11-23 (harness verified; device pass open)
+- [x] Smart 1.7B GGUF is owner/static only; guest and host model lists unchanged (harness)
+- [x] Download confirmation warns about the ~1.28 GB size and Wi-Fi (harness)
+- [x] Provider presets fill the existing Add a model fields and keys still use the encrypted device vault (harness)
+- [ ] Owner-only web search injects sources into custom cloud answers and shows links (harness done; physical iPhone pending)
+- [x] No new network path for guests; offline default still makes zero fetches (harness)
 
 ## Web search for current info — 2026-11-21 (harness verified; device pass open)
 - [x] Web search is off by default and the app still works fully offline (harness — 0 fetches with search off)

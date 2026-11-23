@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#4a9861" />
-<meta name="oracle-build" content="2026-11-21b" />
+<meta name="oracle-build" content="2026-11-21c" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Oracle" />
@@ -537,6 +537,7 @@ const MODELS=[
     {id:'device',name:'Balanced on-device · 350M',sub:'better answers — about 229 MB once'}
   ]:[]),
   ...((staticMode&&!guestMode)?[
+    {id:'device-smart',name:'Smart on-device · 1.7B',sub:'much stronger — about 1.28 GB once'},
     {id:'device-free',name:'Unfiltered on-device · 350M',sub:'fewer refusals — about 219 MB once'}
   ]:[]),
 ];
@@ -810,12 +811,16 @@ function drTick(){
 const GGUF_MODELS={
   'smol2-135m':{repo:'bartowski/SmolLM2-135M-Instruct-GGUF',file:'SmolLM2-135M-Instruct-Q4_K_M.gguf',name:'Tiny · 135M',size:'about 105 MB'},
   'lfm2-350m':{repo:'LiquidAI/LFM2.5-350M-GGUF',file:'LFM2.5-350M-Q4_K_M.gguf',name:'Balanced · 350M',size:'about 229 MB'},
+  // One deliberately larger option for owners who want noticeably better
+  // private answers. Still a single-file GGUF under wllama's 2 GB limit.
+  'qwen3-1.7b-smart':{repo:'bartowski/Qwen_Qwen3-1.7B-GGUF',file:'Qwen_Qwen3-1.7B-Q4_K_M.gguf',name:'Smart · 1.7B',size:'about 1.28 GB'},
   // Abliterated finetune of the same LFM2.5 350M base — same architecture,
   // chat template and wllama runtime, with fewer refusals. Same memory budget.
   'lfm2-350m-free':{repo:'mradermacher/LFM2.5-350M-abliterated-GGUF',file:'LFM2.5-350M-abliterated.Q4_K_M.gguf',name:'Unfiltered · 350M',size:'about 219 MB'},
 };
 const DEFAULT_DEVICE_MODEL='lfm2-350m';
 const SMALL_DEVICE_MODEL='smol2-135m';
+const SMART_DEVICE_MODEL='qwen3-1.7b-smart';
 const FREE_DEVICE_MODEL='lfm2-350m-free';
 const PHONE=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 function ggufSpec(id){
@@ -823,7 +828,7 @@ function ggufSpec(id){
   if(typeof id==='string'&&id.includes('|')){const [repo,file]=id.split('|');return {repo,file,name:file,size:'your model file'}}
   return null;
 }
-function activeDeviceModel(){return backend==='device-small'?SMALL_DEVICE_MODEL:backend==='device-free'?FREE_DEVICE_MODEL:(customModels.find(m=>m.id===backend)?.model||DEFAULT_DEVICE_MODEL)}
+function activeDeviceModel(){return backend==='device-smart'?SMART_DEVICE_MODEL:backend==='device-small'?SMALL_DEVICE_MODEL:backend==='device-free'?FREE_DEVICE_MODEL:(customModels.find(m=>m.id===backend)?.model||DEFAULT_DEVICE_MODEL)}
 function deviceModelStatus(){
   const id=activeDeviceModel(),spec=ggufSpec(id);
   if(devicePipe&&deviceModelId===id)return {title:'Private model is ready',sub:'Answers work offline on this device'};
@@ -902,6 +907,7 @@ function confirmPhoneDownload(spec){
     modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Private model for this phone</h3>
       <p>This saves <strong>${esc(spec.name)}</strong> (${esc(spec.size)}) on this device once, then reuses it every time — no download again, and it works offline.
       If your phone closes the page while it loads, your question is saved — reopen the chat and tap "Try again".</p>
+      ${/\bGB\b/i.test(spec.size)?'<p style="font-size:11px;color:var(--muted)"><strong>Large download:</strong> use Wi-Fi and leave this page open. It is saved once, then reused offline.</p>':''}
       <p style="font-size:11px;color:var(--muted)">On iPhone, do this from the Home Screen app: Safari and an installed app keep separate device storage.</p>
       <div class="modal-actions"><button class="btn" id="dlCancel">Not now</button><button class="btn primary" id="dlGo">Download &amp; continue</button></div></div></div>`;
     render();
@@ -1907,7 +1913,7 @@ function render(){
         <button class="icon-btn mobile-back" data-mobile-back title="Back to chats">←</button>
         <div class="chat-title-name" style="display:flex;align-items:center;gap:8px">${heroAvatar(c.hero,pendingTool?'asking':waiting?'walking':'')}<span class="chat-name-text">${esc(c.name)}</span></div>
         <div class="header-actions">
-          <span class="status-dot ${(backend==='device'||backend==='device-small'||backend==='device-free'||!!customModels.find(m=>m.id===backend)||localOn)?'':'off'}">${(backend==='device'||backend==='device-small'||backend==='device-free')?(devicePipe?'On-device ready':'On-device (loads on first message)'):customModels.find(m=>m.id===backend)?(customModels.find(m=>m.id===backend).type==='cloud'?'Your provider':'On-device (loads on first message)'):(localOn?'Local ready':'Local offline')}</span>
+          <span class="status-dot ${(backend==='device'||backend==='device-small'||backend==='device-smart'||backend==='device-free'||!!customModels.find(m=>m.id===backend)||localOn)?'':'off'}">${(backend==='device'||backend==='device-small'||backend==='device-smart'||backend==='device-free')?(devicePipe?'On-device ready':'On-device (loads on first message)'):customModels.find(m=>m.id===backend)?(customModels.find(m=>m.id===backend).type==='cloud'?'Your provider':'On-device (loads on first message)'):(localOn?'Local ready':'Local offline')}</span>
           <button class="model-pill" id="modelPill"><span class="model-name">${esc(allModels().find(m=>m.id===backend)?.name||backend)}</span> <span class="caret">▾</span></button>
           <button class="icon-btn ${voiceReplies?'active':''}" id="voiceBtn" title="Voice replies">${icon('volume')}</button>
           <button class="icon-btn ${callActive?'calling':''}" id="callBtn" title="Live voice call — talk hands-free">${icon('phone')}</button>
@@ -2149,7 +2155,7 @@ function bind(){
     if(!prev)return;
     c.messages.splice(i,1);
     draft=prev.text.replace(/\n\[Attached files:[^\]]*\]$/,'');
-    nextSendShort=backend==='device'||backend==='device-small'||backend==='device-free'||!!customModels.find(m=>m.id===backend&&m.type==='device');
+    nextSendShort=backend==='device'||backend==='device-small'||backend==='device-smart'||backend==='device-free'||!!customModels.find(m=>m.id===backend&&m.type==='device');
     saveState();sendMessage({preventDefault(){}});
   });
   // Image generation is phone/static and owner-only. No bridge call is made.
@@ -2774,11 +2780,18 @@ function openAddModel(){
       <option value="device">On-device model (private, no key)</option>
       <option value="cloud">Cloud provider (your own API key)</option>
     </select>
+    <label>Provider preset</label>
+    <select id="cmProvider" style="width:100%;box-sizing:border-box">
+      <option value="custom">Custom endpoint</option>
+      <option value="openai">OpenAI</option>
+      <option value="openrouter">OpenRouter</option>
+      <option value="anthropic-or">Anthropic via OpenRouter</option>
+    </select>
     <label>Display name</label><input id="cmName" placeholder="e.g. Tiny Llama / My Groq" style="width:100%;box-sizing:border-box"/>
     <div id="cmDeviceFields">
       <label>GGUF model</label>
       <input id="cmModel" value="${DEFAULT_DEVICE_MODEL}" style="width:100%;box-sizing:border-box"/>
-      <p style="margin-top:6px;font-size:11.5px">Use <code>smol2-135m</code> or <code>lfm2-350m</code>, or your own Hugging Face GGUF as <code>repo|filename.gguf</code>. Smaller models suit phones.</p>
+      <p style="margin-top:6px;font-size:11.5px">Use <code>smol2-135m</code>, <code>lfm2-350m</code> or <code>qwen3-1.7b-smart</code>, or your own Hugging Face GGUF as <code>repo|filename.gguf</code>. Bigger models are slower but stronger.</p>
     </div>
     <div id="cmCloudFields" style="display:none">
       <label>Endpoint (OpenAI-compatible /v1/chat/completions)</label>
@@ -2795,10 +2808,26 @@ function openAddModel(){
     document.getElementById('cmDeviceFields').style.display=t.value==='device'?'':'none';
     document.getElementById('cmCloudFields').style.display=t.value==='cloud'?'':'none';
   };
+  // Presets only fill the existing fields — no separate provider system. Direct
+  // Anthropic blocks browser CORS, so Claude is offered through OpenRouter.
+  const presets={
+    openai:{endpoint:'https://api.openai.com/v1/chat/completions',model:'',hint:'e.g. gpt-6.2'},
+    openrouter:{endpoint:'https://openrouter.ai/api/v1/chat/completions',model:'openai/gpt-6.2-astra',hint:'openrouter model id'},
+    'anthropic-or':{endpoint:'https://openrouter.ai/api/v1/chat/completions',model:'anthropic/claude-sonnet-5.5',hint:'openrouter anthropic model id'}
+  };
+  const psel=document.getElementById('cmProvider');
+  psel.onchange=()=>{
+    const p=presets[psel.value];
+    document.getElementById('cmType').value='cloud';t.onchange();
+    if(!p)return;
+    document.getElementById('cmEndpoint').value=p.endpoint;
+    document.getElementById('cmCloudModel').value=p.model;
+    document.getElementById('cmCloudModel').placeholder=p.hint;
+  };
   document.getElementById('cmSave').onclick=async()=>{
     const type=t.value,name=document.getElementById('cmName').value.trim();
     if(!name){showToast('Give the model a name');return}
-    const m={id:'cm_'+Math.random().toString(36).slice(2,10),name,type};
+    const m={id:'cm_'+Math.random().toString(36).slice(2,10),name,type,provider:document.getElementById('cmProvider').value};
     if(type==='device'){
       m.model=document.getElementById('cmModel').value.trim()||DEFAULT_DEVICE_MODEL;
     }else{
@@ -3011,7 +3040,7 @@ async function sendMessage(e){
   try{
     const msgs=c.messages.map(m=>({from:m.from,text:m.text}));
     let sysText=personalityPrompt(c)||'',sources=null;
-    if(webSearchOn()&&staticMode&&!guestMode&&(backend==='device'||backend==='device-small'||backend==='device-free'||(cm&&cm.type==='device'))){
+    if(webSearchOn()&&staticMode&&!guestMode&&(backend==='device'||backend==='device-small'||backend==='device-smart'||backend==='device-free'||(cm&&cm.type==='device')||(cm&&cm.type==='cloud'))){
       sources=await webSources(text);
       if(sources&&sources.items.length){
         sysText=(sysText?sysText+'\n\n':'')+'Current web sources for this question. Use them for facts that may have changed recently; say so if they do not answer the question:\n'+sources.text;
@@ -3019,13 +3048,13 @@ async function sendMessage(e){
     }
     if(sysText)msgs.unshift({from:'system',text:sysText});
     if(credSelected.length)msgs.push({from:'user',text:'[Saved credentials available by name only: '+credSelected.join(', ')+'. Never ask for their values.]'});
-    if(backend==='device'||backend==='device-small'||backend==='device-free'||(cm&&cm.type==='device')){
+    if(backend==='device'||backend==='device-small'||backend==='device-smart'||backend==='device-free'||(cm&&cm.type==='device')){
       const answer=await deviceChat(msgs,activeDeviceModel(),shortSend);
       c.messages.push({from:'bot',text:answer,note:(cm?cm.name:'On-device')+' · private'+(sources?' · '+sources.items.length+' web sources':''),sources:sources?sources.items:null});
       c.preview=answer.slice(0,40);replyText=answer;
     }else if(cm&&cm.type==='cloud'){
       const answer=await customCloudChat(cm,msgs);
-      c.messages.push({from:'bot',text:answer,note:cm.name+' · your provider'});
+      c.messages.push({from:'bot',text:answer,note:cm.name+' · your provider'+(sources?' · '+sources.items.length+' web sources':''),sources:sources?sources.items:null});
       c.preview=answer.slice(0,40);replyText=answer;
     }else{
       const r=await api('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:msgs,backend,credentials:credSelected})});
@@ -3043,7 +3072,7 @@ async function sendMessage(e){
       }
     }
   }catch(err){
-    const own=backend==='device'||backend==='device-small'||backend==='device-free'||!!cm;
+    const own=backend==='device'||backend==='device-small'||backend==='device-smart'||backend==='device-free'||!!cm;
     c.messages.push({from:'bot',text:(own?'Model error: ':'Bridge error: ')+err.message,retryable:own,
       note:own?(cm?.type==='cloud'?'Check the endpoint and key':'Try another model'):'Start the bridge from the Desktop launcher.'});
     replyText='';

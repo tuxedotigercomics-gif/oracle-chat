@@ -4,7 +4,7 @@ Run this on **Chrome, Edge or Safari on the Mac**, against the bridge-served app
 (`Oracle-Chat-Live.html` via `oracle_bridge.py`) and against
 `https://oracle-chat.pages.dev/`.
 
-Baseline SHA (live UI): `82a1ab7ddb26a3671f7b3f6cef96b023aa47ad039af88391b8af79a7a0839aaa`
+Baseline SHA (live UI): `039d48c90ef3f4a1e52d29ce1bd9947da8399eaa9ae42c35c70abeba86316554`
 Rollback: `restore-live.command`
 
 > The phone-only checklist lives in `PHONE-BROWSER-REGRESSION.md`.
@@ -38,6 +38,12 @@ Rollback: `restore-live.command`
 - [x] Host app still loads and chats through the bridge with zero console errors
 - [x] Update check code stays in the static/phone build only (no host/local effect)
 - [x] Both published sites serve the updated app and SW with matching SHAs
+
+## Smarter model options — 2026-11-23 (harness verified; live smoke pending)
+- [x] Owner Big Pickle cloud chat gets current source context for current-event questions (harness — stubbed CLI)
+- [x] Guest cloud path gets no search and no new capabilities (harness)
+- [x] No new host local model downloaded; bridge syntax and owner/guest scope unchanged (harness)
+- [x] Zero console errors on host, guest and live pages (harness; host static-harness 404 expected)
 
 ## Web search for current info — 2026-11-21 (harness verified; live smoke pending)
 - [x] Owner `search` tool returns current article titles/dates/URLs via GDELT/Wikipedia (harness — real results verified)

@@ -3,6 +3,44 @@
 Record every change here before you make it, so there is always a clear trail
 between the frozen baseline and whatever is currently in the working file.
 
+## 2026-11-23 — Smarter model options, reusing the existing search path (published and verified)
+
+Status: **published and verified** — build `2026-11-21b` → `2026-11-21c`.
+App SHA: `039d48c90ef3f4a1e52d29ce1bd9947da8399eaa9ae42c35c70abeba86316554`.
+Service worker unchanged: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`.
+
+Audit first confirmed the app already has: an OpenAI-compatible custom cloud
+model form with AES-GCM device-vault key storage; a host OpenCode Big Pickle
+cloud backend; three small GGUFs; and the GDELT/Wikipedia search added in
+`2026-11-21b`. Nothing below duplicates those systems.
+
+Shipped:
+1. Add exactly one new owner/static-only GGUF: `Qwen3-1.7B-Q4_K_M`
+   (~1.28 GB) as "Smart on-device · 1.7B". Guests and host stay unchanged.
+   Keep the existing download-confirmation and progress UI; add a Wi-Fi/size
+   warning for this larger file.
+2. Extend the existing "Add a model" dialog with provider presets for OpenAI,
+   OpenRouter and Anthropic via OpenRouter (direct Anthropic blocks browser
+   CORS — verified). No new vault, no new key handling: keys still go straight
+   into the existing encrypted device vault.
+3. Reuse `webSources()` for custom cloud models as well as device models, so
+   the same owner-only, off-by-default search setting supplies current sources
+   to every private/static chat. Show the source links under cloud answers.
+4. Bridge: pass compact GDELT/Wikipedia source context into the existing
+   Big Pickle cloud prompt for owner current-event questions. Guests get no
+   search. No new host local model: this Mac has 8 GB RAM and ~5.5 GB free.
+
+Harness verified: owner/static model list contains `device-smart` and resolves
+`qwen3-1.7b-smart`; guest keeps 2 models and host keeps 0 device models; the
+large-download warning appears; all three provider presets fill the existing
+cloud fields (OpenRouter `openai/gpt-6.2-astra`, Anthropic via OpenRouter
+`anthropic/claude-sonnet-5.5`); the saved key round-trips through the encrypted
+device vault and is sent as `Authorization: Bearer …`; web sources inject into
+custom cloud answers with links; Big Pickle cloud prompts receive the same
+source context via a stubbed bridge CLI; guests get no search; offline default
+still makes zero fetches; zero console errors apart from the expected static
+harness `/api/status` 404 on the host tab. Physical iPhone pass remains open.
+
 ## 2026-11-21 — Give the models real web search (published and verified)
 
 Status: **published and verified** — build `2026-11-21a` → `2026-11-21b`.
