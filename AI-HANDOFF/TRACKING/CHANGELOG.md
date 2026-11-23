@@ -7,6 +7,7 @@ between the frozen baseline and whatever is currently in the working file.
 
 Status: **published and verified** — build `2026-11-21b` → `2026-11-21c`.
 App SHA: `039d48c90ef3f4a1e52d29ce1bd9947da8399eaa9ae42c35c70abeba86316554`.
+Pages commit: `5bba1aa`.
 Service worker unchanged: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`.
 
 Audit first confirmed the app already has: an OpenAI-compatible custom cloud

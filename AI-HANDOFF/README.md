@@ -12,7 +12,7 @@ should be able to resume the work without access to the original Mac workspace.
 | Current app SHA (sha256) | `039d48c90ef3f4a1e52d29ce1bd9947da8399eaa9ae42c35c70abeba86316554` |
 | Service-worker SHA | `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35` |
 | Previous verified build | `2026-11-21b` (`82a1ab7ddb26a3671f7b3f6cef96b023aa47ad039af88391b8af79a7a0839aaa`) |
-| Pages commit (app build) | _see `git log` after the smarter-model publish_ |
+| Pages commit (app build) | `5bba1aa` |
 | Previous app commit | `701cc86`; handoff docs `3d720cf` |
 | Canonical site | https://oracle-chat.pages.dev/ |
 | Backup site | https://tuxedotigercomics-gif.github.io/oracle-chat/ |
