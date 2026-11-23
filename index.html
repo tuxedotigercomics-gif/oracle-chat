@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#4a9861" />
-<meta name="oracle-build" content="2026-11-21c" />
+<meta name="oracle-build" content="2026-11-21d" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Oracle" />
@@ -537,7 +537,7 @@ const MODELS=[
     {id:'device',name:'Balanced on-device · 350M',sub:'better answers — about 229 MB once'}
   ]:[]),
   ...((staticMode&&!guestMode)?[
-    {id:'device-smart',name:'Smart on-device · 1.7B',sub:'much stronger — about 1.28 GB once'},
+    {id:'device-smart',name:'Smart on-device · 1.7B',sub:'much stronger — about 1.1 GB once (3 shards)'},
     {id:'device-free',name:'Unfiltered on-device · 350M',sub:'fewer refusals — about 219 MB once'}
   ]:[]),
 ];
@@ -812,8 +812,15 @@ const GGUF_MODELS={
   'smol2-135m':{repo:'bartowski/SmolLM2-135M-Instruct-GGUF',file:'SmolLM2-135M-Instruct-Q4_K_M.gguf',name:'Tiny · 135M',size:'about 105 MB'},
   'lfm2-350m':{repo:'LiquidAI/LFM2.5-350M-GGUF',file:'LFM2.5-350M-Q4_K_M.gguf',name:'Balanced · 350M',size:'about 229 MB'},
   // One deliberately larger option for owners who want noticeably better
-  // private answers. Still a single-file GGUF under wllama's 2 GB limit.
-  'qwen3-1.7b-smart':{repo:'bartowski/Qwen_Qwen3-1.7B-GGUF',file:'Qwen_Qwen3-1.7B-Q4_K_M.gguf',name:'Smart · 1.7B',size:'about 1.28 GB'},
+  // private answers. Published as three GGUF shards so wllama fetches them in
+  // parallel: one 1.28 GB stream crawled on a phone, while 3 shards share the
+  // link. Same Qwen3 1.7B Q4_K_M weights as the single file, no quality change.
+  'qwen3-1.7b-smart':{
+    repo:'fukayatti0/Qwen3-1.7B-GGUF-split',
+    file:'Qwen3-1.7B-Q4_K_M--00001-of-00003.gguf',
+    shards:['Qwen3-1.7B-Q4_K_M--00001-of-00003.gguf','Qwen3-1.7B-Q4_K_M--00002-of-00003.gguf','Qwen3-1.7B-Q4_K_M--00003-of-00003.gguf'],
+    name:'Smart · 1.7B',size:'about 1.1 GB'
+  },
   // Abliterated finetune of the same LFM2.5 350M base — same architecture,
   // chat template and wllama runtime, with fewer refusals. Same memory budget.
   'lfm2-350m-free':{repo:'mradermacher/LFM2.5-350M-abliterated-GGUF',file:'LFM2.5-350M-abliterated.Q4_K_M.gguf',name:'Unfiltered · 350M',size:'about 219 MB'},
@@ -864,7 +871,11 @@ function setDeviceStatus(s,pct){
 // Remember the owner's go-ahead across refreshes. This flag only suppresses the
 // one-time confirmation; wllama itself saves the GGUF in OPFS on the device.
 let deviceOk=localStorage.getItem('oracle.device.ok')==='1';
-function hfModelUrl(spec){return 'https://huggingface.co/'+spec.repo+'/resolve/main/'+spec.file}
+// Every shard of a split model is a separate OPFS entry in wllama, so the saved
+// check and the loader use the full list. The first URL is still the model's
+// identity: wllama expands its -00001-of-00003.gguf name into all shards itself.
+function hfModelUrls(spec){return (spec.shards||[spec.file]).map(f=>'https://huggingface.co/'+spec.repo+'/resolve/main/'+f)}
+function hfModelUrl(spec){return hfModelUrls(spec)[0]}
 function deviceSavedKey(modelId){return 'oracle.model.saved.'+modelId}
 function deviceSaved(modelId,spec){
   try{
@@ -880,21 +891,28 @@ function clearDeviceSaved(modelId){try{localStorage.removeItem(deviceSavedKey(mo
 // exact key is the resolve URL stored in metadata.originalURL. The Cache API is
 // only a legacy fallback; it is not where these model files live.
 async function deviceCacheInfo(w,spec,modelId){
-  const url=hfModelUrl(spec);
+  const urls=hfModelUrls(spec), url=urls[0];
   let known=false,size=0,checked=false;
   try{
     if(w&&w.cacheManager&&typeof w.cacheManager.list==='function'){
       const list=await w.cacheManager.list()||[];checked=true;
+      // wllama stores one OPFS entry per shard, each keyed by its own URL.
+      // A split model is only "saved" once every shard is present.
+      const found=new Set();
       for(const e of list){
-        if(e&&e.metadata&&e.metadata.originalURL===url){known=true;size+=Number(e.size)||0}
+        const u=e&&e.metadata&&e.metadata.originalURL;
+        if(urls.indexOf(u)>=0&&!found.has(u)){found.add(u);size+=Number(e.size)||0}
       }
+      known=urls.every(u=>found.has(u));
     }
   }catch(e){}
   if(!known){
     try{
       for(const n of await caches.keys()){
         const c=await caches.open(n);
-        if(await c.match(url)){known=true;break}
+        let all=true;
+        for(const u of urls)if(!await c.match(u)){all=false;break}
+        if(all){known=true;break}
       }
     }catch(e){}
   }
@@ -936,7 +954,10 @@ async function loadDeviceModel(modelId){
   deviceLoads[modelId]=(async()=>{
     try{
       const {Wllama}=await import(WLLAMA_JS);
-      const w=new Wllama({default:WLLAMA_WASM});
+      // Split models (Smart 1.7B) have 3 shards; let wllama fetch them all at
+      // once instead of one slow single-file stream. Single-file models use one
+      // worker, so this is harmless for Tiny / Balanced / Unfiltered.
+      const w=new Wllama({default:WLLAMA_WASM},{parallelDownloads:3});
       // Ask only when the weights are genuinely missing. A saved model loads
       // silently after a refresh, in a new room, and with no network at all.
       const info=await deviceCacheInfo(w,spec,modelId);
