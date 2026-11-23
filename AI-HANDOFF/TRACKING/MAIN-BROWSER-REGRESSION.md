@@ -4,7 +4,7 @@ Run this on **Chrome, Edge or Safari on the Mac**, against the bridge-served app
 (`Oracle-Chat-Live.html` via `oracle_bridge.py`) and against
 `https://oracle-chat.pages.dev/`.
 
-Baseline SHA (live UI): `039d48c90ef3f4a1e52d29ce1bd9947da8399eaa9ae42c35c70abeba86316554`
+Baseline SHA (live UI): `e905eed6c99c47e58930258bbce53c54e8544a9f6d578e5809f3d97f1365820a`
 Rollback: `restore-live.command`
 
 > The phone-only checklist lives in `PHONE-BROWSER-REGRESSION.md`.
@@ -38,6 +38,12 @@ Rollback: `restore-live.command`
 - [x] Host app still loads and chats through the bridge with zero console errors
 - [x] Update check code stays in the static/phone build only (no host/local effect)
 - [x] Both published sites serve the updated app and SW with matching SHAs
+
+## Parallel Smart-model download — 2026-11-23 (harness + live verified; device pass open)
+- [x] Smart 1.7B resolves to the 3-shard repo and wllama issues 3 concurrent shard fetches (harness — real wllama parse + config verified)
+- [x] Saved-model detection still recognises a completed shard download after refresh and offline (harness)
+- [x] Guest keeps 2 models and host keeps 0 device models; no new network path for guests (harness + live)
+- [x] Build marker bumps to 2026-11-21d; service worker unchanged; zero console errors (harness + live)
 
 ## Smarter model options — 2026-11-23 (harness verified; live smoke pending)
 - [x] Owner Big Pickle cloud chat gets current source context for current-event questions (harness — stubbed CLI)

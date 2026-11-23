@@ -3,6 +3,49 @@
 Record every change here before you make it, so there is always a clear trail
 between the frozen baseline and whatever is currently in the working file.
 
+## 2026-11-23 — Parallel shard download for the Smart model (published and verified)
+
+Status: **published and verified** — build `2026-11-21c` → `2026-11-21d`.
+App SHA: `e905eed6c99c47e58930258bbce53c54e8544a9f6d578e5809f3d97f1365820a`.
+Pages commit: `c50ded8`.
+Service worker unchanged: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`.
+
+Problem: the owner reported the 1.7B Smart model downloading at about 1 MB/s on
+gigabit Wi-Fi. The Mac-side CDN measured ~16 MB/s on the same file, so the host
+is fast; wllama fetches a single-file GGUF over one stream, and the phone's
+single TLS/OPFS write path is the likely bottleneck.
+
+Ship:
+1. Point `qwen3-1.7b-smart` at the pre-sharded
+   `fukayatti0/Qwen3-1.7B-GGUF-split` Q4_K_M repo (3 GGUF shards: 487 + 485 +
+   85 MiB, ~1.1 GB total). Verified the same Qwen3 1.7B architecture and Q4_K_M
+   quantization, valid GGUF v3 headers, and `access-control-allow-origin: *`.
+   wllama expands the `-00001-of-00003.gguf` filename pattern and fetches all
+   three shards concurrently (default `parallelDownloads: 3`), so the same smart
+   model downloads in parallel instead of one stream. No quality change.
+2. Teach the saved-model / cache check about shards, so a completed download is
+   still recognised after refresh, in a new room and offline — no repeat prompt,
+   no repeat download. Keep the Wi-Fi/size warning.
+3. Bump the build marker to `2026-11-21d`. Service worker unchanged: the existing
+   build-marker check detects an HTML-only change.
+
+Shipped in build `2026-11-21d`: the Smart 1.7B option now downloads three GGUF
+shards in parallel through wllama instead of one slow 1.28 GB stream. The saved
+check now treats a split model as saved only when all three shards are present,
+so reuse after refresh / new room / offline stays silent and free. The model
+menu and Wi-Fi warning show the new ~1.1 GB size. Everything else is unchanged.
+
+Harness verified: all three shard URLs return HTTP 206 with GGUF v3 magic and
+CORS `*` from the page origin; the real wllama 3.6.1 library expands the first
+URL into exactly those three shards with `parallelDownloads: 3`; a fake OPFS
+listing with all shards is recognised as saved and one missing shard is not;
+single-file models still resolve as before; `backend='device-smart'` still
+resolves `qwen3-1.7b-smart`; owner keeps 4 device models, guest keeps 2, host
+keeps 0; `webSources()` is `null` with zero fetches by default; zero console
+errors on all harness tabs (host `/api/status` 404 on the static harness server
+is expected). Both live sites and all three smoke-test pages served the new SHA
+and build marker with zero console errors. Physical iPhone pass stays open.
+
 ## 2026-11-23 — Smarter model options, reusing the existing search path (published and verified)
 
 Status: **published and verified** — build `2026-11-21b` → `2026-11-21c`.

@@ -4,7 +4,7 @@ Run this at **320 / 360 / 390 / 430 px** on the real iPhone in Safari, and in
 an emulated iPhone viewport against `https://oracle-chat.pages.dev/`.
 The backup host is `https://tuxedotigercomics-gif.github.io/oracle-chat/`.
 
-Baseline SHA (live UI): `039d48c90ef3f4a1e52d29ce1bd9947da8399eaa9ae42c35c70abeba86316554`
+Baseline SHA (live UI): `e905eed6c99c47e58930258bbce53c54e8544a9f6d578e5809f3d97f1365820a`
 Service-worker SHA: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`
 Rollback: `restore-live.command`
 
@@ -35,6 +35,13 @@ Rollback: `restore-live.command`
 - [x] No reload loop; typed draft survives the reload and the guard caps reloads
 - [ ] First-install no-reload guard and offline shell/model with the network blocked — needs the physical phone
 - [ ] Zero console errors across update, reload, send and offline reuse — offline pass still open
+
+## Parallel Smart-model download — 2026-11-23 (harness verified; device pass open)
+- [ ] Smart 1.7B downloads as 3 parallel shards and the progress bar advances to 100% (harness confirms 3 URLs + 3-way config; physical iPhone pending)
+- [ ] A completed shard download is recognised after refresh / new room / offline — no repeat prompt or download (harness confirms saved detection; physical iPhone pending)
+- [x] Wi-Fi/size warning still appears for the ~1.1 GB download (harness + live — spec size and menu text updated)
+- [x] Tiny / Balanced / Unfiltered models still download and load as a single file (harness)
+- [ ] Chat and voice still work and offline reuse still works with no network (physical iPhone pending)
 
 ## Smarter model options — 2026-11-23 (harness verified; device pass open)
 - [x] Smart 1.7B GGUF is owner/static only; guest and host model lists unchanged (harness)
