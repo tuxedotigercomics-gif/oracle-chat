@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#4a9861" />
-<meta name="oracle-build" content="2026-11-21d" />
+<meta name="oracle-build" content="2026-11-21e" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Oracle" />
@@ -537,7 +537,7 @@ const MODELS=[
     {id:'device',name:'Balanced on-device · 350M',sub:'better answers — about 229 MB once'}
   ]:[]),
   ...((staticMode&&!guestMode)?[
-    {id:'device-smart',name:'Smart on-device · 1.7B',sub:'much stronger — about 1.1 GB once (3 shards)'},
+    {id:'device-smart',name:'Smart on-device · 0.6B',sub:'much stronger — about 462 MB once'},
     {id:'device-free',name:'Unfiltered on-device · 350M',sub:'fewer refusals — about 219 MB once'}
   ]:[]),
 ];
@@ -811,23 +811,18 @@ function drTick(){
 const GGUF_MODELS={
   'smol2-135m':{repo:'bartowski/SmolLM2-135M-Instruct-GGUF',file:'SmolLM2-135M-Instruct-Q4_K_M.gguf',name:'Tiny · 135M',size:'about 105 MB'},
   'lfm2-350m':{repo:'LiquidAI/LFM2.5-350M-GGUF',file:'LFM2.5-350M-Q4_K_M.gguf',name:'Balanced · 350M',size:'about 229 MB'},
-  // One deliberately larger option for owners who want noticeably better
-  // private answers. Published as three GGUF shards so wllama fetches them in
-  // parallel: one 1.28 GB stream crawled on a phone, while 3 shards share the
-  // link. Same Qwen3 1.7B Q4_K_M weights as the single file, no quality change.
-  'qwen3-1.7b-smart':{
-    repo:'fukayatti0/Qwen3-1.7B-GGUF-split',
-    file:'Qwen3-1.7B-Q4_K_M--00001-of-00003.gguf',
-    shards:['Qwen3-1.7B-Q4_K_M--00001-of-00003.gguf','Qwen3-1.7B-Q4_K_M--00002-of-00003.gguf','Qwen3-1.7B-Q4_K_M--00003-of-00003.gguf'],
-    name:'Smart · 1.7B',size:'about 1.1 GB'
-  },
+  // A stronger private option that still fits an iPhone browser. The 1.7B Q4
+  // build downloaded in 3 parallel shards but could not finish initializing on
+  // a phone (1.1 GB weights + ~235 MB KV cache). Same Qwen3 family at 0.6B Q4:
+  // clearly better than 350M, small enough to load and answer reliably.
+  'qwen3-0.6b-smart':{repo:'bartowski/Qwen_Qwen3-0.6B-GGUF',file:'Qwen_Qwen3-0.6B-Q4_K_M.gguf',name:'Smart · 0.6B',size:'about 462 MB'},
   // Abliterated finetune of the same LFM2.5 350M base — same architecture,
   // chat template and wllama runtime, with fewer refusals. Same memory budget.
   'lfm2-350m-free':{repo:'mradermacher/LFM2.5-350M-abliterated-GGUF',file:'LFM2.5-350M-abliterated.Q4_K_M.gguf',name:'Unfiltered · 350M',size:'about 219 MB'},
 };
 const DEFAULT_DEVICE_MODEL='lfm2-350m';
 const SMALL_DEVICE_MODEL='smol2-135m';
-const SMART_DEVICE_MODEL='qwen3-1.7b-smart';
+const SMART_DEVICE_MODEL='qwen3-0.6b-smart';
 const FREE_DEVICE_MODEL='lfm2-350m-free';
 const PHONE=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 function ggufSpec(id){
@@ -843,6 +838,13 @@ function deviceModelStatus(){
   return {title:'Prepare private model now',sub:'Download once, then it stays on this device'};
 }
 const devicePipes={}, deviceLoads={};
+// The byte counter can reach its total while wllama is still preparing the
+// model. Say so instead of freezing on a misleading 99%.
+function deviceSavingText(spec,loaded,total){
+  if(total&&loaded>=total)return 'Downloaded — preparing '+spec.name+' on this device…';
+  const pct=Math.min(99,Math.round(loaded/total*100));
+  return 'Saving '+spec.name+' on this device — '+pct+'% ('+Math.round(loaded/1048576)+' / '+Math.round(total/1048576)+' MB)';
+}
 // Update the progress text in place. A full render() here destroys the input
 // and closes the phone keyboard, which makes a slow first load look like a
 // page reset.
@@ -954,9 +956,8 @@ async function loadDeviceModel(modelId){
   deviceLoads[modelId]=(async()=>{
     try{
       const {Wllama}=await import(WLLAMA_JS);
-      // Split models (Smart 1.7B) have 3 shards; let wllama fetch them all at
-      // once instead of one slow single-file stream. Single-file models use one
-      // worker, so this is harmless for Tiny / Balanced / Unfiltered.
+      // Allow parallel shard downloads if a model is ever published as shards.
+      // Every current model is a single file, which uses one worker.
       const w=new Wllama({default:WLLAMA_WASM},{parallelDownloads:3});
       // Ask only when the weights are genuinely missing. A saved model loads
       // silently after a refresh, in a new room, and with no network at all.
@@ -971,7 +972,7 @@ async function loadDeviceModel(modelId){
       const opts={n_ctx:DEVICE_CTX,progressCallback:({loaded,total})=>{
         if(onDevice||!total)return;
         const pct=Math.min(99,Math.round(loaded/total*100));
-        setDeviceStatus('Saving '+spec.name+' on this device — '+pct+'% ('+Math.round(loaded/1048576)+' / '+Math.round(total/1048576)+' MB)',pct);
+        setDeviceStatus(deviceSavingText(spec,loaded,total),pct);
       }};
       // The direct URL skips the Hugging Face repo API call, so a saved model
       // opens from OPFS even offline. Older wllama builds fall back to loadModelFromHF.
@@ -2812,7 +2813,7 @@ function openAddModel(){
     <div id="cmDeviceFields">
       <label>GGUF model</label>
       <input id="cmModel" value="${DEFAULT_DEVICE_MODEL}" style="width:100%;box-sizing:border-box"/>
-      <p style="margin-top:6px;font-size:11.5px">Use <code>smol2-135m</code>, <code>lfm2-350m</code> or <code>qwen3-1.7b-smart</code>, or your own Hugging Face GGUF as <code>repo|filename.gguf</code>. Bigger models are slower but stronger.</p>
+      <p style="margin-top:6px;font-size:11.5px">Use <code>smol2-135m</code>, <code>lfm2-350m</code> or <code>qwen3-0.6b-smart</code>, or your own Hugging Face GGUF as <code>repo|filename.gguf</code>. Bigger models are slower but stronger.</p>
     </div>
     <div id="cmCloudFields" style="display:none">
       <label>Endpoint (OpenAI-compatible /v1/chat/completions)</label>
