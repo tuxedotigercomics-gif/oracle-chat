@@ -79,13 +79,13 @@ shasum -a 256 baseline/Oracle-Chat-Live.html      # active live UI
 If a hash differs from the one above, the baseline was modified — restore
 from your own backup before trusting it.
 
-## Active live baseline (re-frozen 2026-11-23)
+## Active live baseline (re-frozen 2026-11-23, build 2026-11-21e)
 
 The live UI is now the working app (served by `oracle_bridge.py`). It has its
 own known-good snapshot:
 
 - **File:** `baseline/Oracle-Chat-Live.html`
-- **SHA-256:** `e905eed6c99c47e58930258bbce53c54e8544a9f6d578e5809f3d97f1365820a`
+- **SHA-256:** `87a4c7e05ca267e55e24c43ec9a476abfa89acfa5ba36152b4d83083bf165ac1`
 - Roll back with `restore-live.command` (keeps a `.broken` backup).
 
 The original offline mockup baseline and its SHA-256 are preserved unchanged

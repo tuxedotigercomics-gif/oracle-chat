@@ -73,22 +73,24 @@ history.
 - `/api/status` is bridge-only and hardened: owner keeps full mode/scope; guest
   receives only `{"mode":"guest — chat only"}`.
 
-### Smarter model options (added in `2026-11-21c`, sharded in `2026-11-21d`)
+### Smarter model options (added in `2026-11-21c`, resized in `2026-11-21e`)
 
-- Exactly one larger private GGUF was added: `qwen3-1.7b-smart`. It is
-  owner/static only. Guests still see 2 device models; host sees 0. Do not add
-  a second similar GGUF without a measured reason.
-- Since `2026-11-21d`, Smart uses the pre-sharded
-  `fukayatti0/Qwen3-1.7B-GGUF-split` Q4_K_M repo: three GGUF files
-  (`--00001-of-00003` … `--00003-of-00003`, 487 + 485 + 85 MiB, ~1.1 GB total).
-  Same Qwen3 1.7B Q4_K_M weights, no quality change. wllama expands the first
-  URL into all three shards and fetches them concurrently with
-  `parallelDownloads: 3`. Do not go back to the single 1.28 GB file: the phone
-  downloaded it at about 1 MB/s on gigabit Wi-Fi while the CDN did 16 MB/s.
-- The saved-model check treats a split model as saved only when all shards are
-  in OPFS, so reuse after refresh / new room / offline stays silent.
-- The existing download-confirmation UI adds a Wi-Fi/size warning for GB files.
-  The one-time flag, OPFS caching and progress bar are unchanged.
+- Exactly one larger private GGUF is offered: `qwen3-0.6b-smart`
+  (`bartowski/Qwen_Qwen3-0.6B-GGUF`, `Qwen_Qwen3-0.6B-Q4_K_M.gguf`, ~462 MiB).
+  It is owner/static only. Guests still see 2 device models; host sees 0. Do not
+  add a second similar GGUF without a measured reason.
+- **Do not put Qwen3 1.7B back on the phone.** In `2026-11-21d` it was tried as
+  three parallel shards (~1.1 GB): the download finished but llama.cpp never
+  finished initializing on the owner's iPhone, even when reloading the saved
+  shards. The page stayed responsive. 1.1 GB of weights plus ~235 MB of KV cache
+  is over a phone's practical budget. The earlier single-file 1.28 GB version
+  also downloaded at about 1 MB/s while the CDN did 16 MB/s.
+- The shard-aware saved-model code remains (all shards required before a split
+  model counts as saved), but every current model is a single file.
+- The download-confirmation UI adds a Wi-Fi/size warning for GB files. At byte
+  completion the text changes to "Downloaded — preparing … on this device…"
+  instead of freezing at 99%. The one-time flag, OPFS caching and progress bar
+  are unchanged.
 - Cloud provider presets only fill the **existing** Add a model fields. Keys
   still go directly into the AES-GCM device vault; no new key system.
 - Direct Anthropic API blocks browser CORS, so Claude is offered via OpenRouter

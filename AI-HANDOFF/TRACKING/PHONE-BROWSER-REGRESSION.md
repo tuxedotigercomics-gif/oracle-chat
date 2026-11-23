@@ -4,7 +4,7 @@ Run this at **320 / 360 / 390 / 430 px** on the real iPhone in Safari, and in
 an emulated iPhone viewport against `https://oracle-chat.pages.dev/`.
 The backup host is `https://tuxedotigercomics-gif.github.io/oracle-chat/`.
 
-Baseline SHA (live UI): `e905eed6c99c47e58930258bbce53c54e8544a9f6d578e5809f3d97f1365820a`
+Baseline SHA (live UI): `87a4c7e05ca267e55e24c43ec9a476abfa89acfa5ba36152b4d83083bf165ac1`
 Service-worker SHA: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`
 Rollback: `restore-live.command`
 
@@ -35,6 +35,13 @@ Rollback: `restore-live.command`
 - [x] No reload loop; typed draft survives the reload and the guard caps reloads
 - [ ] First-install no-reload guard and offline shell/model with the network blocked — needs the physical phone
 - [ ] Zero console errors across update, reload, send and offline reuse — offline pass still open
+
+## Phone-sized Smart model — 2026-11-23 (harness verified; device pass open)
+- [ ] Smart 0.6B downloads and the progress text changes to "Downloaded — preparing…" at 462/462 MB (harness done; physical iPhone pending)
+- [ ] Smart 0.6B finishes initializing and answers a real question on the iPhone (physical iPhone pending)
+- [ ] Reopening the app loads the saved 0.6B from OPFS silently and works offline (physical iPhone pending)
+- [x] Tiny / Balanced / Unfiltered models are unchanged (harness)
+- [x] No new network path for guests; zero console errors (harness + live)
 
 ## Parallel Smart-model download — 2026-11-23 (harness verified; device pass open)
 - [ ] Smart 1.7B downloads as 3 parallel shards and the progress bar advances to 100% (harness confirms 3 URLs + 3-way config; physical iPhone pending)

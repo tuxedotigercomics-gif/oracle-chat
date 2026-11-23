@@ -3,6 +3,52 @@
 Record every change here before you make it, so there is always a clear trail
 between the frozen baseline and whatever is currently in the working file.
 
+## 2026-11-23 — Phone-sized Smart model and honest progress text (published and verified)
+
+Status: **published and verified** — build `2026-11-21d` → `2026-11-21e`.
+App SHA: `87a4c7e05ca267e55e24c43ec9a476abfa89acfa5ba36152b4d83083bf165ac1`.
+Pages commit: `861af4b`.
+Service worker unchanged: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`.
+
+Observed on the physical iPhone with `2026-11-21d`: all three shards downloaded
+(`1056 / 1056 MB`) but wllama never finished initializing the 1.7B model. The
+page stayed responsive, the shards were recognised as saved on reopen, and
+"Loading saved Smart…" still did not settle. The 1.1 GB of weights plus ~235 MB
+of KV cache is over this phone's practical budget. The 99% display was also
+misleading: the app hard-caps the percentage at 99, so a finished download at
+`1056 / 1056 MB` still read "Saving … 99%".
+
+Ship:
+1. Replace `qwen3-1.7b-smart` with `Qwen3-0.6B-Q4_K_M` from
+   `bartowski/Qwen_Qwen3-0.6B-GGUF` (~462 MiB, single file, same Qwen3
+   architecture and wllama runtime). Keep the `device-smart` id and owner/static
+   only scope; guests keep 2 device models and host keeps 0. Verified the file
+   returns HTTP 206 with GGUF v3 magic.
+2. Show "Downloaded — preparing <model> on this device…" when the byte counter
+   reaches the total, instead of a frozen 99%. Extract the text into a small
+   helper so the harness can assert both states.
+3. Leave the shard-aware saved-model code in place — it is harmless for a
+   single-file spec and keeps the option open for a future sharded model.
+4. Bump the build marker to `2026-11-21e`. Service worker unchanged.
+
+Shipped in build `2026-11-21e`: Smart on-device is now Qwen3 0.6B Q4 (462 MiB)
+instead of Qwen3 1.7B. It keeps the `device-smart` id and owner/static-only scope
+and uses the same wllama runtime, but fits an iPhone's memory budget. The first
+download is a single stream again, so slower per MB than the three-shard 1.7B,
+but there is 2.3x less data and the model actually finishes loading. The byte
+counter now switches to "Downloaded — preparing … on this device…" at completion
+instead of freezing on 99%. The shard-aware cache code remains for future models.
+
+Harness verified: the new spec, single URL and 462 MB menu text; `device-smart`
+resolves `qwen3-0.6b-smart`; both progress strings (including the completion
+message); shard-aware saved detection still returns true only with every shard;
+owner 4 models / guest 2 / host 0; `webSources()` null with zero fetches; the new
+model URL returns HTTP 206 with GGUF v3 magic and CORS from the page origin;
+zero console errors on all harness tabs (host `/api/status` 404 on the static
+harness server is expected). Both live sites and all three smoke-test pages
+served the new SHA and build marker with zero console errors. Physical iPhone
+pass remains open.
+
 ## 2026-11-23 — Parallel shard download for the Smart model (published and verified)
 
 Status: **published and verified** — build `2026-11-21c` → `2026-11-21d`.

@@ -8,27 +8,28 @@ should be able to resume the work without access to the original Mac workspace.
 
 | Item | Value |
 |---|---|
-| Current build marker | `2026-11-21d` |
-| Current app SHA (sha256) | `e905eed6c99c47e58930258bbce53c54e8544a9f6d578e5809f3d97f1365820a` |
+| Current build marker | `2026-11-21e` |
+| Current app SHA (sha256) | `87a4c7e05ca267e55e24c43ec9a476abfa89acfa5ba36152b4d83083bf165ac1` |
 | Service-worker SHA | `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35` |
-| Previous verified build | `2026-11-21c` (`039d48c90ef3f4a1e52d29ce1bd9947da8399eaa9ae42c35c70abeba86316554`) |
-| Pages commit (app build) | `c50ded8` |
-| Previous app commit | `5bba1aa`; handoff docs `3d720cf` |
+| Previous verified build | `2026-11-21d` (`e905eed6c99c47e58930258bbce53c54e8544a9f6d578e5809f3d97f1365820a`) |
+| Pages commit (app build) | `861af4b` |
+| Previous app commit | `c50ded8`; handoff docs `49472b4` |
 | Canonical site | https://oracle-chat.pages.dev/ |
 | Backup site | https://tuxedotigercomics-gif.github.io/oracle-chat/ |
 | Repo | `tuxedotigercomics-gif/oracle-chat` (this repository) |
-| Last fully verified build | `2026-11-21d` (harness + both live sites, zero console errors) |
+| Last fully verified build | `2026-11-21e` (harness + both live sites, zero console errors) |
 
 ## Open items
 
-1. **Physical iPhone confirmation** of build `2026-11-21d`: tap the sparkle
+1. **Physical iPhone confirmation** of build `2026-11-21e`: tap the sparkle
    button, confirm the "Images aren't available on iPhone" message appears and
    the white flash is gone; confirm chat and voice still work. In Profile →
    Web search, turn search on and set your city, then ask what is happening
-   tomorrow and confirm source links appear. Select Smart on-device 1.7B and
-   confirm the ~1.1 GB download warning, that the three shards download
-   noticeably faster than the old single 1.28 GB file, progress reaches 100%,
-   and the model reloads offline without a second download.
+   tomorrow and confirm source links appear. Select Smart on-device 0.6B and
+   confirm the ~462 MB download, that the text changes to
+   "Downloaded — preparing Smart · 0.6B on this device…" when the bytes finish,
+   that the model actually answers a question, and that reopening the app loads
+   the saved model silently and works offline.
 2. **Intermittent iPhone chat `Model error:`** — unresolved. The exact error
    text was never captured. Do not guess at a fix; get the exact message first.
 3. Host web search was added in `2026-11-21b`; the physical-device pass for the
