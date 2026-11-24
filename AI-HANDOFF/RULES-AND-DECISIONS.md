@@ -21,6 +21,13 @@ every change. When in doubt, choose the more private/local option.
 - Office remains read-only/frozen unless explicitly approved after review.
 - The local/private chat model stays saved on the device with no repeat
   download, and the download progress bar stays.
+- On-device models on iPhone require cross-origin isolation because the wllama
+  compat WASM imports shared memory. Keep `oracle-pages/_headers` sending
+  `Cross-Origin-Opener-Policy: same-origin` and
+  `Cross-Origin-Embedder-Policy: require-corp` on the canonical Cloudflare Pages
+  site. GitHub Pages cannot send headers, so the backup remains web/chat-only
+  and must show the clear "use canonical" message rather than an abort. Do not
+  remove COOP/COEP to fix an unrelated issue.
 - Installed Home Screen apps pick up updates automatically.
 - About/Update status stays local, guest-safe and free of host credentials/tools.
 - No continuous iPhone live video. Host camera is phased: still-image answer
@@ -116,6 +123,12 @@ history.
   `needCompat()` selects its Asyncify/compat WASM build, and call
   `setCompat('default','firefox_safari')`. Desktop passes the probe and keeps
   the faster default build — no globals changed, no extra requests.
+- The compat WASM imports a shared memory (import flags `0x3`, initial 2048 /
+  max 65536 pages). WebKit permits shared memory only in a cross-origin-isolated
+  document. Build `2026-11-21i` keeps COOP/COEP on the canonical Pages site and
+  fails early with a "use canonical" message where isolation is unavailable.
+  A bare `Model error:(ABORT)` during load means isolation is missing, not that
+  the model file is bad.
 - Do not go back to swapping model sizes to fix a load hang. 1.7B, 0.6B and
   350M all hung identically; the build selection was the cause. The service
   worker's existing jsdelivr rule caches the compat assets after first load.

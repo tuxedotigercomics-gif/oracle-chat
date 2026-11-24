@@ -4,7 +4,7 @@ Run this on **Chrome, Edge or Safari on the Mac**, against the bridge-served app
 (`Oracle-Chat-Live.html` via `oracle_bridge.py`) and against
 `https://oracle-chat.pages.dev/`.
 
-Baseline SHA (live UI): `04198568b1cdc6b47c5a062a87ad6cfa3799a0146cab654072322c7697420776`
+Baseline SHA (live UI): `95bb49c83bebf4a8f4fc13fbb1ba3f1a44c7a54a0f529756324a927fdfe1bed8`
 Rollback: `restore-live.command`
 
 > The phone-only checklist lives in `PHONE-BROWSER-REGRESSION.md`.
@@ -38,6 +38,12 @@ Rollback: `restore-live.command`
 - [x] Host app still loads and chats through the bridge with zero console errors
 - [x] Update check code stays in the static/phone build only (no host/local effect)
 - [x] Both published sites serve the updated app and SW with matching SHAs
+
+## Cross-origin isolation for compat WASM — 2026-11-23 (harness + live verified; device pass open)
+- [x] `_headers` sends COOP/COEP on canonical; `crossOriginIsolated` true (live)
+- [x] jsDelivr/ORT/transformers and CORS fetches still load with zero console errors (harness + live)
+- [x] Non-isolated phone builds fail early with a clear message, not `(ABORT)` (harness)
+- [x] Abort errors keep their decoded stack for diagnosis; bridge/vault/scope unchanged; build 2026-11-21i (harness + live)
 
 ## Internet context for every model — 2026-11-23 (harness + live verified; device pass open)
 - [x] Host backends receive web sources in the system message (harness — local, local-deep, auto, cloud)

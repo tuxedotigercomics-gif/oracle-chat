@@ -3,6 +3,58 @@
 Record every change here before you make it, so there is always a clear trail
 between the frozen baseline and whatever is currently in the working file.
 
+## 2026-11-23 — Cross-origin isolation for wllama compat on iPhone (published and verified)
+
+Status: **published and verified** — build `2026-11-21h` → `2026-11-21i`.
+App SHA: `95bb49c83bebf4a8f4fc13fbb1ba3f1a44c7a54a0f529756324a927fdfe1bed8`.
+Pages commit: `c708893`.
+Service worker unchanged: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`.
+Bridge unchanged: `4166484c20c2d19b9a21d8f02b0b7f57445abeaf291ddb078307be51d82973db`.
+
+On the physical iPhone, build `2026-11-21h` moved past the silent hang but the
+Smart 0.6B load now ends in `Model error:(ABORT)`. The compat WASM that the
+earlier fix selects imports a **shared** WebAssembly memory (import flags `0x3`,
+initial 2048 / max 65536 pages). WebKit only allows shared memory in a
+cross-origin-isolated document, and headers check shows neither live host sends
+`Cross-Origin-Opener-Policy` or `Cross-Origin-Embedder-Policy`. So the compat
+module cannot instantiate and Emscripten aborts before the GGUF is read.
+
+Intended change:
+
+1. Add `oracle-pages/_headers` with `Cross-Origin-Opener-Policy: same-origin`
+   and `Cross-Origin-Embedder-Policy: require-corp` for all paths. Cloudflare
+   Pages honours this; GitHub Pages ignores `_headers`, so the canonical site is
+   the iPhone-capable host.
+2. Keep the memory64 probe / forced compat selection from `2026-11-21f`.
+   Before loading on a phone where compat was forced, require
+   `self.crossOriginIsolated`; otherwise fail early with a clear message that
+   points to the canonical site instead of showing `(ABORT)`.
+3. Keep the existing CDN assets: jsDelivr sends `cross-origin-resource-policy:
+   cross-origin` and CORS headers, so module imports/WASM still work under
+   `require-corp`. HF, GDELT and Wikipedia are fetched with CORS.
+4. Bump the build marker to `2026-11-21i`.
+
+Shipped in build `2026-11-21i`: Cloudflare Pages now sends COOP `same-origin`
+and COEP `require-corp` for every path, so `self.crossOriginIsolated` is true
+and the compat WASM's shared memory import can instantiate on iPhone. The
+existing memory64 probe / compat selection is unchanged. On a phone-like build
+that is **not** isolated (the GitHub Pages backup), model loading now fails
+immediately with "On-device models need the main Oracle Chat site on iPhone…"
+instead of wllama's bare `(ABORT)`. Wllama abort errors now keep the decoded
+stack (first 360 chars) so future failures are diagnosable. No model, vault,
+bridge or guest/host scope changes.
+
+Harness verified: forced-phone build under COOP/COEP reported
+`crossOriginIsolated:true`; the broken-probe simulation still hid JSPI and
+called `setCompat('default','firefox_safari')`; a real 260K GGUF loaded through
+the compat WASM and produced a completion with zero console errors. On the
+non-isolated harness, the same path threw the clear canonical-site message with
+no download. Owner/guest/host model lists stayed at 4 device / 2 device /
+4 host backends with zero console errors. Live: both sites serve the new app SHA and unchanged
+worker; canonical returns both isolation headers and reports COI true; backup
+reports COI false as expected; zero console errors on owner, guest and backup.
+Physical iPhone pass remains open.
+
 ## 2026-11-23 — Internet context for every model and user (published and verified)
 
 Status: **published and verified** — build `2026-11-21g` → `2026-11-21h`.

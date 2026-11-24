@@ -8,22 +8,23 @@ should be able to resume the work without access to the original Mac workspace.
 
 | Item | Value |
 |---|---|
-| Current build marker | `2026-11-21h` |
-| Current app SHA (sha256) | `04198568b1cdc6b47c5a062a87ad6cfa3799a0146cab654072322c7697420776` |
+| Current build marker | `2026-11-21i` |
+| Current app SHA (sha256) | `95bb49c83bebf4a8f4fc13fbb1ba3f1a44c7a54a0f529756324a927fdfe1bed8` |
 | Service-worker SHA | `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35` |
-| Previous verified build | `2026-11-21g` (`9cc5d5cd5d3eb02d1378d3b51f8f7b219c069a593db505117acb991453fdefa3`) |
-| Pages commit (app build) | `df46582` |
-| Previous app commit | `5f86cd4`; handoff docs `2af5a82` |
-| Canonical site | https://oracle-chat.pages.dev/ |
-| Backup site | https://tuxedotigercomics-gif.github.io/oracle-chat/ |
+| Previous verified build | `2026-11-21h` (`04198568b1cdc6b47c5a062a87ad6cfa3799a0146cab654072322c7697420776`) |
+| Pages commit (app build) | `c708893` |
+| Previous app commit | `df46582`; handoff docs `26023bf` |
+| Canonical site | https://oracle-chat.pages.dev/ (cross-origin isolated) |
+| Backup site | https://tuxedotigercomics-gif.github.io/oracle-chat/ (no COOP/COEP; on-device models show a clear "use canonical" message) |
 | Repo | `tuxedotigercomics-gif/oracle-chat` (this repository) |
-| Last fully verified build | `2026-11-21h` (harness + both live sites, zero console errors) |
+| Last fully verified build | `2026-11-21i` (harness + both live sites, zero console errors) |
 
 ## Open items
 
-1. **Physical iPhone confirmation** of build `2026-11-21h`. Every model now gets
-   public web context whenever the device is online — owner, guest and host.
-   Ask a current/local question and confirm source links appear under the
+1. **Physical iPhone confirmation** of build `2026-11-21i`. Use the canonical
+   site — it now sends COOP/COEP, which the compat WASM's shared memory needs.
+   Every model still gets public web context whenever the device is online —
+   owner, guest and host. Ask a current/local question and confirm source links appear under the
    answer. Going offline, or switching Web search off in Profile, still gives a
    fully local answer with zero fetches. Build `2026-11-21e`
    revealed that the on-device model hang was not about model size: both 0.6B
@@ -31,15 +32,24 @@ should be able to resume the work without access to the original Mac workspace.
    upstream wllama issue #297 — iOS Safari 27 accepts a 64-bit `WebAssembly.Memory`
    object but cannot compile a memory64 module, so wllama picked the wrong WASM
    build. Build `2026-11-21f` validates a real memory64 module and forces
-   wllama's compat/Asyncify build when that probe fails. On the phone now:
+   wllama's compat/Asyncify build when that probe fails. The physical phone then
+   produced `Model error:(ABORT)` during load: the compat WASM imports a **shared**
+   memory (flags `0x3`), which WebKit only allows in a cross-origin-isolated
+   document. Build `2026-11-21i` adds COOP/COEP on Cloudflare Pages, so the
+   canonical site is isolated and the compat module instantiates. The GitHub
+   Pages backup cannot send those headers and now shows a clear "use canonical"
+   message instead of an abort. On the phone now:
    select Smart 0.6B (or Balanced 350M), confirm the model finishes loading and
    answers a real question; confirm reopening loads the saved model silently
    and works offline. Then tap the sparkle button and confirm the "Images
    aren't available on iPhone" message appears with no white flash; confirm
    chat and voice still work. In Profile → Web search, turn search on and set
    your city, then ask what is happening tomorrow and confirm source links.
-2. **Intermittent iPhone chat `Model error:`** — unresolved. The exact error
-   text was never captured. Do not guess at a fix; get the exact message first.
+2. **Intermittent iPhone chat `Model error:`** — still unresolved separate from
+   the load abort. The earlier load failure was captured as `Model error:(ABORT)`
+   and addressed by cross-origin isolation. If a chat-time `Model error:` still
+   appears, capture the exact text (abort stacks are now kept in the message)
+   before changing anything.
 3. Host web search was added in `2026-11-21b`; the physical-device pass for the
    phone search setting is still open.
 4. Everything else listed as unchecked in

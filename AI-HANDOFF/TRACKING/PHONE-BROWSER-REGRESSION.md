@@ -4,7 +4,7 @@ Run this at **320 / 360 / 390 / 430 px** on the real iPhone in Safari, and in
 an emulated iPhone viewport against `https://oracle-chat.pages.dev/`.
 The backup host is `https://tuxedotigercomics-gif.github.io/oracle-chat/`.
 
-Baseline SHA (live UI): `04198568b1cdc6b47c5a062a87ad6cfa3799a0146cab654072322c7697420776`
+Baseline SHA (live UI): `95bb49c83bebf4a8f4fc13fbb1ba3f1a44c7a54a0f529756324a927fdfe1bed8`
 Service-worker SHA: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`
 Rollback: `restore-live.command`
 
@@ -35,6 +35,14 @@ Rollback: `restore-live.command`
 - [x] No reload loop; typed draft survives the reload and the guard caps reloads
 - [ ] First-install no-reload guard and offline shell/model with the network blocked — needs the physical phone
 - [ ] Zero console errors across update, reload, send and offline reuse — offline pass still open
+
+## Cross-origin isolation for compat WASM — 2026-11-23 (harness + live verified; device pass open)
+- [x] Canonical site is cross-origin isolated and the compat WASM instantiates (harness + live)
+- [x] Forced-compat phone path still calls `setCompat('default','firefox_safari')` (harness)
+- [x] Tiny GGUF loads through the compat build under COOP/COEP with zero console errors (harness)
+- [x] Backup site stays non-isolated but gives a clear "use canonical" error, not `(ABORT)` (harness + live)
+- [ ] Smart 0.6B and Balanced 350M finish loading and answer on the physical iPhone (device pass open)
+- [ ] Saved models reload silently offline from canonical after update (device pass open)
 
 ## Internet context for every model — 2026-11-23 (harness + live verified; device pass open)
 - [x] All four device models, custom cloud and guest chats get web sources when online (harness)
