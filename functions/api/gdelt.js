@@ -53,7 +53,10 @@ export async function onRequestPost({ request }) {
       const res = await fetch(url);
       if (res.status === 429) {
         if (attempt === 0) {
-          await new Promise(resolve => setTimeout(resolve, 400));
+          // GDELT asks for at most one request every five seconds. Waiting here
+          // keeps a single lookup from failing just because the first call hit
+          // their rate limiter.
+          await new Promise(resolve => setTimeout(resolve, 5200));
           continue;
         }
         return empty();
