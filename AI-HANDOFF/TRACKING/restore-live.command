@@ -25,6 +25,6 @@ echo
 echo "SHA-256 of restored file:"
 shasum -a 256 "$WORK"
 echo
-echo "Expected: 87a4c7e05ca267e55e24c43ec9a476abfa89acfa5ba36152b4d83083bf165ac1"
+echo "Expected: f8727fd41386698bb039ef41cbecd9dcf3493ff24bbbf85d7d353b6da3ce4fc4"
 echo
 read -r -p "Press Enter to close..."

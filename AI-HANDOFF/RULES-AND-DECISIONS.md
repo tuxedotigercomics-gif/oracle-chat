@@ -101,6 +101,21 @@ history.
   context to Big Pickle only for owner current-event questions. Guests get none.
 - No new host local model: the Mac has 8 GB RAM and ~5.5 GB free disk.
 
+### iOS wllama build selection (added in `2026-11-21f`)
+
+- On phones only, validate a real memory64 module before loading GGUF weights:
+  `WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,5,3,1,4,1]))`.
+- iOS Safari 27 accepts `new WebAssembly.Memory({address:'i64'})` but refuses to
+  compile memory64 modules. wllama's own probe therefore picks a build Safari
+  cannot run and model initialization hangs silently (upstream issue #297).
+- When the validation fails, hide `WebAssembly.Suspending` so wllama's
+  `needCompat()` selects its Asyncify/compat WASM build, and call
+  `setCompat('default','firefox_safari')`. Desktop passes the probe and keeps
+  the faster default build — no globals changed, no extra requests.
+- Do not go back to swapping model sizes to fix a load hang. 1.7B, 0.6B and
+  350M all hung identically; the build selection was the cause. The service
+  worker's existing jsdelivr rule caches the compat assets after first load.
+
 ### Web search (added in `2026-11-21b`)
 
 The 135M/350M phone models cannot know current events. A 3B/4B host model needs

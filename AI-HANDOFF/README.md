@@ -8,28 +8,32 @@ should be able to resume the work without access to the original Mac workspace.
 
 | Item | Value |
 |---|---|
-| Current build marker | `2026-11-21e` |
-| Current app SHA (sha256) | `87a4c7e05ca267e55e24c43ec9a476abfa89acfa5ba36152b4d83083bf165ac1` |
+| Current build marker | `2026-11-21f` |
+| Current app SHA (sha256) | `f8727fd41386698bb039ef41cbecd9dcf3493ff24bbbf85d7d353b6da3ce4fc4` |
 | Service-worker SHA | `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35` |
-| Previous verified build | `2026-11-21d` (`e905eed6c99c47e58930258bbce53c54e8544a9f6d578e5809f3d97f1365820a`) |
-| Pages commit (app build) | `861af4b` |
-| Previous app commit | `c50ded8`; handoff docs `49472b4` |
+| Previous verified build | `2026-11-21e` (`87a4c7e05ca267e55e24c43ec9a476abfa89acfa5ba36152b4d83083bf165ac1`) |
+| Pages commit (app build) | `10bacba` |
+| Previous app commit | `861af4b`; handoff docs `e293659` |
 | Canonical site | https://oracle-chat.pages.dev/ |
 | Backup site | https://tuxedotigercomics-gif.github.io/oracle-chat/ |
 | Repo | `tuxedotigercomics-gif/oracle-chat` (this repository) |
-| Last fully verified build | `2026-11-21e` (harness + both live sites, zero console errors) |
+| Last fully verified build | `2026-11-21f` (harness + both live sites, zero console errors) |
 
 ## Open items
 
-1. **Physical iPhone confirmation** of build `2026-11-21e`: tap the sparkle
-   button, confirm the "Images aren't available on iPhone" message appears and
-   the white flash is gone; confirm chat and voice still work. In Profile →
-   Web search, turn search on and set your city, then ask what is happening
-   tomorrow and confirm source links appear. Select Smart on-device 0.6B and
-   confirm the ~462 MB download, that the text changes to
-   "Downloaded — preparing Smart · 0.6B on this device…" when the bytes finish,
-   that the model actually answers a question, and that reopening the app loads
-   the saved model silently and works offline.
+1. **Physical iPhone confirmation** of build `2026-11-21f`. Build `2026-11-21e`
+   revealed that the on-device model hang was not about model size: both 0.6B
+   and 350M stayed at "Loading saved … from this device…". This was traced to
+   upstream wllama issue #297 — iOS Safari 27 accepts a 64-bit `WebAssembly.Memory`
+   object but cannot compile a memory64 module, so wllama picked the wrong WASM
+   build. Build `2026-11-21f` validates a real memory64 module and forces
+   wllama's compat/Asyncify build when that probe fails. On the phone now:
+   select Smart 0.6B (or Balanced 350M), confirm the model finishes loading and
+   answers a real question; confirm reopening loads the saved model silently
+   and works offline. Then tap the sparkle button and confirm the "Images
+   aren't available on iPhone" message appears with no white flash; confirm
+   chat and voice still work. In Profile → Web search, turn search on and set
+   your city, then ask what is happening tomorrow and confirm source links.
 2. **Intermittent iPhone chat `Model error:`** — unresolved. The exact error
    text was never captured. Do not guess at a fix; get the exact message first.
 3. Host web search was added in `2026-11-21b`; the physical-device pass for the

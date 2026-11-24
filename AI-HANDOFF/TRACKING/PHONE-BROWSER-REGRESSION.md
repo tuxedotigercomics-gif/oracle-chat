@@ -4,7 +4,7 @@ Run this at **320 / 360 / 390 / 430 px** on the real iPhone in Safari, and in
 an emulated iPhone viewport against `https://oracle-chat.pages.dev/`.
 The backup host is `https://tuxedotigercomics-gif.github.io/oracle-chat/`.
 
-Baseline SHA (live UI): `87a4c7e05ca267e55e24c43ec9a476abfa89acfa5ba36152b4d83083bf165ac1`
+Baseline SHA (live UI): `f8727fd41386698bb039ef41cbecd9dcf3493ff24bbbf85d7d353b6da3ce4fc4`
 Service-worker SHA: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`
 Rollback: `restore-live.command`
 
@@ -35,6 +35,14 @@ Rollback: `restore-live.command`
 - [x] No reload loop; typed draft survives the reload and the guard caps reloads
 - [ ] First-install no-reload guard and offline shell/model with the network blocked — needs the physical phone
 - [ ] Zero console errors across update, reload, send and offline reuse — offline pass still open
+
+## iOS wllama compat fix — 2026-11-23 (harness + live verified; device pass open)
+- [x] Broken memory64 probe hides JSPI, calls `setCompat('default','firefox_safari')`, and sets the forced flag (harness)
+- [x] Working memory64 probe leaves WebAssembly globals and requests unchanged (harness)
+- [x] Compat WASM/JS URLs return 200 and match the existing jsdelivr service-worker rule (harness)
+- [x] Guest model list stays at 2 and offline default makes no new requests; zero console errors (harness + live)
+- [ ] Saved 350M and 0.6B models finish initializing and answer on the physical iPhone (device pass open)
+- [ ] Reopened app still reloads the saved model silently and works offline (device pass open)
 
 ## Phone-sized Smart model — 2026-11-23 (harness verified; device pass open)
 - [ ] Smart 0.6B downloads and the progress text changes to "Downloaded — preparing…" at 462/462 MB (harness done; physical iPhone pending)

@@ -4,7 +4,7 @@ Run this on **Chrome, Edge or Safari on the Mac**, against the bridge-served app
 (`Oracle-Chat-Live.html` via `oracle_bridge.py`) and against
 `https://oracle-chat.pages.dev/`.
 
-Baseline SHA (live UI): `87a4c7e05ca267e55e24c43ec9a476abfa89acfa5ba36152b4d83083bf165ac1`
+Baseline SHA (live UI): `f8727fd41386698bb039ef41cbecd9dcf3493ff24bbbf85d7d353b6da3ce4fc4`
 Rollback: `restore-live.command`
 
 > The phone-only checklist lives in `PHONE-BROWSER-REGRESSION.md`.
@@ -38,6 +38,12 @@ Rollback: `restore-live.command`
 - [x] Host app still loads and chats through the bridge with zero console errors
 - [x] Update check code stays in the static/phone build only (no host/local effect)
 - [x] Both published sites serve the updated app and SW with matching SHAs
+
+## iOS wllama compat fix — 2026-11-23 (harness + live verified; device pass open)
+- [x] Memory64 validation probe passes on desktop; WebAssembly globals untouched (harness)
+- [x] Valid probe makes no compat calls and requests no extra assets (harness)
+- [x] Host model visibility and guest isolation unchanged; build marker 2026-11-21f (harness + live)
+- [x] Both published sites serve the new app SHA and unchanged worker SHA; zero console errors (live)
 
 ## Phone-sized Smart model — 2026-11-23 (harness + live verified; device pass open)
 - [x] Smart resolves to `Qwen_Qwen3-0.6B-Q4_K_M` (~462 MiB) with the single-file URL list (harness)

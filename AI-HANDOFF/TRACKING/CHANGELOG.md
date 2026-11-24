@@ -3,6 +3,56 @@
 Record every change here before you make it, so there is always a clear trail
 between the frozen baseline and whatever is currently in the working file.
 
+## 2026-11-23 — Force wllama compat build on iOS Safari 27 (published and verified)
+
+Status: **published and verified** — build `2026-11-21e` → `2026-11-21f`.
+App SHA: `f8727fd41386698bb039ef41cbecd9dcf3493ff24bbbf85d7d353b6da3ce4fc4`.
+Pages commit: `10bacba`.
+Service worker unchanged: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`.
+
+Observed on the physical iPhone with `2026-11-21e`: both `Smart · 0.6B` and
+`Balanced · 350M` reach "Loading saved … from this device…" and never settle.
+The byte counter reaches 100% and the saved model is recognised, so the
+download and OPFS cache are fine. The failure is in wllama's WASM build
+selection, not the model size — swapping 1.7B → 0.6B → 350M could not fix it.
+
+Root cause (upstream wllama issue #297): iOS Safari 27 accepts
+`new WebAssembly.Memory({address:'i64'})`, so wllama's `isSupportMem64()` probe
+returns true, but Safari refuses to compile a module that actually declares
+memory64 (`parse at byte 4680: Memory64 is not enabled`). JSPI is also present,
+so `needCompat()` returns false and wllama picks the memory64 build. Model
+initialisation then hangs forever with no error. The reporter confirmed that
+forcing compat mode on the same iPhone loads and runs the model fine.
+
+Intended fix:
+1. Add a real memory64 module validation probe
+   (`WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,5,3,1,4,1]))`).
+   When it fails on a phone, hide `WebAssembly.Suspending` so wllama's
+   `needCompat()` selects its Asyncify/compat WASM build, which Safari can compile.
+2. Call `setCompat('default','firefox_safari')` on that path as well, matching
+   the confirmed workaround. Desktop behaviour is untouched: the probe passes
+   there, so no global is changed and no extra CDN asset is requested.
+3. Bump the build marker to `2026-11-21f`. Service worker unchanged (its
+   jsdelivr rule already caches the compat WASM/JS after the first online load).
+
+Shipped in build `2026-11-21f`: on-device chat on iOS Safari 27 now validates a
+real memory64 module before loading GGUF weights. If Safari reports memory64 but
+cannot compile it, the app hides JSPI so wllama selects its Asyncify/compat WASM
+build and calls `setCompat('default','firefox_safari')`, matching the workaround
+confirmed against upstream issue #297. Desktop browsers pass the probe and keep
+the faster default build with no extra requests. This addresses the "Loading
+saved … from this device…" hang seen with both 350M and 0.6B; no model files,
+vault, guest isolation or host behaviour changed. Service worker is unchanged.
+
+Harness verified: with the broken probe simulated and `PHONE` forced true,
+`forceWllamaCompat()` hid JSPI, set `wllamaCompatForced`, and called
+`setCompat('default','firefox_safari')`; with a valid probe it changed nothing
+and made no compat calls. Owner static shows 4 device models, guest 2, host 0;
+build marker and both published SHAs verified on canonical and backup sites;
+zero console errors on owner, guest, backup and iOS-simulation tabs. The compat
+WASM/JS URLs return HTTP 200 and match the existing jsdelivr cache rule.
+Physical iPhone pass remains open.
+
 ## 2026-11-23 — Phone-sized Smart model and honest progress text (published and verified)
 
 Status: **published and verified** — build `2026-11-21d` → `2026-11-21e`.
