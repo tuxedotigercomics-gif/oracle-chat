@@ -8,21 +8,26 @@ should be able to resume the work without access to the original Mac workspace.
 
 | Item | Value |
 |---|---|
-| Current build marker | `2026-11-21i` |
-| Current app SHA (sha256) | `95bb49c83bebf4a8f4fc13fbb1ba3f1a44c7a54a0f529756324a927fdfe1bed8` |
+| Current build marker | `2026-11-21j` |
+| Current app SHA (sha256) | `2c769b7485deac2147ef3e6af5f519ed962b1bfc22b71096343ae84a284f7d38` |
 | Service-worker SHA | `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35` |
-| Previous verified build | `2026-11-21h` (`04198568b1cdc6b47c5a062a87ad6cfa3799a0146cab654072322c7697420776`) |
-| Pages commit (app build) | `c708893` |
-| Previous app commit | `df46582`; handoff docs `26023bf` |
+| Previous verified build | `2026-11-21i` (`95bb49c83bebf4a8f4fc13fbb1ba3f1a44c7a54a0f529756324a927fdfe1bed8`) |
+| Pages commit (app build) | `ddf8fea` |
+| Previous app commit | `c708893`; handoff docs `507f8fa` |
 | Canonical site | https://oracle-chat.pages.dev/ (cross-origin isolated) |
 | Backup site | https://tuxedotigercomics-gif.github.io/oracle-chat/ (no COOP/COEP; on-device models show a clear "use canonical" message) |
 | Repo | `tuxedotigercomics-gif/oracle-chat` (this repository) |
-| Last fully verified build | `2026-11-21i` (harness + both live sites, zero console errors) |
+| Last fully verified build | `2026-11-21j` (harness + both live sites, zero console errors) |
 
 ## Open items
 
-1. **Physical iPhone confirmation** of build `2026-11-21i`. Use the canonical
-   site — it now sends COOP/COEP, which the compat WASM's shared memory needs.
+1. **Physical iPhone confirmation** of build `2026-11-21j`. Use the canonical
+   site — it sends COOP/COEP, which the compat WASM's shared memory needs. Build
+   `j` also upgrades wllama to 4.0.0 (abort-reason extraction, iOS shared-memory
+   retry, OPFS handle retry) and loads phone compat models with
+   `n_gpu_layers:0`, `n_threads:1`. The user's last iPhone report on build `i`
+   was: search-off casual answers worked, online "hi" worked, but lookup prompts
+   still ended in `Model error:(ABORT)`. Ask them to retest a lookup prompt now.
    Every model still gets public web context whenever the device is online —
    owner, guest and host. Ask a current/local question and confirm source links appear under the
    answer. Going offline, or switching Web search off in Profile, still gives a
@@ -38,18 +43,25 @@ should be able to resume the work without access to the original Mac workspace.
    document. Build `2026-11-21i` adds COOP/COEP on Cloudflare Pages, so the
    canonical site is isolated and the compat module instantiates. The GitHub
    Pages backup cannot send those headers and now shows a clear "use canonical"
-   message instead of an abort. On the phone now:
+   message instead of an abort. Build `2026-11-21j` then adopted wllama 4.0.0
+   because the iPhone still hit a bare `(ABORT)` on lookup prompts even with COI;
+   4.0.0 includes upstream PR #333 (real abort reason, memory64 validation,
+   iOS shared-memory retry, OPFS handle retry) and the phone load now uses CPU
+   only with one thread. If an abort still appears, its message now starts with
+   `[wllama load]` or `[wllama chat]` and includes COI/compat/phone state.
+   On the phone now:
    select Smart 0.6B (or Balanced 350M), confirm the model finishes loading and
    answers a real question; confirm reopening loads the saved model silently
    and works offline. Then tap the sparkle button and confirm the "Images
    aren't available on iPhone" message appears with no white flash; confirm
    chat and voice still work. In Profile → Web search, turn search on and set
    your city, then ask what is happening tomorrow and confirm source links.
-2. **Intermittent iPhone chat `Model error:`** — still unresolved separate from
-   the load abort. The earlier load failure was captured as `Model error:(ABORT)`
-   and addressed by cross-origin isolation. If a chat-time `Model error:` still
-   appears, capture the exact text (abort stacks are now kept in the message)
-   before changing anything.
+2. **Intermittent iPhone `Model error:`** — still open. The load abort was first
+   addressed by cross-origin isolation, then by wllama 4.0.0 and phone CPU/single
+   thread options in build `2026-11-21j`. If any `Model error:` remains, capture
+   the full text: it now starts with `[wllama load]` or `[wllama chat]` and
+   includes COI/compat/phone state, plus a stack when one exists. Do not guess at
+   another fix from the bare `(ABORT)` alone.
 3. Host web search was added in `2026-11-21b`; the physical-device pass for the
    phone search setting is still open.
 4. Everything else listed as unchecked in

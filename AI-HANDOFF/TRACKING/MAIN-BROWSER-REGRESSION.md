@@ -4,7 +4,7 @@ Run this on **Chrome, Edge or Safari on the Mac**, against the bridge-served app
 (`Oracle-Chat-Live.html` via `oracle_bridge.py`) and against
 `https://oracle-chat.pages.dev/`.
 
-Baseline SHA (live UI): `95bb49c83bebf4a8f4fc13fbb1ba3f1a44c7a54a0f529756324a927fdfe1bed8`
+Baseline SHA (live UI): `2c769b7485deac2147ef3e6af5f519ed962b1bfc22b71096343ae84a284f7d38`
 Rollback: `restore-live.command`
 
 > The phone-only checklist lives in `PHONE-BROWSER-REGRESSION.md`.
@@ -38,6 +38,13 @@ Rollback: `restore-live.command`
 - [x] Host app still loads and chats through the bridge with zero console errors
 - [x] Update check code stays in the static/phone build only (no host/local effect)
 - [x] Both published sites serve the updated app and SW with matching SHAs
+
+## wllama 4.0.0 + phone CPU load — 2026-11-23 (harness + live verified; device pass open)
+- [x] wllama 4.0.0 ESM/default WASM paths load a tiny GGUF with forced compat (harness)
+- [x] Saved OPFS cache key stays `${hashSHA1(fullURL)}_${fileName}` (harness)
+- [x] Phone compat load uses `n_gpu_layers:0`, `n_threads:1`; desktop defaults unchanged (harness)
+- [x] Model errors carry stage/COI/compat/phone-option context (harness)
+- [x] Web context for all users, guest/host scope and bridge unchanged; build 2026-11-21j (harness + live)
 
 ## Cross-origin isolation for compat WASM — 2026-11-23 (harness + live verified; device pass open)
 - [x] `_headers` sends COOP/COEP on canonical; `crossOriginIsolated` true (live)

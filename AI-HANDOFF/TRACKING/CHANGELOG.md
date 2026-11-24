@@ -3,6 +3,59 @@
 Record every change here before you make it, so there is always a clear trail
 between the frozen baseline and whatever is currently in the working file.
 
+## 2026-11-23 — wllama 4.0.0 abort fix + phone CPU load (published and verified)
+
+Status: **published and verified** — build `2026-11-21i` → `2026-11-21j`.
+App SHA: `2c769b7485deac2147ef3e6af5f519ed962b1bfc22b71096343ae84a284f7d38`.
+Pages commit: `ddf8fea`.
+Service worker unchanged: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`.
+Bridge unchanged: `4166484c20c2d19b9a21d8f02b0b7f57445abeaf291ddb078307be51d82973db`.
+
+Physical iPhone retest of build `2026-11-21i` still shows `Model error:(ABORT)`
+on lookup prompts, even though the canonical site is now cross-origin isolated.
+The user confirms: Web search off + casual question gives an answer; Web search
+on + simple "hi" gives an answer; only internet/lookup prompts abort. The error
+still has no stack, so wllama 3.6.1 is swallowing the real abort reason.
+
+Upstream wllama `4.0.0` (released 22 Nov) contains PR #333: it extracts the real
+abort reason (`reason?.message ?? String(reason)`), validates memory64 modules,
+retries iOS shared-memory allocation in 128 MB steps, and retries OPFS handles
+that WebKit closes mid-write. The OPFS cache key format is unchanged
+(`${hashSHA1(fullURL)}_${fileName}`), so saved GGUF weights are reused.
+
+Intended change:
+
+1. Move `WLLAMA_JS` to `@wllama/wllama@4.0.0/esm/index.js` and the default WASM
+   to `@wllama/wllama@4.0.0/esm/wasm/wllama.wasm` (the 3.x `src/wasm` path is
+   gone in 4.0.0). Keep `setCompat('default')` so the 4.0.0 compat WASM is used.
+2. Keep the memory64 probe, forced compat selection and COOP/COEP guard.
+3. On phones using compat, load with `n_gpu_layers:0` and `n_threads:1` so iOS
+   does not try GPU offload or extra pthreads. Desktop options stay unchanged.
+4. Tag model errors with stage (`load`/`chat`), COI, compat and phone-option
+   state so a future bare abort is diagnosable without another guess.
+5. Bump the build marker to `2026-11-21j`.
+
+Shipped in build `2026-11-21j`: the app loads wllama 4.0.0 from
+`@wllama/wllama@4.0.0/esm/index.js` with its default module at
+`.../esm/wasm/wllama.wasm`. The earlier memory64 probe, forced compat selection
+and COOP/COEP guard are unchanged. On a phone using compat, GGUF loading now
+passes `n_ctx:2048, n_gpu_layers:0, n_threads:1`; desktop keeps wllama defaults.
+Model errors now read `[wllama load] … (coi=…, compat=…, phone=…)` or
+`[wllama chat] …`, keeping any decoded abort stack. No bridge, vault, guest/host
+scope or web-context change.
+
+Harness verified: a forced-phone page under COOP/COEP with the broken-probe
+simulation hid JSPI, selected compat, loaded a tiny GGUF through the app's own
+`loadDeviceModel()` and produced a completion with zero console errors; a
+prototype spy confirmed the load options were `n_ctx:2048, n_gpu_layers:0,
+n_threads:1`; the non-isolated page threw the clear canonical-site message;
+empty-stack aborts gained the context tag; online search made 1 source fetch,
+explicit off and offline made 0, and a stubbed send injected the source block.
+Owner/guest/host model lists stayed 4 device / 2 device / 4 host backends.
+Live: both sites serve the new app SHA and unchanged worker; canonical returns
+both isolation headers; owner, guest and backup smoke tests had zero console
+errors. Physical iPhone retest remains open.
+
 ## 2026-11-23 — Cross-origin isolation for wllama compat on iPhone (published and verified)
 
 Status: **published and verified** — build `2026-11-21h` → `2026-11-21i`.

@@ -127,8 +127,18 @@ history.
   max 65536 pages). WebKit permits shared memory only in a cross-origin-isolated
   document. Build `2026-11-21i` keeps COOP/COEP on the canonical Pages site and
   fails early with a "use canonical" message where isolation is unavailable.
-  A bare `Model error:(ABORT)` during load means isolation is missing, not that
-  the model file is bad.
+- Build `2026-11-21j` uses wllama `4.0.0` (ESM at
+  `@wllama/wllama@4.0.0/esm/index.js`, default WASM at
+  `.../esm/wasm/wllama.wasm`). Keep it: 4.0.0 extracts the real abort reason,
+  validates memory64 modules, retries iOS shared-memory allocation in smaller
+  steps, and retries OPFS handles WebKit closes mid-write. Do not return to
+  3.6.1. The OPFS cache key is unchanged, so saved GGUF weights are reused.
+- On phones using compat, load with `n_ctx:2048, n_gpu_layers:0, n_threads:1`.
+  Desktop keeps wllama's defaults. iOS GPU offload or extra pthreads can abort
+  the compat WASM under memory pressure.
+- Any remaining model error is tagged `[wllama load]` or `[wllama chat]` with
+  COI/compat/phone state. A bare `(ABORT)` is no longer enough information to
+  diagnose; capture the full tagged message instead of guessing.
 - Do not go back to swapping model sizes to fix a load hang. 1.7B, 0.6B and
   350M all hung identically; the build selection was the cause. The service
   worker's existing jsdelivr rule caches the compat assets after first load.

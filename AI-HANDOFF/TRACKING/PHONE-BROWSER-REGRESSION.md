@@ -4,7 +4,7 @@ Run this at **320 / 360 / 390 / 430 px** on the real iPhone in Safari, and in
 an emulated iPhone viewport against `https://oracle-chat.pages.dev/`.
 The backup host is `https://tuxedotigercomics-gif.github.io/oracle-chat/`.
 
-Baseline SHA (live UI): `95bb49c83bebf4a8f4fc13fbb1ba3f1a44c7a54a0f529756324a927fdfe1bed8`
+Baseline SHA (live UI): `2c769b7485deac2147ef3e6af5f519ed962b1bfc22b71096343ae84a284f7d38`
 Service-worker SHA: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`
 Rollback: `restore-live.command`
 
@@ -35,6 +35,13 @@ Rollback: `restore-live.command`
 - [x] No reload loop; typed draft survives the reload and the guard caps reloads
 - [ ] First-install no-reload guard and offline shell/model with the network blocked — needs the physical phone
 - [ ] Zero console errors across update, reload, send and offline reuse — offline pass still open
+
+## wllama 4.0.0 + phone CPU load — 2026-11-23 (harness + live verified; device pass open)
+- [x] wllama 4.0.0 compat build instantiates under COOP/COEP (harness + live)
+- [x] Phone load options are CPU-only/single-thread; no desktop change (harness)
+- [x] Bare `(ABORT)` now includes stage/COI/compat context if it recurs (harness)
+- [ ] Lookup prompt with web sources no longer aborts on physical iPhone (device pass open)
+- [ ] Smart 0.6B and Balanced 350M finish loading and answer; saved models reload silently offline (device pass open)
 
 ## Cross-origin isolation for compat WASM — 2026-11-23 (harness + live verified; device pass open)
 - [x] Canonical site is cross-origin isolated and the compat WASM instantiates (harness + live)
