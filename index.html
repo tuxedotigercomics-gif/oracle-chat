@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#4a9861" />
-<meta name="oracle-build" content="2026-11-21j" />
+<meta name="oracle-build" content="2026-11-21k" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Oracle" />
@@ -1096,58 +1096,96 @@ function setWebSearchOn(v){try{localStorage.setItem('oracle.websearch',v?'1':'0'
 function webSearchCity(){try{return localStorage.getItem('oracle.city')||''}catch(e){return ''}}
 function setWebSearchCity(v){try{localStorage.setItem('oracle.city',String(v||'').slice(0,80))}catch(e){}}
 let webSearchAt=0;const webSearchCache={};
+// Turn "Please look up Whats going on this week in idaho falls" into
+// "Idaho Falls" before querying. Ordinary questions are left mostly intact;
+// only lookup scaffolding and time filler are removed.
+function newsSearchPhrase(query){
+  const raw=String(query||'').replace(/[’‘]/g,"'").replace(/\s+/g,' ').trim();
+  let s=raw
+    .replace(/\b(?:please|kindly)\b/gi,' ')
+    .replace(/\b(?:can|could|would|will|should)\s+you\b/gi,' ')
+    .replace(/\b(?:look\s+up|search(?:\s+the\s+(?:web|internet))?(?:\s+for)?|find\s+out|google)\b/gi,' ')
+    .replace(/\b(?:what(?:'s|s|\s+is)\s+(?:going\s+on|happening|new)|what(?:'s|s|\s+is)\s+the\s+news|any\s+news|the\s+news|news|latest|recent|current\s+events|updates?)\b/gi,' ')
+    .replace(/\b(?:this|the|past|last)\s+(?:week|month|day)|\b(?:today|tonight|now|here|near\s+me|around\s+here|in\s+my\s+area)\b/gi,' ')
+    .replace(/[?!.,;:]+/g,' ')
+    .replace(/\s+/g,' ')
+    .trim()
+    .replace(/^(?:in|at|near|around|for|about|on|of)\s+/i,'')
+    .trim();
+  if(!s)s=raw.replace(/[?!.,;:]+/g,' ').replace(/\s+/g,' ').trim();
+  // A lowercase place name typed on a phone is more useful capitalized. Only
+  // capitalize the first letter of each word so "what's" stays "What's".
+  if(s.length<=80&&!/[A-Z]/.test(s)){
+    s=s.split(' ').map(w=>w.replace(/^[a-z]/,c=>c.toUpperCase())).join(' ');
+  }
+  return s.slice(0,160);
+}
+async function fetchGdeltItems(q){
+  // GitHub Pages has no Functions runtime. Skip the missing endpoint there and
+  // let webSources() fall straight back to Wikipedia.
+  if(/(^|\.)github\.io$/i.test(location.hostname))return [];
+  const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),12000);
+  try{
+    // POST is deliberate: the service worker only intercepts GET requests, so
+    // a live lookup is never served from the offline app-shell cache.
+    const r=await fetch('/api/gdelt',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({query:q}),signal:ctl.signal
+    });
+    if(!r.ok)return [];
+    const data=await r.json();
+    return (data.articles||[]).slice(0,4).map(a=>{
+      const d=String(a.seendate||'').slice(0,8);
+      return {title:String(a.title||'').replace(/\s+/g,' ').trim().slice(0,140),
+        url:String(a.url||''),domain:String(a.domain||''),
+        date:d.length===8?d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6,8):d};
+    }).filter(x=>x.title&&x.url);
+  }catch(e){return []}
+  finally{clearTimeout(timer)}
+}
+async function fetchWikipediaItems(q){
+  // Wikipedia is a useful fallback for general and local questions. The current
+  // year keeps results out of old film/TV articles.
+  const yr=new Date().getFullYear();
+  const wq=(q.includes(String(yr))?q:q+' '+yr);
+  const wu='https://en.wikipedia.org/w/api.php?'+new URLSearchParams({
+    action:'query',list:'search',srsearch:wq,format:'json',origin:'*',srlimit:'2'});
+  const wctl=new AbortController(),wt=setTimeout(()=>wctl.abort(),10000);
+  try{
+    const wr=await fetch(wu,{signal:wctl.signal});const wd=await wr.json();
+    const items=[];
+    for(const it of ((wd.query&&wd.query.search)||[]).slice(0,2)){
+      const title=String(it.title||'').replace(/\s+/g,' ').trim();
+      if(/\b(film|television|TV series|album|song|novel)\b/i.test(title))continue;
+      items.push({title:title,url:'https://en.wikipedia.org/wiki/'+encodeURIComponent(title.replace(/ /g,'_')),
+        domain:'Wikipedia',date:String(yr),
+        snippet:String(it.snippet||'').replace(/<[^>]+>/g,'').slice(0,180)});
+    }
+    return items;
+  }catch(e){return []}
+  finally{clearTimeout(wt)}
+}
 async function webSources(query){
   if(!webSearchOn())return null;
   const city=webSearchCity().trim();
-  const q=((city?city+' ':'')+String(query||'').trim()).slice(0,200);
+  const phrase=newsSearchPhrase(query);
+  let q=((city?city+' ':'')+phrase).slice(0,200);
+  if(city&&phrase.toLowerCase().includes(city.toLowerCase()))q=phrase;
   if(!q)return null;
   const key=q.toLowerCase(),cached=webSearchCache[key];
   if(cached&&Date.now()-cached.at<300000)return cached;
   const wait=5000-(Date.now()-webSearchAt);
   if(wait>0)await new Promise(r=>setTimeout(r,wait));
   webSearchAt=Date.now();
-  try{
-    const url='https://api.gdeltproject.org/api/v2/doc/doc?'+new URLSearchParams({
-      query:q+' sourcelang:english',mode:'artlist',format:'json',sort:'datedesc',
-      timespan:'1month',maxrecords:'4'});
-    const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),12000);
-    let data,r;
-    try{
-      r=await fetch(url,{signal:ctl.signal});
-      if(r.status===429){await new Promise(x=>setTimeout(x,8000));r=await fetch(url,{signal:ctl.signal})}
-      data=await r.json();
-    }finally{clearTimeout(timer)}
-    const items=(data.articles||[]).slice(0,4).map(a=>{
-      const d=String(a.seendate||'').slice(0,8);
-      return {title:String(a.title||'').replace(/\s+/g,' ').trim().slice(0,140),
-        url:String(a.url||''),domain:String(a.domain||''),
-        date:d.length===8?d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6,8):d};
-    }).filter(x=>x.title&&x.url);
-    if(!items.length){
-      // Wikipedia is a useful fallback for general (not local) questions. The
-      // current year keeps results out of old film/TV articles.
-      const yr=new Date().getFullYear();
-      const wq=(q.includes(String(yr))?q:q+' '+yr);
-      const wu='https://en.wikipedia.org/w/api.php?'+new URLSearchParams({
-        action:'query',list:'search',srsearch:wq,format:'json',origin:'*',srlimit:'2'});
-      const wctl=new AbortController(),wt=setTimeout(()=>wctl.abort(),10000);
-      try{
-        const wr=await fetch(wu,{signal:wctl.signal});const wd=await wr.json();
-        for(const it of ((wd.query&&wd.query.search)||[]).slice(0,2)){
-          const title=String(it.title||'').replace(/\s+/g,' ').trim();
-          if(/\b(film|television|TV series|album|song|novel)\b/i.test(title))continue;
-          items.push({title:title,url:'https://en.wikipedia.org/wiki/'+encodeURIComponent(title.replace(/ /g,'_')),
-            domain:'Wikipedia',date:String(yr),
-            snippet:String(it.snippet||'').replace(/<[^>]+>/g,'').slice(0,180)});
-        }
-      }catch(e){}
-      finally{clearTimeout(wt)}
-    }
-    const text=items.map(x=>'- '+x.title+' ('+x.date+(x.domain?', '+x.domain:'')+') '+x.url+(x.snippet?' — '+x.snippet:'')).join('\n');
-    const out={items,text:text||'No current sources found.',at:Date.now()};
-    webSearchCache[key]=out;
-    return out;
-  }catch(e){return null}
+  // Each source is isolated: a failed CORS/proxy request can never stop the
+  // fallback or escape as a model abort.
+  let items=[];
+  try{items=await fetchGdeltItems(q)}catch(e){}
+  if(!items.length){try{items=await fetchWikipediaItems(q)}catch(e){}}
+  const text=items.map(x=>'- '+x.title+' ('+x.date+(x.domain?', '+x.domain:'')+') '+x.url+(x.snippet?' — '+x.snippet:'')).join('\n');
+  const out={items,text:text||'No current sources found.',at:Date.now()};
+  webSearchCache[key]=out;
+  return out;
 }
 // iOS can kill the tab outright during WebGPU work, so no catch/finally runs
 // and the error log stays empty. A synchronous checkpoint before each stage
@@ -2611,7 +2649,7 @@ function openWebSearchSettings(){
   if(!staticMode||guestMode)return;
   const on=webSearchOn(),city=webSearchCity();
   modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Web search for current info</h3>
-    <p>On for every model whenever this device is online. Current-event questions go straight to GDELT's public news API (Wikipedia as a fallback) so any model can use recent articles and links. Nothing passes through the Mac, a cloud key or an API key. Switch it off here any time to stay fully offline.</p>
+    <p>On for every model whenever this device is online. Current-event questions use this site's public news proxy for GDELT articles, with Wikipedia as a fallback, so any model can use recent dated links. Nothing passes through the Mac, a cloud key or an API key. Switch it off here any time to stay fully offline.</p>
     <label style="display:flex;gap:8px;align-items:center;margin:12px 0"><input type="checkbox" id="wsOn" ${on?'checked':''}/><span>Use web search on this device</span></label>
     <label style="display:block;font-size:12px;color:var(--muted)">Your city (added to searches)
       <input id="wsCity" class="share-text" style="width:100%;margin-top:4px" value="${esc(city)}" placeholder="e.g. Toronto" /></label>
