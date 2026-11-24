@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#4a9861" />
-<meta name="oracle-build" content="2026-11-21e" />
+<meta name="oracle-build" content="2026-11-21f" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Oracle" />
@@ -825,6 +825,29 @@ const SMALL_DEVICE_MODEL='smol2-135m';
 const SMART_DEVICE_MODEL='qwen3-0.6b-smart';
 const FREE_DEVICE_MODEL='lfm2-350m-free';
 const PHONE=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+// iOS Safari 27 accepts `new WebAssembly.Memory({address:'i64'})`, so wllama's
+// feature probe thinks memory64 works. It does not: Safari then refuses to
+// compile a module that actually declares memory64, and model initialization
+// hangs forever with no error. Validate a real 13-byte memory64 module instead
+// and, when it fails, hide JSPI so wllama selects its compat/Asyncify build.
+// Desktop passes this probe and is left completely untouched.
+const WASM_MEM64_PROBE=new Uint8Array([0,97,115,109,1,0,0,0,5,3,1,4,1]);
+let wllamaCompatForced=false;
+function forceWllamaCompat(w){
+  if(!PHONE||wllamaCompatForced)return false;
+  let valid=false;
+  try{valid=WebAssembly.validate(WASM_MEM64_PROBE)}catch(e){}
+  if(valid)return false;
+  try{
+    if(WebAssembly.Suspending){
+      try{Object.defineProperty(WebAssembly,'Suspending',{value:undefined,configurable:true})}
+      catch(e){WebAssembly.Suspending=undefined}
+    }
+    if(w&&typeof w.setCompat==='function')w.setCompat('default','firefox_safari');
+    wllamaCompatForced=true;
+  }catch(e){}
+  return wllamaCompatForced;
+}
 function ggufSpec(id){
   if(GGUF_MODELS[id])return GGUF_MODELS[id];
   if(typeof id==='string'&&id.includes('|')){const [repo,file]=id.split('|');return {repo,file,name:file,size:'your model file'}}
@@ -959,6 +982,7 @@ async function loadDeviceModel(modelId){
       // Allow parallel shard downloads if a model is ever published as shards.
       // Every current model is a single file, which uses one worker.
       const w=new Wllama({default:WLLAMA_WASM},{parallelDownloads:3});
+      forceWllamaCompat(w);
       // Ask only when the weights are genuinely missing. A saved model loads
       // silently after a refresh, in a new room, and with no network at all.
       const info=await deviceCacheInfo(w,spec,modelId);
