@@ -8,26 +8,30 @@ should be able to resume the work without access to the original Mac workspace.
 
 | Item | Value |
 |---|---|
-| Current build marker | `2026-11-21j` |
-| Current app SHA (sha256) | `2c769b7485deac2147ef3e6af5f519ed962b1bfc22b71096343ae84a284f7d38` |
+| Current build marker | `2026-11-21m` |
+| Current app SHA (sha256) | `7e83fe68bcef9e7b2b409639d177365bb8d5f864845a1957f75ce370325bb78b` |
 | Service-worker SHA | `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35` |
-| Previous verified build | `2026-11-21i` (`95bb49c83bebf4a8f4fc13fbb1ba3f1a44c7a54a0f529756324a927fdfe1bed8`) |
-| Pages commit (app build) | `ddf8fea` |
-| Previous app commit | `c708893`; handoff docs `507f8fa` |
+| Previous verified build | `2026-11-21j` (`2c769b7485deac2147ef3e6af5f519ed962b1bfc22b71096343ae84a284f7d38`) |
+| Pages commit (app build) | `866b5a5` |
+| Previous app commit | `4eee091`; handoff docs `597bdb2` |
 | Canonical site | https://oracle-chat.pages.dev/ (cross-origin isolated) |
 | Backup site | https://tuxedotigercomics-gif.github.io/oracle-chat/ (no COOP/COEP; on-device models show a clear "use canonical" message) |
 | Repo | `tuxedotigercomics-gif/oracle-chat` (this repository) |
-| Last fully verified build | `2026-11-21j` (harness + both live sites, zero console errors) |
+| Last fully verified build | `2026-11-21m` (harness + both live sites, zero console errors) |
 
 ## Open items
 
-1. **Physical iPhone confirmation** of build `2026-11-21j`. Use the canonical
+1. **Physical iPhone confirmation** of build `2026-11-21m`. Use the canonical
    site — it sends COOP/COEP, which the compat WASM's shared memory needs. Build
-   `j` also upgrades wllama to 4.0.0 (abort-reason extraction, iOS shared-memory
+   `j` upgraded wllama to 4.0.0 (abort-reason extraction, iOS shared-memory
    retry, OPFS handle retry) and loads phone compat models with
-   `n_gpu_layers:0`, `n_threads:1`. The user's last iPhone report on build `i`
-   was: search-off casual answers worked, online "hi" worked, but lookup prompts
-   still ended in `Model error:(ABORT)`. Ask them to retest a lookup prompt now.
+   `n_gpu_layers:0`, `n_threads:1`. Builds `k`–`m` fixed the later "generic
+   answer" lookup report: browsers cannot call GDELT directly (no CORS), so a
+   same-origin Pages Function now supplies dated news links, with Bing News RSS
+   first, Google/GDELT behind it and Wikipedia as the final fallback. Live
+   canonical lookup of "Please look up Whats going on this week in idaho falls"
+   returned four local links in 0.47 s. Ask the user to retest that exact prompt
+   on the Home Screen app and confirm links appear under the answer.
    Every model still gets public web context whenever the device is online —
    owner, guest and host. Ask a current/local question and confirm source links appear under the
    answer. Going offline, or switching Web search off in Profile, still gives a
@@ -58,10 +62,11 @@ should be able to resume the work without access to the original Mac workspace.
    your city, then ask what is happening tomorrow and confirm source links.
 2. **Intermittent iPhone `Model error:`** — still open. The load abort was first
    addressed by cross-origin isolation, then by wllama 4.0.0 and phone CPU/single
-   thread options in build `2026-11-21j`. If any `Model error:` remains, capture
-   the full text: it now starts with `[wllama load]` or `[wllama chat]` and
-   includes COI/compat/phone state, plus a stack when one exists. Do not guess at
-   another fix from the bare `(ABORT)` alone.
+   thread options in build `2026-11-21j`. The later lookup-only symptom was not
+   another model abort: it was the CORS-blocked GDELT fetch, fixed by the proxy
+   in builds `k`–`m`. If any `Model error:` remains, capture the full text: it
+   now starts with `[wllama load]` or `[wllama chat]` and includes COI/compat/
+   phone state, plus a stack when one exists. Do not guess from bare `(ABORT)`.
 3. Host web search was added in `2026-11-21b`; the physical-device pass for the
    phone search setting is still open.
 4. Everything else listed as unchecked in

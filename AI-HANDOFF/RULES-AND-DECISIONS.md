@@ -158,11 +158,21 @@ a search tool. Do not try to fix this with prompts alone.
   `webSources()` guard no longer checks `staticMode` or `guestMode`, and
   `sendMessage()` adds the source block to the system message for every backend
   (device ids, custom cloud, local, local-deep, auto, cloud).
-- GDELT is fetched directly from the browser (CORS allowed, no key, no Mac, no
-  cloud), with Wikipedia as a fallback. Sources appear as links under the reply.
-  The bridge needs no change: it already forwards system text to Ollama and the
-  cloud tool. Guests now make these public requests too — this deliberately
-  supersedes the older owner-only/guest-offline rule.
+- Public news is fetched through the site's same-origin Cloudflare Pages Function
+  `functions/api/gdelt.js`. It tries Bing News RSS first, then Google News RSS,
+  then GDELT with one 5.2-second rate-limit-aware retry. This is required because
+  GDELT sends no `Access-Control-Allow-Origin` header and direct browser fetches
+  silently produced no sources (hence generic answers). GitHub Pages has no
+  Functions runtime, so the backup host skips the proxy and uses Wikipedia.
+  Sources appear as dated links under the reply. The bridge needs no change: it
+  already forwards system text to Ollama and the cloud tool. Guests now make
+  these public requests too — this deliberately supersedes the older
+  owner-only/guest-offline rule.
+- `newsSearchPhrase()` strips lookup scaffolding before querying: "Please look up
+  Whats going on this week in idaho falls" becomes `Idaho Falls`. `webSources()`
+  isolates each source so a failed proxy cannot stop Wikipedia or escape as a
+  model abort. An empty proxy result must still produce a source block when
+  Wikipedia answers.
 - The Profile → Web search setting (with optional `oracle.city`) remains an
   explicit kill switch. Offline or `0` means zero fetches and a fully local
   answer.

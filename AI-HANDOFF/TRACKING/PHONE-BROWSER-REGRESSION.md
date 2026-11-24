@@ -4,7 +4,7 @@ Run this at **320 / 360 / 390 / 430 px** on the real iPhone in Safari, and in
 an emulated iPhone viewport against `https://oracle-chat.pages.dev/`.
 The backup host is `https://tuxedotigercomics-gif.github.io/oracle-chat/`.
 
-Baseline SHA (live UI): `2c769b7485deac2147ef3e6af5f519ed962b1bfc22b71096343ae84a284f7d38`
+Baseline SHA (live UI): `7e83fe68bcef9e7b2b409639d177365bb8d5f864845a1957f75ce370325bb78b`
 Service-worker SHA: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`
 Rollback: `restore-live.command`
 
@@ -35,6 +35,18 @@ Rollback: `restore-live.command`
 - [x] No reload loop; typed draft survives the reload and the guard caps reloads
 - [ ] First-install no-reload guard and offline shell/model with the network blocked — needs the physical phone
 - [ ] Zero console errors across update, reload, send and offline reuse — offline pass still open
+
+## Bing-first news proxy — 2026-11-23 (harness + live verified; device pass open)
+- [x] Canonical lookup prompt gets Bing-sourced dated links without a long wait (live)
+- [x] Backup host still skips the proxy and gets Wikipedia sources (harness + live)
+- [x] Phone model load CPU options and stage-tagged errors unchanged (harness)
+
+## Same-origin news proxy + real lookup — 2026-11-23 (planned before edits)
+- [ ] Canonical Home Screen app can fetch `/api/gdelt` with no CORS error (harness + live)
+- [ ] Google News/GDELT proxy returns real dated local links for lookup prompts (harness + live)
+- [ ] Lookup prompt returns real dated source links, not a generic model-only answer (device pass open)
+- [ ] Backup host skips the missing proxy and still gets Wikipedia sources (harness + live)
+- [ ] Saved models, CPU-only load options and stage-tagged errors still work (harness)
 
 ## wllama 4.0.0 + phone CPU load — 2026-11-23 (harness + live verified; device pass open)
 - [x] wllama 4.0.0 compat build instantiates under COOP/COEP (harness + live)

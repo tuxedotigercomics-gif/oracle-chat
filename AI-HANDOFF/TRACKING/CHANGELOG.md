@@ -3,6 +3,85 @@
 Record every change here before you make it, so there is always a clear trail
 between the frozen baseline and whatever is currently in the working file.
 
+## 2026-11-23 — Bing-first news proxy for Cloudflare workers (published and verified)
+
+Status: **published and verified** — build `2026-11-21l` → `2026-11-21m`.
+App SHA: `7e83fe68bcef9e7b2b409639d177365bb8d5f864845a1957f75ce370325bb78b`.
+Pages commit: `866b5a5`.
+Service worker unchanged: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`.
+Bridge unchanged: `4166484c20c2d19b9a21d8f02b0b7f57445abeaf291ddb078307be51d82973db`.
+
+Build `l` published the same-origin proxy, but Google News RSS is blocked or
+fails from Cloudflare's worker network. The live function then fell through to
+GDELT, which returned a real article after 44 seconds — too slow for a phone
+lookup. Bing News RSS returns dated local articles in under a second from the
+same public feed, so the function should try Bing first, then Google News, then
+GDELT. The app-side normalization, source block, off/offline rules and fallback
+to Wikipedia are unchanged.
+
+Intended change:
+
+1. Add a Bing News RSS parser to `/api/gdelt`, ahead of Google News and GDELT.
+2. Keep the GDELT rate-limit-aware retry and the app's Wikipedia fallback.
+3. Update the About text and bump the build marker to `2026-11-21m`.
+
+Shipped in `2026-11-21m`: `/api/gdelt` parses Bing News RSS first, then Google
+News RSS, then GDELT (one 5.2-second rate-limit-aware retry). Bing links are
+cleaned from their `url=` redirect parameter into the publisher URL, with the
+publisher hostname as the source label. The app still normalizes lookup phrasing,
+posts the query to the same-origin function, and falls back to Wikipedia whenever
+the proxy returns zero items.
+
+Harness verified: the exact user phrase normalizes to `Idaho Falls`; mocked Bing
+RSS produced a cleaned publisher URL/date; mocked Bing+Google failures still
+reached GDELT; the app made one POST to `/api/gdelt` and injected the source
+block; empty proxy results fell through to Wikipedia; explicit off made zero
+fetches; forced-phone compat still loaded a real GGUF with `n_ctx:2048`,
+`n_gpu_layers:0`, `n_threads:1`; non-isolated phones still got the clear
+canonical-site message; guest/host model scope stayed 2 device / 4 host.
+Live: both sites serve the new app SHA and unchanged worker; canonical returns
+COOP/COEP; a real `Idaho Falls` lookup returned four dated local links in 0.47 s;
+backup skipped the proxy and got Wikipedia; owner/guest/backup smoke had zero
+console errors. Physical iPhone retest remains open.
+
+## 2026-11-23 — Real news lookup through same-origin proxy (published; superseded by m)
+
+Status: **published and verified (app)** — build `2026-11-21j` → `2026-11-21l`.
+App SHA: `5b33215964103f8f92ff890475f4e507578a226b3b75d33f25d705b547c628fa`.
+Pages commit: `4eee091`.
+Service worker unchanged: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`.
+Bridge unchanged: `4166484c20c2d19b9a21d8f02b0b7f57445abeaf291ddb078307be51d82973db`.
+The app-side lookup and fallback paths passed harness and live checks, but the
+Google News fetch fails from Cloudflare workers; build `m` replaces it as the
+first source with Bing News RSS.
+
+Status: **planned before edits** — build `2026-11-21j` → `2026-11-21l`.
+Service worker expected unchanged (the proxy is POST, which the SW ignores).
+Bridge unchanged.
+
+The user asked "Please look up Whats going on this week in idaho falls" on build
+`j` and got a generic answer. Live browser check found the real cause: GDELT's
+API sends **no `Access-Control-Allow-Origin` header**, so `webSources()`'s fetch
+is blocked by CORS before any result exists. The old code then skipped its
+Wikipedia fallback entirely because the GDELT failure escaped to the outer
+catch, so the model received no source block and answered from memory.
+
+Intended change:
+
+1. Add a Cloudflare Pages Function at `/api/gdelt` that accepts POST JSON
+   `{query}`. It fetches Google News RSS server-side first (fast, no key, real
+   dated local articles), then GDELT with one rate-limit-aware retry, and returns
+   normalized articles. POST avoids the service worker's GET-only cache. GitHub
+   Pages has no function, so that host skips the proxy and goes straight to
+   Wikipedia.
+2. Normalize lookup questions before querying news: strip "please look up",
+   "what's going on", "this week", etc., so "Please look up Whats going on this
+   week in idaho falls" becomes the phrase `Idaho Falls`.
+3. Make `webSources()` always try Wikipedia when the proxy yields no usable
+   items, including when the proxy fails. Keep online/offline and explicit-off
+   rules unchanged.
+4. Bump the build marker to `2026-11-21l`.
+
 ## 2026-11-23 — wllama 4.0.0 abort fix + phone CPU load (published and verified)
 
 Status: **published and verified** — build `2026-11-21i` → `2026-11-21j`.

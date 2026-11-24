@@ -4,7 +4,7 @@ Run this on **Chrome, Edge or Safari on the Mac**, against the bridge-served app
 (`Oracle-Chat-Live.html` via `oracle_bridge.py`) and against
 `https://oracle-chat.pages.dev/`.
 
-Baseline SHA (live UI): `2c769b7485deac2147ef3e6af5f519ed962b1bfc22b71096343ae84a284f7d38`
+Baseline SHA (live UI): `7e83fe68bcef9e7b2b409639d177365bb8d5f864845a1957f75ce370325bb78b`
 Rollback: `restore-live.command`
 
 > The phone-only checklist lives in `PHONE-BROWSER-REGRESSION.md`.
@@ -38,6 +38,19 @@ Rollback: `restore-live.command`
 - [x] Host app still loads and chats through the bridge with zero console errors
 - [x] Update check code stays in the static/phone build only (no host/local effect)
 - [x] Both published sites serve the updated app and SW with matching SHAs
+
+## Bing-first news proxy — 2026-11-23 (harness + live verified; device pass open)
+- [x] `/api/gdelt` tries Bing News RSS before Google/GDELT (harness + live)
+- [x] A canonical lookup returns dated local links in under a few seconds (live: 0.47 s)
+- [x] GDELT 429/retry and Wikipedia fallback remain intact (harness)
+- [x] Build `2026-11-21m`, both sites serve matching app SHA; worker/bridge unchanged (live)
+
+## Same-origin news proxy + real lookup — 2026-11-23 (planned before edits)
+- [ ] `/api/gdelt` Pages Function returns Google News articles, then GDELT/GDELT 429 path degrades cleanly (harness)
+- [ ] Lookup phrasing normalizes "Please look up Whats going on this week in idaho falls" to `Idaho Falls` (harness)
+- [ ] Wikipedia fallback runs after proxy failure or zero proxy items (harness)
+- [ ] Online = source block; explicit off/offline = zero fetches; guest/host scope unchanged (harness + live)
+- [ ] Build `2026-11-21l`, both sites serve matching app SHA; worker/bridge unchanged (live)
 
 ## wllama 4.0.0 + phone CPU load — 2026-11-23 (harness + live verified; device pass open)
 - [x] wllama 4.0.0 ESM/default WASM paths load a tiny GGUF with forced compat (harness)
