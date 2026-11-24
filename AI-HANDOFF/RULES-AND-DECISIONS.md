@@ -7,8 +7,12 @@ every change. When in doubt, choose the more private/local option.
 
 - `Oracle-Chat-Offline.html` stays frozen. All live work is in
   `Oracle-Chat-Live.html` (and `oracle_bridge.py` for host behaviour).
-- Keep phone/guest users private and offline-first. The host bridge stays
-  owner-only.
+- **Superseded 2026-11-21h:** the owner asked for every model to have internet
+  access when connected. Public web search context is now used by owner, guest
+  and host models whenever the device is online. The old "phone/guest users
+  stay offline" and "guests make zero network requests" rules no longer apply
+  while online; offline mode and an explicit Web search "off" still mean zero
+  fetches. The host bridge itself remains owner-only.
 - Guests cannot use host tools, vault, memory, skills, routines or approval
   rules. No host credentials, routines or tools are exposed; the model sees
   credential **names only**.
@@ -125,18 +129,20 @@ a search tool. Do not try to fix this with prompts alone.
   news and Wikipedia. Read-only (no approval prompt); guests have no tools and
   cannot call it. The system prompt directs current/local/recent questions to
   search first.
-- Phone/static: owner-only setting under Profile → Web search (also in the
-  command palette), with an optional city field stored in `oracle.city`. Enable
-  flag is `oracle.websearch`. As of `2026-11-21g` a **missing flag means on for
-  the owner** so a fresh phone can answer current questions immediately; an
-  explicit `0` still means off and is always respected. Guests and the host
-  always return false and make zero network requests. When on, GDELT results
-  are fetched directly from the browser (CORS allowed, no key, no Mac, no
-  cloud), injected as a labelled system context before the local model answers,
-  and shown as links under the reply. Wikipedia is a fallback for general
-  topics. This deliberately supersedes the older "off by default" rule.
-- Guests and the host/www build never see the setting or make these requests.
-  With search off the phone makes zero network calls and stays fully offline.
+- As of `2026-11-21h`, **all models and all users** get web context whenever
+  `navigator.onLine` is not false. `webSearchOn()` is only false when the device
+  is offline or the stored `oracle.websearch` flag is explicitly `0`. The
+  `webSources()` guard no longer checks `staticMode` or `guestMode`, and
+  `sendMessage()` adds the source block to the system message for every backend
+  (device ids, custom cloud, local, local-deep, auto, cloud).
+- GDELT is fetched directly from the browser (CORS allowed, no key, no Mac, no
+  cloud), with Wikipedia as a fallback. Sources appear as links under the reply.
+  The bridge needs no change: it already forwards system text to Ollama and the
+  cloud tool. Guests now make these public requests too — this deliberately
+  supersedes the older owner-only/guest-offline rule.
+- The Profile → Web search setting (with optional `oracle.city`) remains an
+  explicit kill switch. Offline or `0` means zero fetches and a fully local
+  answer.
 
 ### Image generation (read the history file too)
 

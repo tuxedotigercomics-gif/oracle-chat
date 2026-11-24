@@ -4,7 +4,7 @@ Run this at **320 / 360 / 390 / 430 px** on the real iPhone in Safari, and in
 an emulated iPhone viewport against `https://oracle-chat.pages.dev/`.
 The backup host is `https://tuxedotigercomics-gif.github.io/oracle-chat/`.
 
-Baseline SHA (live UI): `9cc5d5cd5d3eb02d1378d3b51f8f7b219c069a593db505117acb991453fdefa3`
+Baseline SHA (live UI): `04198568b1cdc6b47c5a062a87ad6cfa3799a0146cab654072322c7697420776`
 Service-worker SHA: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`
 Rollback: `restore-live.command`
 
@@ -35,6 +35,13 @@ Rollback: `restore-live.command`
 - [x] No reload loop; typed draft survives the reload and the guard caps reloads
 - [ ] First-install no-reload guard and offline shell/model with the network blocked — needs the physical phone
 - [ ] Zero console errors across update, reload, send and offline reuse — offline pass still open
+
+## Internet context for every model — 2026-11-23 (harness + live verified; device pass open)
+- [x] All four device models, custom cloud and guest chats get web sources when online (harness)
+- [x] Explicit off and offline mode still skip fetches and answer locally (harness)
+- [x] Setting copy and handoff rules record the guest/host reversal (harness)
+- [x] Both live sites serve build 2026-11-21h with zero console errors (live)
+- [ ] Real current-event answers with source links on the physical iPhone (device pass open)
 
 ## Owner phone Web search default — 2026-11-23 (harness + live verified; device pass open)
 - [x] Fresh owner phone gets Web search on without touching the switch (harness + live)

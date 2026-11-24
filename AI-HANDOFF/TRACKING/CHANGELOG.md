@@ -3,6 +3,52 @@
 Record every change here before you make it, so there is always a clear trail
 between the frozen baseline and whatever is currently in the working file.
 
+## 2026-11-23 — Internet context for every model and user (published and verified)
+
+Status: **published and verified** — build `2026-11-21g` → `2026-11-21h`.
+App SHA: `04198568b1cdc6b47c5a062a87ad6cfa3799a0146cab654072322c7697420776`.
+Pages commit: `df46582`.
+Service worker unchanged: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`.
+Bridge unchanged: `4166484c20c2d19b9a21d8f02b0b7f57445abeaf291ddb078307be51d82973db`.
+
+The owner asked for every model to have internet access whenever the device is
+online. This deliberately supersedes the old "guests never make network
+requests" and owner-only phone search rules. Intended change:
+
+1. `webSearchOn()` is true whenever `navigator.onLine` is not false, for owner,
+   guest and host alike. An explicit `oracle.websearch=0` still turns it off.
+2. `webSources()` no longer rejects guest or host builds. The browser fetches
+   GDELT/Wikipedia directly for every chat, and the source block is added to
+   the system message for **all** backends (device models, custom cloud, host
+   local/deep/auto/cloud). The bridge already forwards system text to both
+   Ollama and the cloud tool, so no host bridge change is needed.
+3. Update the setting copy and the handoff rules to record the reversal:
+   guests and host now make public search requests when online. Offline still
+   works — failed fetches return no sources and chat continues locally.
+4. Bump the build marker to `2026-11-21h`.
+
+Shipped in build `2026-11-21h`: every chat model — Tiny, Balanced, Smart,
+Unfiltered, custom cloud, and the host's local/deep/auto/cloud backends — gets
+public GDELT/Wikipedia source context whenever the device is online, for owner,
+guest and host sessions alike. Offline or an explicit Web search "off" still
+means zero fetches and a fully local answer. No bridge, vault or key change was
+needed: the browser adds the source block to the system message, which the
+bridge already forwards to Ollama and the cloud tool.
+
+**Rule change recorded deliberately:** this supersedes the earlier guarantees
+that guests make no network requests and that phone search is owner-only.
+Guest and host questions now reach public search services when online.
+
+Harness verified: owner, guest and host each produced one stubbed search fetch
+and one source; offline and explicit-off produced zero fetches and null sources;
+all nine backends (4 device ids, custom cloud, local, local-deep, auto, cloud)
+received the source block in their system message; zero console errors on owner
+and guest, with only the expected static-harness `/api/status` 404 on host.
+Both live sites serve the new app SHA and unchanged worker SHA. The backup site
+needed one reload to clear browser cache; after reload all three smoke pages
+reported build `2026-11-21h` with owner/guest search on and zero console errors.
+Physical-device pass remains open.
+
 ## 2026-11-23 — Owner phone Web search on by default (published and verified)
 
 Status: **published and verified** — build `2026-11-21f` → `2026-11-21g`.
