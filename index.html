@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#4a9861" />
-<meta name="oracle-build" content="2026-11-21h" />
+<meta name="oracle-build" content="2026-11-21i" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Oracle" />
@@ -848,6 +848,17 @@ function forceWllamaCompat(w){
   }catch(e){}
   return wllamaCompatForced;
 }
+// The compat WASM imports a shared memory, so WebKit needs cross-origin
+// isolation. Keep wllama's decoded stack on an abort when one is available —
+// the bare "(ABORT)" message hid the real reason during iPhone testing.
+function addAbortDetail(err){
+  if(!err||typeof err!=='object')return err;
+  const msg=String(err.message||err);
+  if(/\(ABORT\)/.test(msg)&&err.stack&&!msg.includes('\n')){
+    err.message=msg+'\n'+String(err.stack).slice(0,360);
+  }
+  return err;
+}
 function ggufSpec(id){
   if(GGUF_MODELS[id])return GGUF_MODELS[id];
   if(typeof id==='string'&&id.includes('|')){const [repo,file]=id.split('|');return {repo,file,name:file,size:'your model file'}}
@@ -983,6 +994,14 @@ async function loadDeviceModel(modelId){
       // Every current model is a single file, which uses one worker.
       const w=new Wllama({default:WLLAMA_WASM},{parallelDownloads:3});
       forceWllamaCompat(w);
+      // The compat WASM declares a shared memory (flags 0x3, 2048 → 65536
+      // pages). WebKit only permits that in a cross-origin-isolated document.
+      // Cloudflare Pages sends COOP/COEP; GitHub Pages cannot, so give a clear
+      // instruction there instead of wllama's opaque "(ABORT)".
+      if(wllamaCompatForced&&!self.crossOriginIsolated){
+        try{await w.exit()}catch(e){}
+        throw new Error('On-device models need the main Oracle Chat site on iPhone. Open https://oracle-chat.pages.dev/ and reload — the backup site cannot run them.');
+      }
       // Ask only when the weights are genuinely missing. A saved model loads
       // silently after a refresh, in a new room, and with no network at all.
       const info=await deviceCacheInfo(w,spec,modelId);
@@ -1005,7 +1024,7 @@ async function loadDeviceModel(modelId){
       devicePipes[modelId]=w;devicePipe=w;deviceModelId=modelId;
       markDeviceSaved(modelId,spec,info.size);
       setDeviceStatus('');return w;
-    }catch(err){setDeviceStatus('');throw err}
+    }catch(err){setDeviceStatus('');throw addAbortDetail(err)}
     finally{delete deviceLoads[modelId]}
   })();
   return deviceLoads[modelId];
