@@ -3,10 +3,10 @@
 // Browsers cannot call api.gdeltproject.org directly: GDELT sends no
 // Access-Control-Allow-Origin header, so that fetch dies before the app sees any
 // articles. Cloudflare Pages can fetch news server-side, so the phone app posts
-// its query here and receives plain JSON. Google News RSS is the primary source
-// (fast, no key, real dated local articles); GDELT remains as a fallback. GitHub
-// Pages has no Functions runtime, so that host skips this endpoint and falls
-// straight back to Wikipedia.
+// its query here and receives plain JSON. Bing News RSS is the primary source
+// (fast, no key, real dated local articles); Google News and GDELT are fallbacks.
+// GitHub Pages has no Functions runtime, so that host skips this endpoint and
+// falls straight back to Wikipedia.
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -51,6 +51,40 @@ function tag(block, name) {
 function seendate(pubDate) {
   const d = new Date(pubDate);
   return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10).replace(/-/g, '');
+}
+
+function cleanLink(value) {
+  const decoded = decodeXml(value);
+  try {
+    const u = new URL(decoded);
+    const target = u.searchParams.get('url');
+    if (target) return new URL(target).href;
+  } catch (e) {}
+  return decoded;
+}
+
+async function fetchBingNews(query) {
+  const url = 'https://www.bing.com/news/search?' + new URLSearchParams({ q: query, format: 'rss' });
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Bing News status ' + res.status);
+  const xml = await res.text();
+  const articles = [];
+  for (const item of (xml.match(/<item>[\s\S]*?<\/item>/gi) || [])) {
+    const title = tag(item, 'title');
+    const rawLink = tag(item, 'link');
+    if (!title || !rawLink) continue;
+    const link = cleanLink(rawLink);
+    let domain = 'Bing News';
+    try { domain = new URL(link).hostname.replace(/^www\./, ''); } catch (e) {}
+    articles.push({
+      title: title.slice(0, 140),
+      url: link,
+      domain: domain.slice(0, 80),
+      seendate: seendate(tag(item, 'pubDate'))
+    });
+    if (articles.length >= 4) break;
+  }
+  return articles;
 }
 
 async function fetchGoogleNews(query) {
@@ -128,11 +162,13 @@ export async function onRequestPost({ request }) {
   }
   if (!query) return empty();
 
-  try {
-    const articles = await fetchGoogleNews(query);
-    if (articles.length) return json({ articles });
-  } catch (e) {
-    // GDELT and then the app's Wikipedia fallback still get a chance.
+  for (const fetcher of [fetchBingNews, fetchGoogleNews]) {
+    try {
+      const articles = await fetcher(query);
+      if (articles.length) return json({ articles });
+    } catch (e) {
+      // The next source, then GDELT and the app's Wikipedia fallback, get a chance.
+    }
   }
   return json({ articles: await fetchGdelt(query) });
 }
