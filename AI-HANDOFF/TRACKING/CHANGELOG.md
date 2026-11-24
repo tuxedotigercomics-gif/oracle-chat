@@ -3,6 +3,39 @@
 Record every change here before you make it, so there is always a clear trail
 between the frozen baseline and whatever is currently in the working file.
 
+## 2026-11-23 — Owner phone Web search on by default (published and verified)
+
+Status: **published and verified** — build `2026-11-21f` → `2026-11-21g`.
+App SHA: `9cc5d5cd5d3eb02d1378d3b51f8f7b219c069a593db505117acb991453fdefa3`.
+Pages commit: `5f86cd4`.
+Service worker unchanged: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`.
+
+The owner asked for the phone app to have internet access for current
+information. The owner-only Web search setting already exists but defaults to
+off, so a fresh install makes zero network requests until the owner finds the
+switch. Intended change:
+
+1. `webSearchOn()` treats a missing `oracle.websearch` flag as **on** only for
+   a non-guest static/phone build. An explicit `0` still means off, so anyone
+   who switched it off stays off. Guest and host builds always return false and
+   keep making zero network requests.
+2. Update the setting's copy from "Off by default" to reflect the new owner
+   default, while keeping the guest/offline warning.
+3. Bump the build marker to `2026-11-21g`. No bridge, key vault or model change.
+
+Shipped in build `2026-11-21g`: owner phone/static builds now start with Web
+search enabled, so current-event questions reach GDELT (then Wikipedia as a
+fallback) and the source links are shown under the answer. Guests and the host
+still return false from `webSearchOn()` and make zero network requests; anyone
+who explicitly switched search off keeps that choice. No API key, cloud key or
+bridge path was added — the setting still uses the existing public CORS APIs.
+
+Harness verified: missing flag → owner on with one stubbed fetch and a source;
+explicit `0` → off with zero fetches; guest and host → off with zero fetches;
+setting copy updated; model visibility unchanged (owner 4 / guest 2 / host 0).
+Both live sites serve the new app SHA and unchanged worker SHA with zero console
+errors. Physical iPhone pass remains open.
+
 ## 2026-11-23 — Force wllama compat build on iOS Safari 27 (published and verified)
 
 Status: **published and verified** — build `2026-11-21e` → `2026-11-21f`.

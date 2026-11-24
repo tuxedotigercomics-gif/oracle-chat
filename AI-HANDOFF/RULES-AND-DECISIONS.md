@@ -125,12 +125,16 @@ a search tool. Do not try to fix this with prompts alone.
   news and Wikipedia. Read-only (no approval prompt); guests have no tools and
   cannot call it. The system prompt directs current/local/recent questions to
   search first.
-- Phone/static: owner-only, **off by default** setting under Profile → Web
-  search (also in the command palette), with an optional city field stored in
-  `oracle.city`. Enable flag is `oracle.websearch`. When on, GDELT results are
-  fetched directly from the browser (CORS allowed, no key, no Mac, no cloud),
-  injected as a labelled system context before the local model answers, and
-  shown as links under the reply. Wikipedia is a fallback for general topics.
+- Phone/static: owner-only setting under Profile → Web search (also in the
+  command palette), with an optional city field stored in `oracle.city`. Enable
+  flag is `oracle.websearch`. As of `2026-11-21g` a **missing flag means on for
+  the owner** so a fresh phone can answer current questions immediately; an
+  explicit `0` still means off and is always respected. Guests and the host
+  always return false and make zero network requests. When on, GDELT results
+  are fetched directly from the browser (CORS allowed, no key, no Mac, no
+  cloud), injected as a labelled system context before the local model answers,
+  and shown as links under the reply. Wikipedia is a fallback for general
+  topics. This deliberately supersedes the older "off by default" rule.
 - Guests and the host/www build never see the setting or make these requests.
   With search off the phone makes zero network calls and stays fully offline.
 

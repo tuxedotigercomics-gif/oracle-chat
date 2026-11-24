@@ -4,7 +4,7 @@ Run this at **320 / 360 / 390 / 430 px** on the real iPhone in Safari, and in
 an emulated iPhone viewport against `https://oracle-chat.pages.dev/`.
 The backup host is `https://tuxedotigercomics-gif.github.io/oracle-chat/`.
 
-Baseline SHA (live UI): `f8727fd41386698bb039ef41cbecd9dcf3493ff24bbbf85d7d353b6da3ce4fc4`
+Baseline SHA (live UI): `9cc5d5cd5d3eb02d1378d3b51f8f7b219c069a593db505117acb991453fdefa3`
 Service-worker SHA: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`
 Rollback: `restore-live.command`
 
@@ -36,6 +36,13 @@ Rollback: `restore-live.command`
 - [ ] First-install no-reload guard and offline shell/model with the network blocked — needs the physical phone
 - [ ] Zero console errors across update, reload, send and offline reuse — offline pass still open
 
+## Owner phone Web search default — 2026-11-23 (harness + live verified; device pass open)
+- [x] Fresh owner phone gets Web search on without touching the switch (harness + live)
+- [x] Explicit off and guest mode make zero fetches; host bridge unaffected (harness)
+- [x] Setting modal copy matches the new default; no new key or bridge path (harness)
+- [x] Owner 4 / guest 2 models unchanged; zero console errors on all pages (harness + live)
+- [ ] Current-event answers show GDELT/Wikipedia source links on the physical iPhone (device pass open)
+
 ## iOS wllama compat fix — 2026-11-23 (harness + live verified; device pass open)
 - [x] Broken memory64 probe hides JSPI, calls `setCompat('default','firefox_safari')`, and sets the forced flag (harness)
 - [x] Working memory64 probe leaves WebAssembly globals and requests unchanged (harness)
@@ -66,7 +73,7 @@ Rollback: `restore-live.command`
 - [x] No new network path for guests; offline default still makes zero fetches (harness)
 
 ## Web search for current info — 2026-11-21 (harness verified; device pass open)
-- [x] Web search is off by default and the app still works fully offline (harness — 0 fetches with search off)
+- [x] Web search was off by default in `2026-11-21b` and the app still worked fully offline (harness — 0 fetches with search off); **superseded for the owner by `2026-11-21g`**, guest/host still off
 - [x] Owner-only setting and city field are visible on static/phone, hidden from guests and host (harness)
 - [ ] Enabling search injects current sources into the on-device prompt and shows links (harness done; physical iPhone pending)
 - [x] No host credentials/tools/bridge endpoints are exposed by the phone path (harness + live)

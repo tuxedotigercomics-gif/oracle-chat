@@ -8,20 +8,24 @@ should be able to resume the work without access to the original Mac workspace.
 
 | Item | Value |
 |---|---|
-| Current build marker | `2026-11-21f` |
-| Current app SHA (sha256) | `f8727fd41386698bb039ef41cbecd9dcf3493ff24bbbf85d7d353b6da3ce4fc4` |
+| Current build marker | `2026-11-21g` |
+| Current app SHA (sha256) | `9cc5d5cd5d3eb02d1378d3b51f8f7b219c069a593db505117acb991453fdefa3` |
 | Service-worker SHA | `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35` |
-| Previous verified build | `2026-11-21e` (`87a4c7e05ca267e55e24c43ec9a476abfa89acfa5ba36152b4d83083bf165ac1`) |
-| Pages commit (app build) | `10bacba` |
-| Previous app commit | `861af4b`; handoff docs `e293659` |
+| Previous verified build | `2026-11-21f` (`f8727fd41386698bb039ef41cbecd9dcf3493ff24bbbf85d7d353b6da3ce4fc4`) |
+| Pages commit (app build) | `5f86cd4` |
+| Previous app commit | `10bacba`; handoff docs `763983c` |
 | Canonical site | https://oracle-chat.pages.dev/ |
 | Backup site | https://tuxedotigercomics-gif.github.io/oracle-chat/ |
 | Repo | `tuxedotigercomics-gif/oracle-chat` (this repository) |
-| Last fully verified build | `2026-11-21f` (harness + both live sites, zero console errors) |
+| Last fully verified build | `2026-11-21g` (harness + both live sites, zero console errors) |
 
 ## Open items
 
-1. **Physical iPhone confirmation** of build `2026-11-21f`. Build `2026-11-21e`
+1. **Physical iPhone confirmation** of build `2026-11-21g`. Build `2026-11-21g`
+   also turns Web search on by default for the owner phone (guests and host
+   remain offline): ask a current/local question and confirm source links
+   appear under the answer. If you want the phone fully offline again, switch
+   Web search off in Profile and it stays off. Build `2026-11-21e`
    revealed that the on-device model hang was not about model size: both 0.6B
    and 350M stayed at "Loading saved … from this device…". This was traced to
    upstream wllama issue #297 — iOS Safari 27 accepts a 64-bit `WebAssembly.Memory`
