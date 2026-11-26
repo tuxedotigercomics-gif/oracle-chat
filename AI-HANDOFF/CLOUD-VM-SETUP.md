@@ -46,8 +46,9 @@ curl -s 'https://oracle-chat.pages.dev/api/cloud-state?key=cs-harness-check-123'
 ```
 
 Expected when the binding is live: `{"ok":true,"state":null}`.
-Expected before setup: `{"ok":false,"code":"binding-missing",...}` with HTTP 503.
-The app falls back silently to device-local state either way.
+Expected before setup: `{"ok":false,"code":"binding-missing",...}` with HTTP 200
+(a 503 would be logged by the browser as a console error). The app falls back
+silently to device-local state either way.
 
 The backup GitHub Pages host has no Functions runtime, so `/api/cloud-state`
 returns 404 there and the app simply keeps working offline.

@@ -23,11 +23,13 @@ function json(data, status = 200) {
 }
 
 function missingBinding() {
+  // Return 200 with a controlled code: a 503 appears in the browser console as
+  // a failed resource even though the app handles it cleanly.
   return json({
     ok: false,
     code: 'binding-missing',
     message: 'Cloud state needs the free D1 binding named ORACLE_DB. See AI-HANDOFF/CLOUD-VM-SETUP.md.'
-  }, 503);
+  }, 200);
 }
 
 async function ensureTable(db) {
