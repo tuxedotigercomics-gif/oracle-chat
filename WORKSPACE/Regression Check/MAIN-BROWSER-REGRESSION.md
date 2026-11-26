@@ -4,11 +4,23 @@ Run this on **Chrome, Edge or Safari on the Mac**, against the bridge-served app
 (`Oracle-Chat-Live.html` via `oracle_bridge.py`) and against
 `https://oracle-chat.pages.dev/`.
 
-Baseline SHA (live UI): `1ee397885f4eee930cd77deef400feb362ce6b8559e95f74c2bfcfd765f032c5`
+Baseline SHA (live UI): `800f07cdc3bd76f2dbbc7b99fe92ce626f7e8de83879be4236515c1c5f5698f1`
 Rollback: `restore-live.command`
 
 > The phone-only checklist lives in `PHONE-BROWSER-REGRESSION.md`.
 > Voice-call fixes are marked **VOICE FIX 2026-11-19** below.
+
+## OAuth-ready setup, draft cards, automation handoff and Memory/Projects — 2026-11-27c (harness + live + host smoke verified)
+- [x] Connect with Instagram is OAuth-ready with a configurable public App ID and HTTPS callback; config-gated callback deployed and unconfigured builds fall back honestly to own-token setup
+- [x] No Meta app secret, token or callback code appears in HTML, chat, console, cloud state, bridge logs or model prompts
+- [x] Draft a post produces an Edit / Copy / Publish / Cancel card; Publish still requires the normal own-connector approval card
+- [x] Connector setup is a plain-English wizard with Test connection; tokens stay encrypted device-local and are never displayed again
+- [x] Monitor/schedule requests produce a truthful handoff card with copyable iOS Shortcuts/webhook steps and no background claim
+- [x] Empty/new chats show first-run quick actions for owner, guest and host
+- [x] Projects and Memory are device-local, guest-isolated, excluded from cloud state, and only injected into prompts when enabled
+- [x] Existing connectors, deep search, source cards, teams, guest gates and bridge rules remain unchanged
+- [x] Harness passes locally and live on both sites; service worker SHA unchanged; zero console errors on owner, guest, backup and bridge-host pages
+- [x] Build `2026-11-27c` published with matching app SHAs, then baseline/restore/README re-frozen only after harness passes
 
 ## Plain-language connector automation — 2026-11-27b (harness + live + host smoke verified)
 - [x] Phrases like “connect my Instagram”, “check my Instagram” and “post this to Instagram” work without special syntax on owner, guest and host

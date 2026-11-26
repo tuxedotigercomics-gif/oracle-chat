@@ -4,12 +4,21 @@ Run this at **320 / 360 / 390 / 430 px** on the real iPhone in Safari, and in
 an emulated iPhone viewport against `https://oracle-chat.pages.dev/`.
 The backup host is `https://tuxedotigercomics-gif.github.io/oracle-chat/`.
 
-Baseline SHA (live UI): `1ee397885f4eee930cd77deef400feb362ce6b8559e95f74c2bfcfd765f032c5`
+Baseline SHA (live UI): `800f07cdc3bd76f2dbbc7b99fe92ce626f7e8de83879be4236515c1c5f5698f1`
 Service-worker SHA: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`
 Rollback: `restore-live.command`
 
 > The desktop/host checklist lives in `MAIN-BROWSER-REGRESSION.md`.
 > Voice-call fixes are marked **VOICE FIX 2026-11-19** below.
+
+## OAuth-ready setup, draft cards, automation handoff and Memory/Projects — 2026-11-27c (harness + live + 320–430 px emulation verified; physical pass open)
+- [x] Connect with Instagram fallback/setup wizard is readable and usable at 320–430 px without exposing tokens (emulated iPhone pass)
+- [x] Draft card and its Edit / Copy / Publish / Cancel buttons fit the phone composer and do not overflow (emulated 320/360/390/430 px)
+- [x] Automation handoff steps are copyable and make no background-monitoring claim (harness + live; physical Safari copy pass open)
+- [x] First-run quick actions fit 320–430 px and are reachable for guests and phone users (emulated owner/guest pass)
+- [x] Projects and Memory are device-local, guest-isolated and have visible on/off controls (harness + live)
+- [x] Build `2026-11-27c` served by the unchanged worker on both sites with zero console errors (harness + live; physical iPhone pass still open)
+- [ ] Physical iPhone pass at 320 / 360 / 390 / 430 px in Safari, including voice input, real connector setup, draft/automation copy buttons and Memory/Projects controls
 
 ## Plain-language connector automation — 2026-11-27b (harness + live verified; physical pass open)
 - [x] “Connect my Instagram”, “check my Instagram” and “post this to Instagram” work without special syntax on canonical, guest and backup pages (live browser; physical voice/layout pass open)

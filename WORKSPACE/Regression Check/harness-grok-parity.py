@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Harness for build 2026-11-27b (deep search, source cards, own-account connectors).
+"""Harness for build 2026-11-27c (OAuth-ready setup, draft cards, automation handoff,
+first-run actions and device-local Memory/Projects).
 
 Local mode checks source invariants and runs the pure JS helpers through the
 macOS JavaScriptCore engine (osascript -l JavaScript). There is no Node on this
@@ -24,10 +25,12 @@ APP = os.path.join(PROJECT, "Oracle-Chat-Live.html")
 BRIDGE = os.path.join(PROJECT, "oracle_bridge.py")
 CLOUD_FN = os.path.join(PAGES, "functions", "api", "cloud-state.js")
 GDELT_FN = os.path.join(PAGES, "functions", "api", "gdelt.js")
+OAUTH_FN = os.path.join(PAGES, "functions", "api", "instagram-oauth", "callback.js")
 CANONICAL = "https://oracle-chat.pages.dev/"
 BACKUP = "https://tuxedotigercomics-gif.github.io/oracle-chat/"
 
 EXPECTED_SW_SHA = "6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35"
+EXPECTED_BRIDGE_SHA = "eb86840cf681ef57881244d87bc2f0bad57c593fb0673118c356429600661e20"
 
 
 def sha(path):
@@ -41,8 +44,8 @@ def expect(cond, label):
     print("ok - " + label)
 
 
-def source_checks(html, cloud, bridge, gdelt):
-    expect('content="2026-11-27b"' in html, "build marker is 2026-11-27b")
+def source_checks(html, cloud, bridge, gdelt, oauth):
+    expect('content="2026-11-27c"' in html, "build marker is 2026-11-27c")
     expect("Socials Bot" in html and "Which platforms are you posting to?" in html,
            "Socials Bot template asks platform/audience/goal questions")
     expect("botOpener(name,job,desc)" in html, "room creation uses the local opener generator")
@@ -135,6 +138,35 @@ def source_checks(html, cloud, bridge, gdelt):
             "bridge system prompt also refuses unapproved external-account actions")
     expect("snippet: snippet(tag(item, 'description'))" in gdelt,
             "news proxy returns snippets for source cards")
+    expect("const LOCAL_MEMORY_KEY='oracle.localmemory.'+vaultId" in html
+           and "const PROJECT_KEY='oracle.projects.'+vaultId" in html
+           and "const FIRST_RUN_KEY='oracle.firstrun.'+vaultId" in html,
+           "Memory, Projects and first-run state are device-local and guest-isolated")
+    expect("function memoryPromptText()" in html and "memoryOn=false" in html
+           and "function memorySafe(" in html and "localMemory.filter(memorySafe)" in html,
+           "memory enters prompts only when enabled and refuses secret-looking notes")
+    expect("chats:[active().id]" in html and "function assignProject(" in html
+           and "c.project=" not in html,
+           "project membership stays in device-local storage, never in cloud chats")
+    expect('data-draft-edit=' in html and 'data-draft-copy=' in html
+           and 'data-draft-publish=' in html and 'data-draft-cancel=' in html
+           and "draftState:'pending'" in html,
+           "draft card supports Edit, Copy, Publish and Cancel")
+    expect('data-auto-copy=' in html and 'data-auto-check=' in html
+           and 'data-auto-routines=' in html and "function automationSteps(" in html,
+           "automation handoff card offers user-owned Shortcut/webhook steps")
+    expect('data-conn-test=' in html and "function renderConnectorWizard()" in html
+           and "connectorWizard.step=1" in html and "connectorWizard={step:2" in html,
+           "connector setup wizard includes guided steps and Test connection")
+    expect("function oauthConfig()" in html and "function beginInstagramOAuth()" in html
+           and "async function handleInstagramOAuthMessage(event)" in html
+           and "META_APP_SECRET" not in html and "client_secret" not in html,
+           "Instagram Connect button is config-driven and never carries a secret")
+    expect("META_APP_SECRET" in oauth and "window.opener.postMessage" in oauth
+           and '"Cache-Control": "no-store"' in oauth,
+           "free Pages callback exchanges the code server-side and stores nothing")
+    expect(OAUTH_FN.endswith(os.path.join("functions", "api", "instagram-oauth", "callback.js")),
+           "Pages callback file matches the /api/instagram-oauth/callback route")
 
 
 def script_syntax_check(html):
@@ -170,6 +202,7 @@ def js_helper_checks(html):
     guide_src = between("const ORACLE_BOT_ID=", "// A phone tab can be killed")
     search_src = between("function searchDomains(){", "async function fetchGdeltItems(")
     web_src = between("function webSearchOn(){", "function setWebSearchOn(")
+    local_src = between("const LOCAL_MEMORY_KEY=", "// ---- Own-account connectors (owner, guest and phone) ----")
     conn_src = between("const CONNECTOR_KEY=", "// ---- Host-only approval rules ----")
     team_src = between("const TEAM_KEY=", "function chatTranscript(")
 
@@ -177,6 +210,7 @@ def js_helper_checks(html):
 var localStorage={_v:{},getItem:function(k){return this._v[k]===undefined?null:this._v[k]},setItem:function(k,v){this._v[k]=String(v)}};
 var navigator={onLine:true};
 var vaultId='self',guestMode=false;
+var location={origin:'https://oracle-chat.pages.dev'},window={};
 function connectorNames(){return ['My IG']}
 var convs=[{id:'a',name:'Alpha Bot',job:'Research assistant',desc:'',hero:'vision',folder:'f',persona:'oracle',messages:[]},
            {id:'b',name:'Beta Bot',job:'Social media planner',desc:'',hero:'deadpool',folder:'f',persona:'playful',messages:[]}];
@@ -185,7 +219,7 @@ function showToast(s){}
 function render(){}
 function saveState(){}
 var botJob=function(c){return String((c&&c.job)||'General assistant').slice(0,60)};
-''' + bot_src + "\n" + guide_src + "\n" + search_src + "\n" + web_src + "\n" + conn_src + "\n" + team_src + r'''
+''' + bot_src + "\n" + guide_src + "\n" + search_src + "\n" + web_src + "\n" + local_src + "\n" + conn_src + "\n" + team_src + r'''
 localStorage.setItem('oracle.botprefs.x','Use short answers');
 var social=botOpener('Socials Bot','Social media planner','Plan and review social posts');
 var identity=botIdentityPrompt({id:'x',name:'Socials Bot',job:'Social media planner',desc:'Social media planning'});
@@ -240,10 +274,31 @@ var ciMonitor=connectorIntent('Monitor my Instagram DMs',[]);
 var ciDraft=connectorIntent('Draft a social post about my comic',[]);
 var intentOk=ciCheck&&ciCheck.kind==='check'&&ciConnect&&ciConnect.kind==='connect'&&
   ciPublish&&ciPublish.kind==='publish'&&ciPublish.imageUrl==='https://img.test/a.jpg'&&
-  ciMonitor&&ciMonitor.kind==='monitor'&&ciDraft===null;
+  ciMonitor&&ciMonitor.kind==='monitor'&&ciDraft&&ciDraft.kind==='draft'&&
+  ciDraft.text.indexOf('my comic')>=0;
+var draftText=draftTextFrom('Draft a social post about my comic');
+var steps=automationSteps('instagram');
+var stepsOk=steps.indexOf('iOS Shortcuts')>=0&&steps.indexOf('your own HTTPS endpoint')>=0;
+var oauthBefore=oauthReady();
+var oauthSaved=saveInstagramOAuth('12345','https://oracle-chat.pages.dev/api/instagram-oauth/callback');
+var oauthCfg=oauthConfig();
+var oauthOk=oauthBefore===false&&oauthSaved===true&&oauthCfg.appId==='12345'&&
+  oauthCfg.callback.indexOf('https://')===0;
+var memOff=memoryPromptText();
+memoryOn=true;localMemory=['I like comics','my token ABC'];
+var memText=memoryPromptText();
+var memoryOk=memOff===''&&memText.indexOf('I like comics')>=0&&memText.indexOf('ABC')<0&&
+  memorySafe('I like comics')===true&&memorySafe('token ABC')===false;
+var firstBefore=firstRun;finishFirstRun();var firstOk=firstBefore===true&&firstRun===false;
+projects=[{id:'pj-1',name:'Comic',chats:['a']},{id:'pj-2',name:'News',chats:[]}];
+assignProject('pj-2','a');
+var projectOk=projects[0].chats.length===0&&projects[1].chats.indexOf('a')>=0;
 var payload=JSON.stringify({key:'k',state:{convs:convs,folders:folders,activeId:'a'}});
 var noTeamInCloud=payload.indexOf('oracle.teams.')<0;
 var noConnectorInCloud=payload.indexOf('connector.')<0;
+var noLocalInCloud=payload.indexOf('oracle.localmemory.')<0&&
+  payload.indexOf('oracle.projects.')<0&&payload.indexOf('oracle.firstrun.')<0&&
+  payload.indexOf('pj-')<0;
 var oldSocialChat={id:'socials-old',name:'Socials Bot',
   desc:'Plan, draft and review social posts; ask about platforms, audience and posting goals.',
   preview:"Hi — I'm Socials Bot. Plan, draft and review social posts",messages:[]};
@@ -258,7 +313,9 @@ JSON.stringify({social:social,identity:identity,q:q,xq:xq,off:off,
   pausedBlocked:pausedBlocked,rulePausedBlocked:rulePausedBlocked,scheduled:scheduled,
   once:once,noTeamInCloud:noTeamInCloud,deepOk:deepOk,mergeOk:mergeOk,
   parseOk:parseOk,noConnector:noConnector,noConnectorInCloud:noConnectorInCloud,
-  intentOk:intentOk,migrationOk:migrationOk});
+  intentOk:intentOk,migrationOk:migrationOk,draftText:draftText,stepsOk:stepsOk,
+  oauthOk:oauthOk,memoryOk:memoryOk,firstOk:firstOk,projectOk:projectOk,
+  noLocalInCloud:noLocalInCloud});
 '''
     fd, path = tempfile.mkstemp(suffix=".jsc", text=True)
     try:
@@ -321,8 +378,8 @@ def live_checks():
 
     status, headers, body = get(CANONICAL)
     h = {k.lower(): v for k, v in headers.items()}
-    expect(status == 200 and 'content="2026-11-27b"' in body,
-           "canonical serves build 2026-11-27b")
+    expect(status == 200 and 'content="2026-11-27c"' in body,
+           "canonical serves build 2026-11-27c")
     expect(h.get("cross-origin-opener-policy") == "same-origin" and
            h.get("cross-origin-embedder-policy") == "require-corp",
            "canonical still sends COOP/COEP")
@@ -330,8 +387,8 @@ def live_checks():
     expect(hashlib.sha256(raw(CANONICAL)).hexdigest() == sha(APP),
            "canonical app bytes match the local build")
     status, headers, body = get(BACKUP)
-    expect(status == 200 and 'content="2026-11-27b"' in body,
-           "backup serves build 2026-11-27b")
+    expect(status == 200 and 'content="2026-11-27c"' in body,
+           "backup serves build 2026-11-27c")
     expect(hashlib.sha256(raw(BACKUP)).hexdigest() == sha(APP),
            "backup app bytes match the local build")
     expect(headers.get("Cross-Origin-Opener-Policy") is None,
@@ -349,6 +406,9 @@ def live_checks():
     expect(sha(sw_path) == EXPECTED_SW_SHA, "service worker SHA unchanged")
     expect(hashlib.sha256(raw(CANONICAL + "sw.js")).hexdigest() == EXPECTED_SW_SHA,
            "canonical serves the unchanged service worker")
+    status, _, body = get(CANONICAL + "api/instagram-oauth/callback?state=cs-harness-check-123")
+    expect(status == 200 and "oracle-instagram-oauth" in body and "META_APP_SECRET" not in body,
+           "canonical OAuth callback is deployed and secret-free")
 
 
 def main():
@@ -364,8 +424,10 @@ def main():
         bridge = f.read()
     with open(GDELT_FN, encoding="utf-8") as f:
         gdelt = f.read()
+    with open(OAUTH_FN, encoding="utf-8") as f:
+        oauth = f.read()
 
-    source_checks(html, cloud, bridge, gdelt)
+    source_checks(html, cloud, bridge, gdelt, oauth)
     script_syntax_check(html)
     out = js_helper_checks(html)
     expect("platforms" in out["social"] and "audience" in out["social"] and "goals" in out["social"],
@@ -390,8 +452,16 @@ def main():
     expect(out["mergeOk"], "source dedupe drops repeated URLs")
     expect(out["parseOk"] and out["noConnector"], "connector requests create approval cards only")
     expect(out["noConnectorInCloud"], "connector state is excluded from cloud payloads")
-    expect(out["intentOk"], "plain phrases map to check, connect, publish and monitor intents")
+    expect(out["intentOk"], "plain phrases map to check, connect, draft, publish and monitor intents")
+    expect("my comic" in out["draftText"], "draft cards derive the topic from natural language")
+    expect(out["stepsOk"], "automation handoff gives copyable iOS Shortcut/webhook steps")
+    expect(out["oauthOk"], "OAuth-ready config accepts public App ID and HTTPS callback only")
+    expect(out["memoryOk"], "device memory is opt-in and refuses secret-looking facts")
+    expect(out["firstOk"], "first-run quick actions are marked complete on this device")
+    expect(out["projectOk"], "projects keep chat membership locally without touching chat state")
+    expect(out["noLocalInCloud"], "local memory, projects and first-run state stay out of cloud payloads")
     expect(out["migrationOk"], "saved chats migrate to the corrected bot wording")
+    expect(sha(BRIDGE) == EXPECTED_BRIDGE_SHA, "bridge prompt and rules remain unchanged")
     bridge_model_checks()
 
     print("app sha: " + sha(APP))

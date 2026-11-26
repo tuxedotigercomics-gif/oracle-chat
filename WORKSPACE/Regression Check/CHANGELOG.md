@@ -3,6 +3,61 @@
 Record every change here before you make it, so there is always a clear trail
 between the frozen baseline and whatever is currently in the working file.
 
+## 2026-11-27c — OAuth-ready setup, draft cards, automation handoff, first-run actions and Memory/Projects (published and verified)
+
+Status: **published and verified** (planned before edits on 2026-11-26). The owner
+said “let’s do all of it” after being offered the next improvements. This build
+keeps the same free-tier, device-local, approval-first rules and does not use a
+VM, paid plan, browser control or borrowed login.
+
+Intended change:
+
+1. Add an **OAuth-ready Connect with Instagram** path. The app can be configured
+   with a public Meta App ID and HTTPS callback on the existing free Pages host;
+   until configured it honestly falls back to the current own-token setup. No
+   client secret is ever placed in the HTML, chat, cloud state, bridge or prompt.
+2. Turn “Draft a post” into a real **draft card** with Edit, Copy, Publish and
+   Cancel actions. Publishing still goes through the existing own-connector
+   approval card; Cancel only discards the local draft card.
+3. Replace the raw connector form with a plain-English **setup wizard**:
+   choose own Instagram or own webhook, explain that it is their account, add
+   the credential, run a one-time Test connection, then finish. Tokens stay
+   encrypted device-local and are never shown again.
+4. Add an **automation handoff card** for “monitor/schedule”. It explains the
+   foreground limit and gives copyable iOS Shortcuts/webhook steps for the
+   person’s own automation, without claiming background control.
+5. Add **first-run quick actions** on empty/new chats so guests and phone users
+   can discover Check Instagram, Draft a post, Connect Instagram and Set up
+   automation without knowing hidden syntax.
+6. Add **Memory and Projects** on-device: a Projects panel for grouping work and
+   a small user-controlled memory list that can be included in prompts only when
+   enabled. Guests get their own device-local copy; nothing syncs to cloud state.
+7. Keep every existing command, approval, privacy gate and guest/owner boundary
+   working. Bump the marker to `2026-11-27c`, extend the harness for the new
+   paths, run local/live harnesses and browser smoke, verify both SHAs and the
+   unchanged worker, then re-freeze only after verification. Physical iPhone
+   confirmation stays a separate open checklist.
+
+Shipped in build `2026-11-27c`: local and live harness PASS; app SHA
+`800f07cdc3bd76f2dbbc7b99fe92ce626f7e8de83879be4236515c1c5f5698f1` verified byte-for-byte
+on the source, published copy, canonical and backup sites; service worker unchanged
+at `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`; bridge
+unchanged at `eb86840cf681ef57881244d87bc2f0bad57c593fb0673118c356429600661e20`.
+Published in Pages commit `0d6a506`. Zero console errors on owner, guest,
+backup and bridge-host pages; owner/guest/host command matrix and 320/360/390/430 px
+layout emulation passed. The free Pages callback is deployed at
+`/api/instagram-oauth/callback` with SHA
+`2adb97b605d9ffe749d3b5d83934a8ebe6ff61ad34ae5eaff1aa6f345e271eda`; it returns
+a controlled, secret-free “Not configured” page until the owner supplies the
+Meta App ID, server-side app secret, redirect URI and scopes as Pages secrets.
+Private Development-mode tester access can then be enabled; public/guest access
+still needs Meta App Review / Advanced Access. OAuth remains config-gated: no
+client secret exists in the HTML, chat, console, cloud state, bridge or prompts.
+Draft cards, the guided connector wizard with
+Test connection, first-run quick actions, automation handoff, opt-in Memory and
+Projects were verified in the browser. Physical iPhone confirmation remains a
+separate open checklist.
+
 ## 2026-11-27b — Plain-language connector automation (published and verified)
 
 Status: **published and verified**. The owner said the exact connector wording was
