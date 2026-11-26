@@ -4,11 +4,28 @@ Run this on **Chrome, Edge or Safari on the Mac**, against the bridge-served app
 (`Oracle-Chat-Live.html` via `oracle_bridge.py`) and against
 `https://oracle-chat.pages.dev/`.
 
-Baseline SHA (live UI): `230ae9cad770e595506da9b694ac73d81f96bd6ffb6341917784145d1d5f7953`
+Baseline SHA (live UI): `a640db6d59a509542d299986ea328fe4115bf50994d7a7a8fc93dc808039a4b0`
 Rollback: `restore-live.command`
 
 > The phone-only checklist lives in `PHONE-BROWSER-REGRESSION.md`.
 > Voice-call fixes are marked **VOICE FIX 2026-11-19** below.
+
+## Deep Search, source cards + own-account connectors — 2026-11-27a (harness + live + host smoke verified)
+- [x] Chat More menu has a per-chat Deep Search toggle on owner/guest/host, default off, persisted in non-secret chat state only
+- [x] Deep Search fans out up to three public queries through the existing news proxy, dedupes by URL and caps at 12 dated sources
+- [x] Web search settings accept an optional owner/static domain filter applied as `site:` clauses; guests cannot read or set it
+- [x] Answer bubbles show compact source cards with domain, date, snippet and a "Why this source?" disclosure; no horizontal overflow at desktop width
+- [x] Numbered, query-labelled source context reaches on-device, custom-cloud and bridge system prompts; notes say "Deep Search" when active
+- [x] Explicit Web search off and offline mode still make zero fetches with or without Deep Search on
+- [x] Socials Bot and Oracle Bot wording says plan/draft only until the person adds their own connector — no borrowed login, no hidden account management, no phone-browser/background-control claim
+- [x] Saved workspaces migrate the exact old Socials Bot wording and Oracle Bot guide without touching custom chat names, notes, preferences or user messages
+- [x] My Connectors is available to owner, guest and host: own Instagram token/account ID or own webhook URL/token, encrypted on that device
+- [x] Connector metadata never enters cloud state or chat prompts; model sees names only, tokens never reach the bridge or console
+- [x] CONNECTOR requests show an approval card with exact target/payload; Allow once executes, Deny does nothing, no always-allow rule exists
+- [x] Instagram check/publish uses the person's own Meta Graph API token and explains the public-image-URL requirement; webhook posts only to the person's URL
+- [x] Bridge system prompt still refuses external-account actions without an approved connector; owner tools/vault/memory/guest isolation unchanged
+- [x] Harness passes locally and live on both sites; service worker SHA unchanged; zero console errors on owner, guest and host pages
+- [x] Build `2026-11-27a` published with matching app SHAs, then baseline/restore/README re-frozen only after harness passes
 
 ## Grok Bot parity — 2026-11-26a (harness + live + host smoke verified)
 - [x] New room and bot edit expose Name, Title/job and Description; opener asks role-specific questions with no fetch/model call (harness + live)

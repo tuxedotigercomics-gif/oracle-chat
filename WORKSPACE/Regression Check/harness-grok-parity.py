@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Harness for build 2026-11-26b (teams, triggers, seeded guide, auto free model).
+"""Harness for build 2026-11-27a (deep search, source cards, own-account connectors).
 
 Local mode checks source invariants and runs the pure JS helpers through the
 macOS JavaScriptCore engine (osascript -l JavaScript). There is no Node on this
@@ -23,6 +23,7 @@ PAGES = os.path.join(PROJECT, "oracle-pages")
 APP = os.path.join(PROJECT, "Oracle-Chat-Live.html")
 BRIDGE = os.path.join(PROJECT, "oracle_bridge.py")
 CLOUD_FN = os.path.join(PAGES, "functions", "api", "cloud-state.js")
+GDELT_FN = os.path.join(PAGES, "functions", "api", "gdelt.js")
 CANONICAL = "https://oracle-chat.pages.dev/"
 BACKUP = "https://tuxedotigercomics-gif.github.io/oracle-chat/"
 
@@ -40,8 +41,8 @@ def expect(cond, label):
     print("ok - " + label)
 
 
-def source_checks(html, cloud, bridge):
-    expect('content="2026-11-26b"' in html, "build marker is 2026-11-26b")
+def source_checks(html, cloud, bridge, gdelt):
+    expect('content="2026-11-27a"' in html, "build marker is 2026-11-27a")
     expect("Socials Bot" in html and "Which platforms are you posting to?" in html,
            "Socials Bot template asks platform/audience/goal questions")
     expect("botOpener(name,job,desc)" in html, "room creation uses the local opener generator")
@@ -93,6 +94,36 @@ def source_checks(html, cloud, bridge):
     expect('(("", []) if self.guest_token else cloud_models(force=False))' in bridge
            and '"free cloud: " + cloud_model_used' in bridge,
            "cloud model status is owner-only and chat notes show the active model")
+    expect("function deepQueries(query,city)" in html
+            and "function mergeSources(batches,cap)" in html
+            and "webSources(text,!!c.deep)" in html,
+            "per-chat Deep Search fans out queries and dedupes sources")
+    expect('<details class="source-card">' in html and "Why this source?" in html
+            and "source-list" in html,
+            "source cards show dated links, snippets and a why-this-source panel")
+    expect("function migrateSeededWording()" in html
+            and "migrateSeededWording();" in html
+            and "oldSocial=/Plan, draft and\\s+review social posts/i" in html,
+            "saved chats migrate old Socials Bot and Oracle Bot wording")
+    expect("function openConnectors()" in html
+            and "CONNECTOR_KEY='oracle.connectors.'+vaultId" in html
+            and "gvSet('connector.'+id+'.secret',secret)" in html,
+            "own-account connectors keep metadata local and encrypt tokens on device")
+    expect("parseConnectorRequest(answer)" in html and "data-conn-approve=" in html
+            and "data-conn-deny=" in html,
+            "connector actions require a one-time approval card")
+    expect("cannot log into, read, post to, or manage any external account" in html
+            and "publishing needs your own approved connector" in html
+            and "cannot log into Instagram" in html,
+            "bot wording no longer promises an Instagram login")
+    expect("cannot drive the device browser like a person" in html
+            and "backgrounded iPhone tab is suspended by iOS" in html,
+            "bot wording refuses phone-browser and background-control claims")
+    expect("External accounts (Instagram, email, social networks) are not yours to access by default."
+            in bridge,
+            "bridge system prompt also refuses unapproved external-account actions")
+    expect("snippet: snippet(tag(item, 'description'))" in gdelt,
+            "news proxy returns snippets for source cards")
 
 
 def script_syntax_check(html):
@@ -125,14 +156,17 @@ def js_helper_checks(html):
         return html[i:j]
 
     bot_src = between("const BOT_TEMPLATES=", "function heroAvatar(")
-    search_src = between("function newsSearchPhrase(", "async function fetchGdeltItems(")
+    guide_src = between("const ORACLE_BOT_ID=", "// A phone tab can be killed")
+    search_src = between("function searchDomains(){", "async function fetchGdeltItems(")
     web_src = between("function webSearchOn(){", "function setWebSearchOn(")
+    conn_src = between("const CONNECTOR_KEY=", "// ---- Host-only approval rules ----")
     team_src = between("const TEAM_KEY=", "function chatTranscript(")
 
     script = r'''
 var localStorage={_v:{},getItem:function(k){return this._v[k]===undefined?null:this._v[k]},setItem:function(k,v){this._v[k]=String(v)}};
 var navigator={onLine:true};
 var vaultId='self',guestMode=false;
+function connectorNames(){return ['My IG']}
 var convs=[{id:'a',name:'Alpha Bot',job:'Research assistant',desc:'',hero:'vision',folder:'f',persona:'oracle',messages:[]},
            {id:'b',name:'Beta Bot',job:'Social media planner',desc:'',hero:'deadpool',folder:'f',persona:'playful',messages:[]}];
 var folders=[{id:'f',name:'Chats',open:true}];
@@ -140,7 +174,7 @@ function showToast(s){}
 function render(){}
 function saveState(){}
 var botJob=function(c){return String((c&&c.job)||'General assistant').slice(0,60)};
-''' + bot_src + "\n" + search_src + "\n" + web_src + "\n" + team_src + r'''
+''' + bot_src + "\n" + guide_src + "\n" + search_src + "\n" + web_src + "\n" + conn_src + "\n" + team_src + r'''
 localStorage.setItem('oracle.botprefs.x','Use short answers');
 var social=botOpener('Socials Bot','Social media planner','Plan and review social posts');
 var identity=botIdentityPrompt({id:'x',name:'Socials Bot',job:'Social media planner',desc:'Social media planning'});
@@ -179,12 +213,33 @@ var scheduled=convs.length-beforeSchedule===2;
 var beforeSecond=convs.length;
 teamTick();
 var once=convs.length===beforeSecond;
+localStorage.setItem('oracle.search.domains','Reuters.com, apnews.com, <script>');
+var dq=deepQueries('Please look up Whats going on this week in idaho falls','');
+var deepOk=dq.length===3&&dq.every(function(x){return x.indexOf('site:')>=0&&x.indexOf('<')<0});
+var merged=mergeSources([[{url:'https://a.test/1',title:'A'},{url:'https://a.test/1',title:'dup'},{url:'https://b.test/2',title:'B'}]],12);
+var mergeOk=merged.length===2;
+localStorage.setItem('oracle.connectors.self',JSON.stringify({x:{id:'x',name:'My IG',type:'instagram',target:'12345'}}));
+var parsed=parseConnectorRequest('Draft ready.\nCONNECTOR {"name":"My IG","action":"publish","text":"Hello","imageUrl":"https://img.test/a.jpg"}');
+var parseOk=!!parsed.request&&parsed.request.id==='x'&&parsed.request.action==='publish'&&parsed.clean.indexOf('CONNECTOR')<0;
+var noConnector=parseConnectorRequest('No action.').request===null;
 var payload=JSON.stringify({key:'k',state:{convs:convs,folders:folders,activeId:'a'}});
 var noTeamInCloud=payload.indexOf('oracle.teams.')<0;
+var noConnectorInCloud=payload.indexOf('connector.')<0;
+var oldSocialChat={id:'socials-old',name:'Socials Bot',
+  desc:'Plan, draft and review social posts; ask about platforms, audience and posting goals.',
+  preview:"Hi — I'm Socials Bot. Plan, draft and review social posts",messages:[]};
+var oldOracle={id:'oracle-bot',name:'Oracle Bot',preview:'How to use Oracle',
+  messages:[{from:'bot',text:"Hi — I'm Oracle Bot, your built-in guide and technical assistant.\\n\\nold text",note:'Guide'}]};
+convs.push(oldSocialChat,oldOracle);
+var migrated=migrateSeededWording();
+var migrationOk=!!migrated&&oldSocialChat.desc.indexOf('own approved connector')>=0&&
+  oldOracle.messages[0].text.indexOf('foreground')>=0;
 JSON.stringify({social:social,identity:identity,q:q,xq:xq,off:off,
   needsApproval:needsApproval,ruleFormOk:ruleFormOk,blockedBeforeApproval:blockedBeforeApproval,ran:ran,order:order,
   pausedBlocked:pausedBlocked,rulePausedBlocked:rulePausedBlocked,scheduled:scheduled,
-  once:once,noTeamInCloud:noTeamInCloud});
+  once:once,noTeamInCloud:noTeamInCloud,deepOk:deepOk,mergeOk:mergeOk,
+  parseOk:parseOk,noConnector:noConnector,noConnectorInCloud:noConnectorInCloud,
+  migrationOk:migrationOk});
 '''
     fd, path = tempfile.mkstemp(suffix=".jsc", text=True)
     try:
@@ -247,8 +302,8 @@ def live_checks():
 
     status, headers, body = get(CANONICAL)
     h = {k.lower(): v for k, v in headers.items()}
-    expect(status == 200 and 'content="2026-11-26b"' in body,
-           "canonical serves build 2026-11-26b")
+    expect(status == 200 and 'content="2026-11-27a"' in body,
+           "canonical serves build 2026-11-27a")
     expect(h.get("cross-origin-opener-policy") == "same-origin" and
            h.get("cross-origin-embedder-policy") == "require-corp",
            "canonical still sends COOP/COEP")
@@ -256,8 +311,8 @@ def live_checks():
     expect(hashlib.sha256(raw(CANONICAL)).hexdigest() == sha(APP),
            "canonical app bytes match the local build")
     status, headers, body = get(BACKUP)
-    expect(status == 200 and 'content="2026-11-26b"' in body,
-           "backup serves build 2026-11-26b")
+    expect(status == 200 and 'content="2026-11-27a"' in body,
+           "backup serves build 2026-11-27a")
     expect(hashlib.sha256(raw(BACKUP)).hexdigest() == sha(APP),
            "backup app bytes match the local build")
     expect(headers.get("Cross-Origin-Opener-Policy") is None,
@@ -288,8 +343,10 @@ def main():
         cloud = f.read()
     with open(BRIDGE, encoding="utf-8") as f:
         bridge = f.read()
+    with open(GDELT_FN, encoding="utf-8") as f:
+        gdelt = f.read()
 
-    source_checks(html, cloud, bridge)
+    source_checks(html, cloud, bridge, gdelt)
     script_syntax_check(html)
     out = js_helper_checks(html)
     expect("platforms" in out["social"] and "audience" in out["social"] and "goals" in out["social"],
@@ -310,6 +367,11 @@ def main():
     expect(out["scheduled"] and out["once"],
            "daily schedule fires once per day while the app is open")
     expect(out["noTeamInCloud"], "team state is excluded from cloud payloads")
+    expect(out["deepOk"], "deep queries fan out three safe domain-filtered searches")
+    expect(out["mergeOk"], "source dedupe drops repeated URLs")
+    expect(out["parseOk"] and out["noConnector"], "connector requests create approval cards only")
+    expect(out["noConnectorInCloud"], "connector state is excluded from cloud payloads")
+    expect(out["migrationOk"], "saved chats migrate to the corrected bot wording")
     bridge_model_checks()
 
     print("app sha: " + sha(APP))

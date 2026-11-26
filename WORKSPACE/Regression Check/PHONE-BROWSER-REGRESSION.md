@@ -4,12 +4,25 @@ Run this at **320 / 360 / 390 / 430 px** on the real iPhone in Safari, and in
 an emulated iPhone viewport against `https://oracle-chat.pages.dev/`.
 The backup host is `https://tuxedotigercomics-gif.github.io/oracle-chat/`.
 
-Baseline SHA (live UI): `230ae9cad770e595506da9b694ac73d81f96bd6ffb6341917784145d1d5f7953`
+Baseline SHA (live UI): `a640db6d59a509542d299986ea328fe4115bf50994d7a7a8fc93dc808039a4b0`
 Service-worker SHA: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`
 Rollback: `restore-live.command`
 
 > The desktop/host checklist lives in `MAIN-BROWSER-REGRESSION.md`.
 > Voice-call fixes are marked **VOICE FIX 2026-11-19** below.
+
+## Deep Search, source cards + own-account connectors — 2026-11-27a (harness + live verified; physical pass open)
+- [ ] Per-chat Deep Search toggle is reachable in the phone More menu at 320–430 px and persists per bot
+- [ ] Dated source cards, publisher labels, snippets and "Why this source?" disclosures read cleanly at 320–430 px with no horizontal overflow
+- [ ] Canonical Home Screen app fans out through the same free news proxy; GitHub backup still uses the Wikipedia fallback with no extra host calls
+- [x] Web search settings domain filter is owner/static only; guest chats never see or use it (harness + live)
+- [x] Offline mode and explicit Web search off still make zero fetches, even with Deep Search enabled (harness)
+- [x] Socials Bot says it can draft/plan posts until the person adds their own Instagram connector; no borrowed login, browser-control or background-monitoring claim (harness + live)
+- [x] Saved Socials Bot wording and Oracle Bot guide update on reload without changing custom chat names, notes, preferences or user messages (harness + live)
+- [ ] My Connectors works on the phone: own Meta token/account ID or own webhook is encrypted on the device and survives reload without cloud sync
+- [ ] Connector approval cards fit 320–430 px; Allow once/Deny are reachable; no token appears in chat, console, cloud state or model prompt
+- [ ] Saved models, download progress, voice/call, folders, back navigation and Home Screen auto-update remain unchanged
+- [x] Build `2026-11-27a` served by the unchanged worker on both sites with zero console errors (harness + live; physical iPhone pass still open)
 
 ## Grok Bot parity — 2026-11-26a / 2026-11-26b (harness, live and physical device verified)
 - [x] New room opener is role-aware and stays local/offline on iPhone/Safari (harness)

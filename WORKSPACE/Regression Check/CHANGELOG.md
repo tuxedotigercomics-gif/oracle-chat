@@ -3,6 +3,79 @@
 Record every change here before you make it, so there is always a clear trail
 between the frozen baseline and whatever is currently in the working file.
 
+## 2026-11-27a — Deep Search, source cards, own-account connectors and truthful wording (published and verified)
+
+Status: **published and verified**. The owner asked for another Grok deep dive, then
+said "do whatever you suggest"; the top-ranked free-tier gap was Deep Search with
+better source cards. The owner also reported that Socials Bot said it could not
+log into Instagram while its guide implied it could create and manage posts, and
+then clarified that **everyone** using the app should be able to connect their
+own accounts. That overpromise is corrected here, and own-account connectors are
+built in this same build rather than deferred. "Own-accounts-only" means each
+person connects their own Instagram/email/webhook with their own token on their
+own device — guest and phone users included. It does **not** mean owner-only;
+host tools/vault/memory/routines stay owner-only. Nobody borrows the owner's
+accounts, and the assistant never receives, creates or displays a token.
+
+Intended change:
+
+1. Add a per-chat **Deep Search** toggle to the chat More menu for owner, guest
+   and host. It is off by default, stored only in non-secret chat state, and
+   changes one-query link lists into multi-query, dated source cards.
+2. Fan out up to three public queries (the existing normalized query, a
+   recency variant, and a city variant when a city is saved) through the existing
+   `/api/gdelt` news proxy, dedupe by URL, cap at 12 dated sources, and keep the
+   existing Wikipedia fallback for hosts without the Pages Function.
+3. Add an optional owner/static **domain filter** to Web search settings, applied
+   as `site:` clauses to Deep Search queries only. No API key, cloud key, token
+   or account is added, and guest sessions never read this owner setting.
+4. Render each source as a compact card with title, publisher domain, date,
+   snippet and a "Why this source?" disclosure that says it is a public page
+   found by the named query. Keep the 320–430 px layout readable.
+5. Put numbered, query-labelled source text into the system prompt so every
+   backend (on-device, custom cloud, Mac bridge) can cite the same sources, and
+   label bot notes with "Deep Search" when the mode is on.
+6. Fix bot wording: Socials Bot plans and drafts posts but cannot log into or
+   manage an Instagram account yet; Oracle Bot's guide says the same. State
+   plainly that the app cannot drive the device browser like a person or keep
+   monitoring/posting in the background on a phone, and that actions run only in
+   the foreground after approval. Add explicit no-external-account and
+   no-background-control rules to both the browser identity prompt and the
+   bridge system prompt until a future approved own-account connector exists.
+   Saved workspaces also get a targeted migration: only the exact old seeded
+   Socials Bot description/preview and Oracle Bot guide are replaced, leaving
+   custom chat names, notes, preferences and user messages alone.
+7. Extend the parity harness for the build marker, Deep Search query fan-out,
+   domain clauses, source dedupe, source-card rendering, guest/owner visibility,
+   offline and explicit-off zero-fetch behaviour, and unchanged service worker.
+   Bump the build marker to `2026-11-27a` only after local checks pass.
+8. Add **My Connectors** to Profile for owner, guest and phone. Two free,
+   own-account connector types are supported: an Instagram connector using the
+   person's own Meta Graph API token/account ID, and a generic webhook using the
+   person's own URL and optional token. Connector metadata stays in device-local
+   storage; tokens are encrypted in the existing device vault. Nothing is sent
+   to the bridge, cloud state or the model, which sees connector **names only**.
+9. Add an approval card for connector actions. The model may request a
+   `CONNECTOR` line (check account or publish/draft), the app shows the exact
+   target and payload, and nothing runs until the person taps Allow once. Deny
+   is always available; no always-allow rule can be saved for a connector.
+   Instagram publishing still depends on the person's own Meta app/token and a
+   public image URL, so the UI says that plainly instead of pretending to log in.
+10. Publish to both sites, verify byte-identical app SHAs and the unchanged
+    worker, smoke-test owner/guest/host pages with zero console errors, then
+    refresh the rollback baseline and restore script only after those checks
+    pass. Start a separate physical-device checklist section for the phone
+    confirmation.
+
+Shipped in build `2026-11-27a`: local and live harness PASS; app SHA
+`a640db6d59a509542d299986ea328fe4115bf50994d7a7a8fc93dc808039a4b0` verified byte-for-byte
+on the source, canonical and backup copies; service worker unchanged at
+`6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`; zero console
+errors on owner, guest and backup pages. Published in Pages commits `a03bf20`
+and `9141795`. The saved-wording migration was added after the first live smoke
+showed older cached chats, then re-published and re-verified. Physical iPhone
+confirmation remains a separate open checklist.
+
 ## 2026-11-26b — Team + trigger manager and automatic free cloud model (published and verified)
 
 Status: **published and verified** — this entry was recorded before any code edits. The owner chose

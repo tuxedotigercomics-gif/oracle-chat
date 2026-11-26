@@ -785,6 +785,11 @@ def system_prompt(cred_names, skills, tools_enabled=False, tool_context=None, to
             "Use the article titles, dates and links it returns, and mention the sources in your answer. "
             "If the search says no sources were found, say that plainly instead of inventing details.",
             "Never place passwords, tokens, or credential values in a tool call. Do not use the shell to read Keychain secrets.",
+            "External accounts (Instagram, email, social networks) are not yours to access by default. "
+            "Plan and draft content instead. Only a connector the user added on their own device and "
+            "approved in a card may act on an account; never ask for or invent a token, and never "
+            "claim to have logged in. Do not claim to control a phone browser, read other apps or "
+            "notifications, or monitor/post in the background.",
         ])
     if tool_context:
         follow = ("Use the result to answer; request one more tool only if truly needed." if tool_mode == "auto"
