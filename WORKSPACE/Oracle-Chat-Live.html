@@ -3139,30 +3139,6 @@ function openBotRoster(){
   });
   document.querySelectorAll('[data-bot-edit]').forEach(b=>b.onclick=()=>openBotEditModal(b.dataset.botEdit));
   document.getElementById('botNew')?.addEventListener('click',()=>openRoomModal(activeFolder));
-  document.getElementById('teamNew')?.addEventListener('click',()=>{const t=teamValidate({name:'New team'});teams[t.id]=t;teamEditId=t.id;teamSave();openTeams(t.id)});
-  document.querySelectorAll('[data-team-open]').forEach(b=>b.onclick=()=>openTeams(b.dataset.teamOpen));
-  document.querySelectorAll('[data-team-run]').forEach(b=>b.onclick=()=>{teamOutput='Manual team run started.';teamRunChain(b.dataset.teamRun,'Manual run from Teams & Triggers','manual');openTeams(b.dataset.teamRun)});
-  document.querySelectorAll('[data-team-toggle]').forEach(b=>b.onclick=()=>{const t=teams[b.dataset.teamToggle];if(t){t.paused=!t.paused;teamSave();openTeams(t.id)}});
-  document.querySelectorAll('[data-team-delete]').forEach(b=>b.onclick=()=>{delete teams[b.dataset.teamDelete];teamEditId='';teamSave();openTeams()});
-  document.getElementById('teamForm')?.addEventListener('submit',e=>{
-    e.preventDefault();
-    const id=document.getElementById('tfId').value,t=teams[id];if(!t)return;
-    const picked=field=>Array.from(document.getElementById(field)?.selectedOptions||[]).map(o=>o.value);
-    t.name=document.getElementById('tfName').value.trim()||t.name;
-    t.roles=picked('tfRoles');t.chain=picked('tfChain');t.paused=!!document.getElementById('tfPaused').checked;
-    teams[id]=teamValidate(t);teamSave();teamEditId=id;openTeams(id);showToast('Team saved');
-  });
-  document.getElementById('teamTriggerForm')?.addEventListener('submit',e=>{
-    e.preventDefault();
-    const t=teams[document.getElementById('ttId').value];if(!t)return;
-    const type=document.getElementById('ttType').value,value=document.getElementById('ttValue').value.trim();
-    const r=teamValidate({id:teamId('rule'),type,value,approved:false,paused:false}).triggers[0];
-    if(!r){showToast('Enter a keyword or HH:MM time');return}
-    t.triggers=t.triggers||[];t.triggers.push(r);teams[t.id]=teamValidate(t);teamSave();openTeams(t.id);showToast('Rule added — approve it before use');
-  });
-  document.querySelectorAll('[data-tr-approve]').forEach(b=>b.onclick=()=>{const t=teams[b.dataset.trApprove],r=(t?.triggers||[]).find(x=>x.id===b.dataset.trId);if(r){r.approved=true;r.paused=false;teamSave();openTeams(t.id);showToast('Rule approved')}});
-  document.querySelectorAll('[data-tr-toggle]').forEach(b=>b.onclick=()=>{const t=teams[b.dataset.trToggle],r=(t?.triggers||[]).find(x=>x.id===b.dataset.trId);if(r){r.paused=!r.paused;teamSave();openTeams(t.id)}});
-  document.querySelectorAll('[data-tr-delete]').forEach(b=>b.onclick=()=>{const t=teams[b.dataset.trDelete];if(t){t.triggers=(t.triggers||[]).filter(x=>x.id!==b.dataset.trId);teamSave();openTeams(t.id)}});
 }
 function openBotEditModal(id){
   const c=convs.find(x=>x.id===id);if(!c)return;
@@ -3330,6 +3306,30 @@ function openNameModal(){
 function bindModal(){
   document.getElementById('mc')?.addEventListener('click',()=>{stopCameraStream();modal=null;render()});
   document.getElementById('mb')?.addEventListener('click',e=>{if(e.target.id==='mb'){stopCameraStream();modal=null;render()}});
+  document.getElementById('teamNew')?.addEventListener('click',()=>{const t=teamValidate({name:'New team'});teams[t.id]=t;teamEditId=t.id;teamSave();openTeams(t.id)});
+  document.querySelectorAll('[data-team-open]').forEach(b=>b.onclick=()=>openTeams(b.dataset.teamOpen));
+  document.querySelectorAll('[data-team-run]').forEach(b=>b.onclick=()=>{teamOutput='Manual team run started.';teamRunChain(b.dataset.teamRun,'Manual run from Teams & Triggers','manual');openTeams(b.dataset.teamRun)});
+  document.querySelectorAll('[data-team-toggle]').forEach(b=>b.onclick=()=>{const t=teams[b.dataset.teamToggle];if(t){t.paused=!t.paused;teamSave();openTeams(t.id)}});
+  document.querySelectorAll('[data-team-delete]').forEach(b=>b.onclick=()=>{delete teams[b.dataset.teamDelete];teamEditId='';teamSave();openTeams()});
+  document.getElementById('teamForm')?.addEventListener('submit',e=>{
+    e.preventDefault();
+    const id=document.getElementById('tfId').value,t=teams[id];if(!t)return;
+    const picked=field=>Array.from(document.getElementById(field)?.selectedOptions||[]).map(o=>o.value);
+    t.name=document.getElementById('tfName').value.trim()||t.name;
+    t.roles=picked('tfRoles');t.chain=picked('tfChain');t.paused=!!document.getElementById('tfPaused').checked;
+    teams[id]=teamValidate(t);teamSave();teamEditId=id;openTeams(id);showToast('Team saved');
+  });
+  document.getElementById('teamTriggerForm')?.addEventListener('submit',e=>{
+    e.preventDefault();
+    const t=teams[document.getElementById('ttId').value];if(!t)return;
+    const type=document.getElementById('ttType').value,value=document.getElementById('ttValue').value.trim();
+    const r=teamValidate({id:teamId('rule'),type,value,approved:false,paused:false}).triggers[0];
+    if(!r){showToast('Enter a keyword or HH:MM time');return}
+    t.triggers=t.triggers||[];t.triggers.push(r);teams[t.id]=teamValidate(t);teamSave();openTeams(t.id);showToast('Rule added — approve it before use');
+  });
+  document.querySelectorAll('[data-tr-approve]').forEach(b=>b.onclick=()=>{const t=teams[b.dataset.trApprove],r=(t?.triggers||[]).find(x=>x.id===b.dataset.trId);if(r){r.approved=true;r.paused=false;teamSave();openTeams(t.id);showToast('Rule approved')}});
+  document.querySelectorAll('[data-tr-toggle]').forEach(b=>b.onclick=()=>{const t=teams[b.dataset.trToggle],r=(t?.triggers||[]).find(x=>x.id===b.dataset.trId);if(r){r.paused=!r.paused;teamSave();openTeams(t.id)}});
+  document.querySelectorAll('[data-tr-delete]').forEach(b=>b.onclick=()=>{const t=teams[b.dataset.trDelete];if(t){t.triggers=(t.triggers||[]).filter(x=>x.id!==b.dataset.trId);teamSave();openTeams(t.id)}});
   const rh=document.getElementById('rh');
   if(rh)document.querySelectorAll('[data-hero-field="rh"]').forEach(b=>b.classList.toggle('selected',b.dataset.hero===rh.value));
   document.querySelectorAll('[data-hero]').forEach(b=>b.onclick=()=>{
