@@ -107,9 +107,9 @@ history.
 - Direct Anthropic API blocks browser CORS, so Claude is offered via OpenRouter
   (`anthropic/claude-sonnet-5.5`). Presets: OpenAI, OpenRouter, Anthropic via
   OpenRouter.
-- The owner-only, off-by-default `webSources()` search now also supplies source
-  context to custom cloud chats. The bridge supplies the same public source
-  context to Big Pickle only for owner current-event questions. Guests get none.
+- The older owner-only/off-by-default `webSources()` note is superseded by
+  `2026-11-21h`: all online users now get public source context (see Web search
+  below). Host bridge search remains owner-only as a tool.
 - No new host local model: the Mac has 8 GB RAM and ~5.5 GB free disk.
 
 ### iOS wllama build selection (added in `2026-11-21f`)
@@ -176,6 +176,32 @@ a search tool. Do not try to fix this with prompts alone.
 - The Profile → Web search setting (with optional `oracle.city`) remains an
   explicit kill switch. Offline or `0` means zero fetches and a fully local
   answer.
+
+### Grok Bot parity (added in `2026-11-26a`)
+
+- One-job bots are defined by Name / Title-job / Description. New rooms use a
+  local opener generator keyed to that identity, so a "Socials Bot" asks about
+  platforms, audience and posting goals with no model call or network fetch.
+  Bot identity and durable per-bot preferences are injected into both device and
+  bridge system text.
+- "Teach this task" creates a skill on the owner Mac or an **unapproved** device
+  routine draft on static/phone. It never auto-runs. Device routines remain
+  whitelist-based, per-session and owner-approved; paused routines cannot run.
+- Bot-to-bot handoff is owner-only and visible in chat. Guests see no handoff,
+  team UI, host tools, connectors or secure forms.
+- `functions/api/cloud-state.js` is a free Cloudflare D1 convenience backup for
+  **non-secret owner workspace state only**: bot metadata, preferences, messages,
+  folders and active room id. Guests, vault entries, API keys and tool results
+  are never sent to it. It needs one owner dashboard binding named `ORACLE_DB`
+  (see `CLOUD-VM-SETUP.md`); until then it returns a controlled
+  `binding-missing` code with HTTP 200 and the app stays device-local.
+- `oracle_bridge.py` exposes a single owner-only `/api/computer` status/control
+  endpoint. It shows vault credential **names only**, connector names/hostnames,
+  secure-form names/field names and routine pause state. Guest tokens get 403.
+  No secret value, routine body or tool result is exposed to the model.
+- Real cloud shell/browser compute while the owner Mac is off, automatic guest
+  SaaS connectors, cloud-stored API keys and iPhone image/video generation are
+  deliberately out of scope.
 
 ### Image generation (read the history file too)
 

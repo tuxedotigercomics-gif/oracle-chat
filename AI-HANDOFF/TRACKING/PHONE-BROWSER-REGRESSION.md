@@ -4,12 +4,25 @@ Run this at **320 / 360 / 390 / 430 px** on the real iPhone in Safari, and in
 an emulated iPhone viewport against `https://oracle-chat.pages.dev/`.
 The backup host is `https://tuxedotigercomics-gif.github.io/oracle-chat/`.
 
-Baseline SHA (live UI): `7e83fe68bcef9e7b2b409639d177365bb8d5f864845a1957f75ce370325bb78b`
+Baseline SHA (live UI): `5b804997b2c63475a4314c36ffe2806bbf5e246e01017f490fe66d0cfabb7db4`
 Service-worker SHA: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`
 Rollback: `restore-live.command`
 
 > The desktop/host checklist lives in `MAIN-BROWSER-REGRESSION.md`.
 > Voice-call fixes are marked **VOICE FIX 2026-11-19** below.
+
+## Grok Bot parity — 2026-11-26a (harness + live verified; physical device pass open)
+- [x] New room opener is role-aware and stays local/offline on iPhone/Safari (harness)
+- [x] Name/Title/Description fields and template gallery use responsive layouts with no horizontal overflow in emulation (harness)
+- [x] Per-bot preferences are device-local and never exposed to guests (harness)
+- [x] Teach-task drafts a whitelist-only routine and cannot execute before owner approval (harness)
+- [x] Bot handoff works for the owner; guests see no handoff, host tools, connectors or secure forms (harness + live)
+- [x] Cloud state is an owner-only backup; guests and the GitHub backup host make no cloud-state write (harness + live)
+- [x] Device routines stay whitelist-based and owner-approved with no background execution after the tab closes (harness)
+- [x] `site:x.com` lookup uses the canonical proxy; backup and explicit off/offline make zero proxy fetches (harness + live)
+- [x] Saved model, CPU load options, stage-tagged errors, voice/call, folders, hero colours and send/call visibility unchanged (harness)
+- [x] Build `2026-11-26a` is served by auto-update with unchanged worker SHA; zero console errors (harness + live)
+- [ ] Physical iPhone: confirm name/title/description fields, template gallery, role-aware opener, cloud-state fallback and the exact Idaho Falls lookup prompt at 320–430 px
 
 ## Full feature + UI audit — 2026-11-19 (phone/static)
 - [x] Static mode detected on `oracle-chat.pages.dev`; zero console errors

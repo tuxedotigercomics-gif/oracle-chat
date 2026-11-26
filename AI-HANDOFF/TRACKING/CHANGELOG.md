@@ -3,6 +3,76 @@
 Record every change here before you make it, so there is always a clear trail
 between the frozen baseline and whatever is currently in the working file.
 
+## 2026-11-26 — Grok Bot parity (published and verified)
+
+Status: **published and verified** — build `2026-11-21m` → `2026-11-26a`.
+App SHA: `5b804997b2c63475a4314c36ffe2806bbf5e246e01017f490fe66d0cfabb7db4`.
+Pages commits: `5c06979` (app + cloud function), `9546db5` (console-clean
+missing-binding response). Service worker unchanged:
+`6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`.
+Bridge SHA: `1e7dbcabd5af7637e06b0db51924c2fac2d58d716e4388188d10e5a7e4e59d95`.
+Bridge gains one owner-only `/api/computer` status/control endpoint; all
+existing guest denials stay intact. Cloud state is a free Cloudflare Pages
+Function backed by D1 and needs a one-time `ORACLE_DB` binding in the Cloudflare
+dashboard. Re-frozen the live rollback baseline only after the local and live
+harnesses passed, both sites served matching app bytes with zero console errors,
+and the restarted owner bridge passed owner/guest `/api/computer` checks.
+
+The user asked for research into Grok Bot and then chose **full parity**. The
+official sources reviewed were `x.ai/grok`, `x.ai/bot/guides/grok-bot-101`,
+`docs.x.ai/grok-bot/get-started`, `docs.x.ai/grok-bot/overview`, and the
+`Introducing Grok Bot 1.0` announcement.
+
+Grok Bot's headline features are: one-job bots defined by Name/Title/Description,
+chat-driven setup, voice note and voice chat, per-bot memory/preferences, skills,
+routines and triggers, approval cards with allow/deny rules, a vault with secure
+forms and human handoff, connectors/MCP/plugins, multi-bot teams and chains, a
+bot marketplace, a persistent cloud computer with remote takeover, and mobile
+control of that computer.
+
+GitHub/git cannot be a live VM: Pages is static and the repo is only source
+and deploy history. The user then chose the best free runtime, so **Cloudflare
+D1 + Pages Functions is the cloud brain**. It keeps non-secret owner workspace
+state alive when the Mac is off. The owner Mac bridge remains a local tool
+path, not a dependency for anyone else's session. Guest sessions stay isolated
+on each guest device. No cloud API key ever leaves the existing encrypted
+device vault. iOS image/video generation remains deliberately unavailable.
+
+Intended change:
+
+1. Add a local opener generator that reads the bot's name, title/job and
+   description, then asks two or three questions specific to that role. A bot
+   named "Socials Bot" asks about platforms, audience and posting goals. No
+   model call or network fetch happens when a room is created.
+2. Add Name/Title/Description to new-room and bot-edit flows, with a small local
+   template gallery for common one-job bots.
+3. Include the bot identity and durable per-bot preferences in the system
+   instruction sent to both on-device and bridge models.
+4. Add a "teach this task" flow that turns a repeated instruction into an
+   owner-approved skill or routine draft. The device path stays whitelist-based;
+   the host path stays owner-only.
+5. Add bot-to-bot handoff/team chat for owner sessions, with a visible chain and
+   no guest access.
+6. Add `/api/cloud-state` as a free D1-backed Pages Function with a clear
+   `binding-missing` degradation until the owner binds `ORACLE_DB`. No secrets,
+   vault entries, tool results or guest data are sent to it.
+7. Add an owner-only `/api/computer` panel: status, connector names, vault
+   credential names, secure-form names, and routine pause/resume. Guest tokens
+   are denied; the model never receives secret values.
+8. Keep host-only tools, connectors, approval rules and routines on the owner
+   Mac bridge; phone/static routines stay device-local, per-session,
+   whitelist-based, and gain a paused state. Multi-bot handoff is owner-only and
+   visible in chat.
+9. Add `site:x.com` style public lookup through the existing news proxy while
+   keeping explicit-off and offline paths at zero fetches.
+10. Bump the build marker to `2026-11-26a`. Existing chats are untouched.
+
+Out of scope because they would break settled rules or require new
+infrastructure: a real cloud VM with shell/browser compute while the owner Mac
+is off, automatic guest SaaS connectors, cloud-stored API keys, and iPhone
+image/video generation. Cloudflare D1 supplies always-on non-secret state only;
+the owner must bind `ORACLE_DB` once in the dashboard.
+
 ## 2026-11-23 — Bing-first news proxy for Cloudflare workers (published and verified)
 
 Status: **published and verified** — build `2026-11-21l` → `2026-11-21m`.

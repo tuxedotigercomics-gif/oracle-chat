@@ -4,11 +4,23 @@ Run this on **Chrome, Edge or Safari on the Mac**, against the bridge-served app
 (`Oracle-Chat-Live.html` via `oracle_bridge.py`) and against
 `https://oracle-chat.pages.dev/`.
 
-Baseline SHA (live UI): `7e83fe68bcef9e7b2b409639d177365bb8d5f864845a1957f75ce370325bb78b`
+Baseline SHA (live UI): `5b804997b2c63475a4314c36ffe2806bbf5e246e01017f490fe66d0cfabb7db4`
 Rollback: `restore-live.command`
 
 > The phone-only checklist lives in `PHONE-BROWSER-REGRESSION.md`.
 > Voice-call fixes are marked **VOICE FIX 2026-11-19** below.
+
+## Grok Bot parity — 2026-11-26a (harness + live + host smoke verified)
+- [x] New room and bot edit expose Name, Title/job and Description; opener asks role-specific questions with no fetch/model call (harness + live)
+- [x] Bot identity and per-bot preferences reach both on-device and bridge system prompts (harness)
+- [x] Local template gallery creates common one-job bots without cloud sync (harness + live)
+- [x] Teach-task flow drafts a skill/routine and still requires owner approval (harness + host smoke)
+- [x] Owner bot-to-bot handoff shows the chain; guests see no handoff or team UI (harness + live)
+- [x] `/api/cloud-state` stores only non-secret owner workspace data and degrades clearly without the D1 binding (harness + live)
+- [x] Owner-only Computer panel shows status, connector/form/vault names and pauses/resumes routines; guests get 403 and secrets never appear (harness + live + host smoke)
+- [x] `site:x.com` lookup works through the existing proxy; explicit off/offline still make zero fetches (harness)
+- [x] Build `2026-11-26a` published; app SHA verified on bridge and canonical; service worker unchanged; zero console errors (harness + live)
+- [x] Baseline, rollback, README and tracking copies re-frozen only after harness passes
 
 ## Full feature + UI audit — 2026-11-19 (host)
 - [x] Bridge healthy: local qwen2.5:3b ok, deep qwen3:4b ok, vault ok, tool scope includes email/webhook/browser
