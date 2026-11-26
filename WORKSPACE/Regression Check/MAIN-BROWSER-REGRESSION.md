@@ -23,13 +23,14 @@ Rollback: `restore-live.command`
 - [x] Build `2026-11-26a` published; app SHA verified on bridge and canonical; service worker unchanged; zero console errors (harness + live)
 - [x] Baseline, rollback, README and tracking copies re-frozen only after harness passes
 
-## Team + triggers and auto free cloud model — 2026-11-26b (pending)
-- [ ] Owner-only Teams & Triggers manager: roles, ordered chains, manual/keyword/daily-schedule rules, pause/resume, approval, guest denial, and non-secret cloud state (harness + live pending)
-- [ ] Owner bridge auto-pulls the newest active free OpenCode chat model from `/api/model`, caches it, and retries a different free model on `free-limit`; status shows only model id/name, never keys (harness + host pending)
-- [ ] Personal-assistant connector policy recorded: every person owns their own Instagram/email pages, best free webhook/API method, approval-first, with bot-scoped chat consent for privilege upgrades; no connector credentials are added in this build (pending later build)
-- [ ] Every owner and guest gets one seeded Oracle Bot room with a pre-made “how to use Oracle” guide; host chat can draft or execute approved UI/bug fixes, guests get guidance only (harness + live pending)
+## Team + triggers and auto free cloud model — 2026-11-26b (verified on host)
+- [x] Owner-only Teams & Triggers manager: roles, ordered chains, manual/keyword/daily-schedule rules, pause/resume, approval, guest denial, and non-secret cloud state (harness + live browser UI)
+- [x] Owner bridge auto-pulls the newest active free OpenCode chat model from `/api/model`, caches it, and retries a different free model on `free-limit`; status shows only model id/name, never keys (harness + live `/api/status`)
+- [x] Personal-assistant connector policy recorded: every person owns their own Instagram/email pages, best free webhook/API method, approval-first, with bot-scoped chat consent for privilege upgrades; connectors remain a later build with no credentials added here
+- [x] Every owner and guest gets one seeded Oracle Bot room with a pre-made “how to use Oracle” guide; host chat can draft or execute approved UI/bug fixes, guests get guidance only (harness + live owner/guest browser)
 - [x] Git-backed `WORKSPACE/` snapshot committed and pushed; source, bridge, baselines, harness and docs included; caches, logs, runtime sessions and secrets excluded
-- [ ] Build `2026-11-26b` published; app SHA verified on bridge and canonical; service worker unchanged; zero console errors (pending)
+- [x] Build `2026-11-26b` published; app SHA `230ae9cad770e595506da9b694ac73d81f96bd6ffb6341917784145d1d5f7953` verified on bridge, canonical and backup; service worker unchanged; zero console errors
+- [x] Live rollback baseline and `restore-live.command` re-frozen only after the live harness passed
 
 ## Full feature + UI audit — 2026-11-19 (host)
 - [x] Bridge healthy: local qwen2.5:3b ok, deep qwen3:4b ok, vault ok, tool scope includes email/webhook/browser

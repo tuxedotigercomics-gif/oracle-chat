@@ -23,11 +23,12 @@ Rollback: `restore-live.command`
 - [x] Saved model, CPU load options, stage-tagged errors, voice/call, folders, hero colours and send/call visibility unchanged (harness)
 - [x] Build `2026-11-26a` is served by auto-update with unchanged worker SHA; zero console errors (harness + live)
 - [ ] Physical iPhone: confirm name/title/description fields, template gallery, role-aware opener, cloud-state fallback and the exact Idaho Falls lookup prompt at 320–430 px
-- [ ] Physical iPhone: confirm owner Teams & Triggers manager is hidden for guests, roles/chains render at 320–430 px, manual/keyword/schedule rules respect pause and approval, and guest sessions make no cloud-state write (pending)
-- [ ] Owner cloud label updates from bridge status to the active free model; guests and phone device models are unchanged by the cloud-model pull (harness + live pending)
-- [ ] Personal-assistant connector policy is own-accounts-only for every person; bot-scoped chat consent can widen privileges only after explicit owner/guest approval in a later connector build (pending)
-- [ ] Physical iPhone/guest: one seeded Oracle Bot room appears with the pre-made guide, does not duplicate on reload, and explains voice/call, folders, routines, Teams & Triggers and approval-first bug fixes (harness + physical pending)
+- [ ] Physical iPhone: confirm owner Teams & Triggers manager is hidden for guests, roles/chains render at 320–430 px, manual/keyword/schedule rules respect pause and approval, and guest sessions make no cloud-state write (harness + live guest browser passed; physical 320–430 px confirmation still open)
+- [x] Owner cloud label updates from bridge status to the active free model; guests and phone device models are unchanged by the cloud-model pull (harness + live owner/guest browser)
+- [x] Personal-assistant connector policy is own-accounts-only for every person; bot-scoped chat consent can widen privileges only after explicit owner/guest approval in a later connector build (policy recorded, connectors deferred)
+- [ ] Physical iPhone/guest: one seeded Oracle Bot room appears with the pre-made guide, does not duplicate on reload, and explains voice/call, folders, routines, Teams & Triggers and approval-first bug fixes (harness + live guest browser passed; physical confirmation still open)
 - [x] Git-backed `WORKSPACE/` snapshot includes phone-affecting source and checklists; no device vault, guest session or runtime log data committed
+- [x] Build `2026-11-26b` served by the unchanged service worker on both sites with zero console errors (harness + live)
 
 ## Full feature + UI audit — 2026-11-19 (phone/static)
 - [x] Static mode detected on `oracle-chat.pages.dev`; zero console errors

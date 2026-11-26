@@ -3,9 +3,9 @@
 Record every change here before you make it, so there is always a clear trail
 between the frozen baseline and whatever is currently in the working file.
 
-## 2026-11-26b — Team + trigger manager and automatic free cloud model (planned)
+## 2026-11-26b — Team + trigger manager and automatic free cloud model (published and verified)
 
-Status: **planned** — this entry exists before any code edits. The owner chose
+Status: **published and verified** — this entry was recorded before any code edits. The owner chose
 to build the team/trigger manager first, to keep any future guest connectors
 **own-accounts-only** with tokens on the guest device, and to stay on the free
 tier with no always-on cloud VM. For the later personal-assistant connectors,
@@ -49,6 +49,19 @@ Intended change:
    owner with an approval card; guests and phone users get guidance, not host
    file/vault access.
 10. Bump the build marker to `2026-11-26b` only after local and live tests pass.
+
+Verified after publication: local harness PASS, live harness PASS on both
+canonical and backup, app SHA `230ae9cad770e595506da9b694ac73d81f96bd6ffb6341917784145d1d5f7953`
+served byte-identically by both sites, unchanged service worker SHA
+`6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`, bridge
+SHA `4bf1df9fdbee35fc39dae6dc374d84f900447d2e2581a57eae2554be134ed922`
+with `/api/status` showing the active free model `seaglass-alpha-free`, and zero
+browser console errors on owner and guest pages. Pages commits: `e736d02`
+(feature), `ee16af2` (modal bindings), `fce6b8c` (rule-form validator fix).
+The live rollback baseline and restore script were refreshed only after those
+checks. One UI bug was caught in live browser testing — the rule form wrapped a
+single raw rule in `teamValidate()` incorrectly — and fixed with a dedicated
+`teamRule()` helper before final publication.
 
 ## 2026-11-26 — Grok Bot parity (published and verified)
 

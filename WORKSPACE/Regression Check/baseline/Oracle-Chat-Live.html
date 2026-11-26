@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#4a9861" />
-<meta name="oracle-build" content="2026-11-26a" />
+<meta name="oracle-build" content="2026-11-26b" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Oracle" />
@@ -378,6 +378,7 @@ function personalityLabel(c){return botPersona(c).name}
 // Local Grok-style bot templates. No account, sync, model call or fetch: the
 // opener is generated from the bot's own name/title/description on this device.
 const BOT_TEMPLATES=[
+  {id:'oracle',name:'Oracle Bot',job:'Oracle guide and technical assistant',desc:'Explains how to use Oracle, drafts UI or bug fixes, and asks before using owner Mac tools.',persona:'concise',hero:'vision'},
   {id:'socials',name:'Socials Bot',job:'Social media planner',desc:'Plan, draft and review social posts; ask about platforms, audience and posting goals.',persona:'playful',hero:'deadpool'},
   {id:'research',name:'Research Bot',job:'Research assistant',desc:'Find current sources, compare claims and summarise with links.',persona:'formal',hero:'vision'},
   {id:'tutor',name:'Tutor Bot',job:'Patient tutor',desc:'Teach one step at a time and check understanding.',persona:'tutor',hero:'storm'},
@@ -386,6 +387,7 @@ const BOT_TEMPLATES=[
 ];
 function botRoleKind(name,job,desc){
   const s=[name,job,desc].join(' ').toLowerCase();
+  if(/oracle|how to use|technical|bug|ui fix|app help/.test(s))return 'oracle';
   if(/social|instagram|tiktok|facebook|twitter|\bx\b|post|reel|audience/.test(s))return 'social';
   if(/tutor|teach|lesson|study|explain|homework/.test(s))return 'tutor';
   if(/coach|fitness|habit|goal|accountab|trainer/.test(s))return 'coach';
@@ -398,6 +400,7 @@ function botOpener(name,job,desc){
   const j=String(job||'General assistant').trim();
   const d=String(desc||'').trim();
   const q={
+    oracle:['What are you trying to do in Oracle?','Is this on your phone, a guest link, or the owner Mac?','Do you want an explanation, a draft, or an approved Mac change?'],
     social:['Which platforms are you posting to?','Who is the audience you are trying to reach?','What posting goals or style should I match?'],
     tutor:['What are you learning right now?','How much do you already know?','Would you like short steps or full explanations?'],
     coach:['What goal are you working toward?','What has blocked you before?','How often do you want a check-in?'],
@@ -591,6 +594,22 @@ async function cloudLoadState(){
   return null;
 }
 function saveState(){localStorage.setItem(stateKey,JSON.stringify({convs,folders,activeId}));cloudSaveState()}
+const ORACLE_BOT_ID='oracle-bot';
+function oracleBotGuide(){
+  return `Hi — I'm Oracle Bot, your built-in guide and technical assistant.\n\nHow to use Oracle:\n• Pick a bot in the left list, or make a new one with the + button.\n• Use the model pill to switch between Mac models, private on-device models, or automatic free cloud.\n• Use folders to group chats, the microphone/call buttons to talk, and the ⋯ menu to rename, move, hand off or teach a task.\n• In Profile you will find your vault, routines, Teams & Triggers, help, and update status. Guests only see their own private copy.\n\nAsk me to explain the app, plan a change, draft a bug fix, or review the UI. On the owner Mac I can also propose and run changes with an approval card. On a phone or guest link I can guide and draft, but I never get host files, tools or vault secrets.`;
+}
+function oracleBotConversation(){
+  const folder=folders[0]?.id||'general';
+  return {id:ORACLE_BOT_ID,name:'Oracle Bot',preview:'How to use Oracle — ask me anything',hero:'vision',folder,
+    job:'Oracle guide and technical assistant',desc:'Explains Oracle and drafts UI/bug fixes with owner approval.',
+    prefs:'',persona:'concise',primary:false,
+    messages:[{from:'bot',text:oracleBotGuide(),note:'Guide'}]};
+}
+function ensureOracleBot(){
+  if(convs.some(c=>c.id===ORACLE_BOT_ID||String(c.name).trim()==='Oracle Bot'))return false;
+  if(!folders.some(f=>f.id==='general'))folders.unshift({id:'general',name:guestMode?'My Chats':'Oracle',open:true});
+  convs.push(oracleBotConversation());saveState();return true;
+}
 // A phone tab can be killed while a model loads. If the saved chat ends on a
 // user message, offer to resend it instead of silently losing the question.
 function interruptedConv(){
@@ -614,6 +633,16 @@ const MODELS=[
   ]:[]),
 ];
 if(staticMode)MODELS.splice(0,4);
+let cloudModelLabel='Big Pickle';
+function applyCloudModelStatus(s){
+  const c=s&&s.cloud,m=c&&(c.model||'');
+  if(!m)return;
+  cloudModelLabel=String(m);
+  const name=String((c.choices||[]).find(x=>x.id===m)?.name||m);
+  const cm=MODELS.find(x=>x.id==='cloud'),am=MODELS.find(x=>x.id==='auto');
+  if(cm){cm.name='Free cloud · '+name;cm.sub='auto-picked free model';}
+  if(am){am.sub='try '+cloudModelLabel+', fall back';}
+}
 
 // Models a device owner adds themselves — on-device or their own cloud provider.
 let customModels=[];
@@ -1787,6 +1816,7 @@ async function refresh(){
   if(staticMode){status={local:{ok:true},tools:{mode:'device'},vault:{ok:false}};render();return}
   try{
     status=await api('/api/status');
+    applyCloudModelStatus(status);
     if(!guestMode)vaultKeys=(await api('/api/vault/list')).keys||[];
     render();
   }catch(e){ showToast('Bridge not reachable — start it from the Desktop folder.'); }
@@ -2195,6 +2225,7 @@ function render(){
         <button class="menu-item" id="toggleTheme">${icon('theme',18)}<span><strong>Appearance: ${themeLabel()}</strong><span class="mi-sub">System, light or dark — tap to change</span></span></button>
         <button class="menu-item" id="openCommandPalette">${icon('search',18)}<span><strong>Command palette</strong><span class="mi-sub">Jump to any chat or routine</span></span></button>
         <button class="menu-item" id="openBotRoster">${icon('spark',18)}<span><strong>Bot roster</strong><span class="mi-sub">Names, jobs and the primary bot</span></span></button>
+        ${guestMode?'':`<button class="menu-item" id="openTeams">${icon('spark',18)}<span><strong>Teams &amp; Triggers</strong><span class="mi-sub">Owner bot roles, chains and rules</span></span></button>`}
         <div class="menu-sep"></div>
         <button class="menu-item" id="editName">${icon('edit',18)}<span><strong>Change display name</strong><span class="mi-sub">Shown in the sidebar</span></span></button>
       </div>`:''}
@@ -2292,6 +2323,7 @@ function bind(){
   document.getElementById('toggleTheme')?.addEventListener('click',()=>cycleTheme());
   document.getElementById('openCommandPalette')?.addEventListener('click',()=>{profileOpen=false;openCommandPalette()});
   document.getElementById('openBotRoster')?.addEventListener('click',()=>{profileOpen=false;openBotRoster()});
+  document.getElementById('openTeams')?.addEventListener('click',()=>{profileOpen=false;openTeams()});
   document.getElementById('memoryBack')?.addEventListener('click',()=>{view='chat';render()});
   document.getElementById('addMemory')?.addEventListener('click',()=>{
     modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Add a memory</h3><p>A fact the model should remember later.</p>
@@ -2477,6 +2509,135 @@ function handoffChat(fromId,toId){
     handedFrom:src.id,messages:[{from:'bot',text:opener,note:'Team handoff'}]});
   activeId=id;activeFolder=tgt.folder;view='chat';mobileView='chat';modal=null;saveState();render();showToast('Handed off to '+tgt.name);
 }
+// ---- Owner-only Teams & Triggers ----
+// Team state is deliberately outside convs/folders so it is never written to
+// guest links, family share snapshots, or the owner's cloud-state backup.
+const TEAM_KEY='oracle.teams.'+vaultId;
+let teams={},teamEditId='',teamOutput='';
+function teamLoad(){
+  if(guestMode)return;
+  try{
+    const x=JSON.parse(localStorage.getItem(TEAM_KEY)||'{}');
+    if(x&&typeof x==='object'&&x.teams&&typeof x.teams==='object')teams=x.teams;
+  }catch(e){teams={}}
+}
+function teamSave(){
+  if(guestMode)return;
+  try{localStorage.setItem(TEAM_KEY,JSON.stringify({teams}))}catch(e){}
+}
+function teamId(prefix){return prefix+'-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5)}
+function teamValidate(raw){
+  const r=raw&&typeof raw==='object'?raw:{};
+  const roles=[...new Set((Array.isArray(r.roles)?r.roles:[]).filter(id=>convs.some(c=>c.id===id)))].slice(0,8);
+  const chain=[...new Set((Array.isArray(r.chain)?r.chain:[]).filter(id=>roles.includes(id)))].slice(0,8);
+  const triggers=(Array.isArray(r.triggers)?r.triggers:[]).slice(0,12).map(x=>{
+    const rawType=String((x&&x.type)||'manual');
+    const type=['manual','keyword','schedule'].includes(rawType)?rawType:'manual';
+    let value=String((x&&x.value)||'').trim().slice(0,80);
+    if(type==='schedule'&&!/^\d{1,2}:\d{2}$/.test(value))value='08:00';
+    return {id:String((x&&x.id)||teamId('rule')),type,value,
+      approved:(x&&x.approved)===true,paused:(x&&x.paused)===true,
+      created:Number((x&&x.created))||Date.now(),lastRun:Number((x&&x.lastRun))||0,
+      lastRunDay:String((x&&x.lastRunDay)||'')};
+  }).filter(x=>x.type==='manual'||x.value);
+  return {id:String(r.id||teamId('team')),name:String(r.name||'New team').trim().slice(0,50)||'New team',
+    active:r.active!==false,paused:r.paused===true,roles,chain,triggers,
+    created:Number(r.created)||Date.now(),
+    history:(Array.isArray(r.history)?r.history:[]).slice(-10)};
+}
+function teamRule(raw){
+  return teamValidate({name:'rule helper',triggers:[raw]}).triggers[0]||null;
+}
+function teamBotLabel(id){const c=convs.find(x=>x.id===id);return c?c.name:id}
+function teamRunStep(botId,task,teamName,step){
+  const t=convs.find(x=>x.id===botId);if(!t)return null;
+  const opener=botOpener(t.name,botJob(t),t.desc||'')+`\n\nTeam “${teamName}” step ${step}: “${task}”`;
+  const id='chat-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+  const c={id,name:t.name+' · team',preview:opener.slice(0,60),hero:t.hero,folder:t.folder,
+    job:botJob(t),desc:t.desc||'',prefs:'',persona:t.persona||'oracle',primary:false,
+    handedFrom:t.id,messages:[{from:'bot',text:opener,note:'Team chain'}]};
+  convs.push(c);return c;
+}
+function teamRunChain(id,task,triggerId){
+  if(guestMode)return 0;
+  const t=teams[id];if(!t||!t.active||t.paused)return 0;
+  const chain=(t.chain||[]).filter(botId=>convs.some(c=>c.id===botId)).slice(0,8);
+  if(!chain.length)return 0;
+  let handoff=String(task||'Manual team run').trim().slice(0,140)||'Manual team run',made=0;
+  chain.forEach((botId,index)=>{
+    const step=teamRunStep(botId,handoff,t.name,index+1);
+    if(step){made++;handoff=String(step.messages[0]?.text||handoff).slice(0,140)}
+  });
+  if(made){
+    t.history=[...(t.history||[]),{at:Date.now(),trigger:triggerId||'manual',steps:made}].slice(-10);
+    saveState();teamSave();render();showToast('Team '+t.name+' queued '+made+' step(s)');
+  }
+  return made;
+}
+function teamOnUserText(text){
+  if(guestMode||!text)return 0;
+  const q=String(text).toLowerCase();let runs=0;
+  Object.values(teams).forEach(t=>{
+    if(runs||!t||!t.active||t.paused)return;
+    (t.triggers||[]).forEach(r=>{
+      if(runs||r.type!=='keyword'||!r.approved||r.paused||!r.value)return;
+      if(q.includes(String(r.value).toLowerCase())){
+        r.lastRun=Date.now();teamSave();runs=teamRunChain(t.id,String(text),r.id);
+      }
+    });
+  });
+  return runs;
+}
+function teamTick(){
+  if(guestMode)return 0;
+  const now=new Date();
+  const hhmm=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  const today=now.toDateString();let changed=false,runs=0;
+  Object.values(teams).forEach(t=>{
+    if(!t||!t.active||t.paused)return;
+    (t.triggers||[]).forEach(r=>{
+      if(r.type!=='schedule'||!r.approved||r.paused||!r.value||r.lastRunDay===today)return;
+      if(String(r.value).localeCompare(hhmm)>0)return;
+      r.lastRunDay=today;r.lastRun=Date.now();changed=true;
+      runs+=teamRunChain(t.id,'Daily schedule for '+t.name,r.id);
+    });
+  });
+  if(changed)teamSave();
+  return runs;
+}
+function openTeams(id){
+  if(guestMode){showToast('Teams & Triggers are owner-only');return}
+  teamLoad();
+  if(id)teamEditId=id;
+  if(!teamEditId||!teams[teamEditId])teamEditId=Object.keys(teams)[0]||'';
+  const t=teams[teamEditId];
+  const botOpts=convs.map(c=>`<option value="${esc(c.id)}" ${t&&((t.roles||[]).includes(c.id)||(t.chain||[]).includes(c.id))?'selected':''}>${esc(c.name)} — ${esc(botJob(c))}</option>`).join('');
+  const rows=Object.values(teams).map(x=>`<div class="vault-row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap">
+    <span style="flex:1;min-width:170px"><strong>${esc(x.name)}</strong><br/><small>${(x.chain||[]).length} ordered role(s) · ${(x.triggers||[]).length} rule(s) ${x.paused?' · PAUSED':''}</small></span>
+    <button class="btn tiny" data-team-open="${esc(x.id)}">Edit</button><button class="btn tiny" data-team-run="${esc(x.id)}">Run</button>
+    <button class="btn tiny" data-team-toggle="${esc(x.id)}">${x.paused?'Resume':'Pause'}</button><button class="btn tiny" data-team-delete="${esc(x.id)}">Delete</button></div>`).join('')||'<p>No teams yet. Create one below.</p>';
+  const triggerRows=t?((t.triggers||[]).map(r=>`<div class="vault-row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap">
+    <span style="flex:1;min-width:170px"><strong>${esc(r.type)}</strong> ${r.type==='manual'?'':esc(r.value)} ${r.approved?'':' · NEEDS APPROVAL'} ${r.paused?' · PAUSED':''}</span>
+    ${r.approved?'':`<button class="btn tiny" data-tr-approve="${esc(t.id)}" data-tr-id="${esc(r.id)}">Approve</button>`}
+    <button class="btn tiny" data-tr-toggle="${esc(t.id)}" data-tr-id="${esc(r.id)}">${r.paused?'Resume':'Pause'}</button>
+    <button class="btn tiny" data-tr-delete="${esc(t.id)}" data-tr-id="${esc(r.id)}">Delete</button></div>`).join('')||'<p>No rules yet. Manual runs are always owner-started.</p>'):'';
+  const editor=t?`<div class="menu-sep"></div><form id="teamForm"><input type="hidden" id="tfId" value="${esc(t.id)}"/>
+    <label>Team name</label><input id="tfName" value="${esc(t.name)}" maxlength="50" required/>
+    <label>Roles — bots on this team</label><select id="tfRoles" multiple size="4" style="width:100%;box-sizing:border-box">${botOpts}</select>
+    <label>Handoff chain — choose the same bots in running order</label><select id="tfChain" multiple size="4" style="width:100%;box-sizing:border-box">${botOpts}</select>
+    <label class="check-row"><input type="checkbox" id="tfPaused" ${t.paused?'checked':''}/> Pause this whole team</label>
+    <div class="modal-actions"><button class="btn primary" type="submit">Save team</button></div></form>
+    <div class="menu-sep"></div><h4>Rules for ${esc(t.name)}</h4>${triggerRows}
+    <form id="teamTriggerForm"><input type="hidden" id="ttId" value="${esc(t.id)}"/>
+      <label>Add rule</label><select id="ttType" style="width:100%;box-sizing:border-box"><option value="manual">Manual</option><option value="keyword">Keyword</option><option value="schedule">Daily schedule</option></select>
+      <label>Keyword or time (HH:MM)</label><input id="ttValue" placeholder="e.g. idaho or 08:00" maxlength="80"/>
+      <div class="modal-actions"><button class="btn primary" type="submit">Add unapproved rule</button></div></form>`:'';
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal" style="max-width:720px"><h3>Teams & Triggers</h3>
+    <p>Owner only. Rules start unapproved; guests never see or run them. Team state stays on this device and is not synced to the cloud.</p>
+    ${rows}${editor}${teamOutput?`<div class="status" style="text-align:left;margin-top:10px">${esc(teamOutput)}</div>`:''}
+    <div class="modal-actions"><button class="btn" id="teamNew">New team</button><button class="btn primary" id="mc">Done</button></div></div></div>`;
+  render();
+}
 function chatTranscript(c){
   return c.messages.map(m=>`${m.from==='user'?'You':c.name}: ${m.text}${m.imageId?`\n[Image: ${m.imagePrompt||'generated'} · ${m.imageSize} · saved on this device]`:''}`).join('\n\n');
 }
@@ -2634,6 +2795,7 @@ async function openComputerModal(){
     <p>Live status from this Mac. Connectors, forms and the vault are shown as <strong>names only</strong>; secret values never reach the model or this panel.</p>
     <div class="status" style="text-align:left;margin:10px 0;line-height:1.7">
       Bridge uptime: ${Math.floor(s.uptime/60)} min · Tools: ${esc(s.tools.mode)}<br/>
+      Free cloud model: ${esc(s.cloud?.name||s.cloud?.model||'unknown')}<br/>
       Browser routines: ${s.browserEnabled?'enabled':'disabled'}<br/>
       Vault credential names: ${rows(s.credentialNames||[],'none')}<br/>
       Connectors: ${rows((s.connectors||[]).map(c=>c.name+(c.targetHost?' ('+c.targetHost+')':'')),'none')}<br/>
@@ -3018,6 +3180,7 @@ function commandItems(){
   }}));
   items.push({label:'New bot / chat room',sub:'command',art:icon('plus',16),run:()=>openRoomModal(activeFolder)});
   items.push({label:'Bot roster',sub:'command · names and jobs',art:icon('spark',16),run:openBotRoster});
+  if(!guestMode)items.push({label:'Teams & Triggers',sub:'owner command · bot roles and rules',art:icon('spark',16),run:openTeams});
   items.push({label:'Personality: '+personalityLabel(active()),sub:'command · choose this bot\'s tone',art:icon('spark',16),run:openPersonalityPicker});
   items.push({label:'Install this web app',sub:'command · Add to Home Screen',art:icon('plus',16),run:openInstallApp});
   items.push({label:'About / Update status',sub:'command · build, model and service worker',art:icon('info',16),run:openAbout});
@@ -3146,6 +3309,30 @@ function openNameModal(){
 function bindModal(){
   document.getElementById('mc')?.addEventListener('click',()=>{stopCameraStream();modal=null;render()});
   document.getElementById('mb')?.addEventListener('click',e=>{if(e.target.id==='mb'){stopCameraStream();modal=null;render()}});
+  document.getElementById('teamNew')?.addEventListener('click',()=>{const t=teamValidate({name:'New team'});teams[t.id]=t;teamEditId=t.id;teamSave();openTeams(t.id)});
+  document.querySelectorAll('[data-team-open]').forEach(b=>b.onclick=()=>openTeams(b.dataset.teamOpen));
+  document.querySelectorAll('[data-team-run]').forEach(b=>b.onclick=()=>{teamOutput='Manual team run started.';teamRunChain(b.dataset.teamRun,'Manual run from Teams & Triggers','manual');openTeams(b.dataset.teamRun)});
+  document.querySelectorAll('[data-team-toggle]').forEach(b=>b.onclick=()=>{const t=teams[b.dataset.teamToggle];if(t){t.paused=!t.paused;teamSave();openTeams(t.id)}});
+  document.querySelectorAll('[data-team-delete]').forEach(b=>b.onclick=()=>{delete teams[b.dataset.teamDelete];teamEditId='';teamSave();openTeams()});
+  document.getElementById('teamForm')?.addEventListener('submit',e=>{
+    e.preventDefault();
+    const id=document.getElementById('tfId').value,t=teams[id];if(!t)return;
+    const picked=field=>Array.from(document.getElementById(field)?.selectedOptions||[]).map(o=>o.value);
+    t.name=document.getElementById('tfName').value.trim()||t.name;
+    t.roles=picked('tfRoles');t.chain=picked('tfChain');t.paused=!!document.getElementById('tfPaused').checked;
+    teams[id]=teamValidate(t);teamSave();teamEditId=id;openTeams(id);showToast('Team saved');
+  });
+  document.getElementById('teamTriggerForm')?.addEventListener('submit',e=>{
+    e.preventDefault();
+    const t=teams[document.getElementById('ttId').value];if(!t)return;
+    const type=document.getElementById('ttType').value,value=document.getElementById('ttValue').value.trim();
+    const r=teamRule({id:teamId('rule'),type,value,approved:false,paused:false});
+    if(!r){showToast('Enter a keyword or HH:MM time');return}
+    t.triggers=t.triggers||[];t.triggers.push(r);teams[t.id]=teamValidate(t);teamSave();openTeams(t.id);showToast('Rule added — approve it before use');
+  });
+  document.querySelectorAll('[data-tr-approve]').forEach(b=>b.onclick=()=>{const t=teams[b.dataset.trApprove],r=(t?.triggers||[]).find(x=>x.id===b.dataset.trId);if(r){r.approved=true;r.paused=false;teamSave();openTeams(t.id);showToast('Rule approved')}});
+  document.querySelectorAll('[data-tr-toggle]').forEach(b=>b.onclick=()=>{const t=teams[b.dataset.trToggle],r=(t?.triggers||[]).find(x=>x.id===b.dataset.trId);if(r){r.paused=!r.paused;teamSave();openTeams(t.id)}});
+  document.querySelectorAll('[data-tr-delete]').forEach(b=>b.onclick=()=>{const t=teams[b.dataset.trDelete];if(t){t.triggers=(t.triggers||[]).filter(x=>x.id!==b.dataset.trId);teamSave();openTeams(t.id)}});
   const rh=document.getElementById('rh');
   if(rh)document.querySelectorAll('[data-hero-field="rh"]').forEach(b=>b.classList.toggle('selected',b.dataset.hero===rh.value));
   document.querySelectorAll('[data-hero]').forEach(b=>b.onclick=()=>{
@@ -3399,7 +3586,10 @@ async function sendMessage(e){
       note:own?(cm?.type==='cloud'?'Check the endpoint and key':'Try another model'):'Start the bridge from the Desktop launcher.'});
     replyText='';
   }
-  if(!delegated){const last=c.messages.at(-1)?.text||replyText;afterReply(last)}
+  if(!delegated){
+    teamOnUserText(text);
+    const last=c.messages.at(-1)?.text||replyText;afterReply(last);
+  }
 }
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;render()});
 window.addEventListener('appinstalled',()=>{installPrompt=null;render()});
@@ -3422,7 +3612,14 @@ document.addEventListener('keydown',e=>{
       saveState();
     }
   }
+  // Every owner and guest gets one built-in guide/technical bot. It is seeded
+  // after cloud/local restore so an existing workspace cannot miss it and an
+  // older saved state cannot create a duplicate.
+  ensureOracleBot();
   await gvInit();
+  // Team rules are owner-only and stay in this browser. Schedules run only while
+  // this app is open; there is no app-closed cloud VM on the free tier.
+  if(!guestMode){teamLoad();teamTick();setInterval(teamTick,30000)}
   // Routines are device-local: load this session's set and start the in-page
   // scheduler only on the static/phone build. The host Mac is never involved.
   if(staticMode){drLoad();drTick();setInterval(drTick,30000)}
