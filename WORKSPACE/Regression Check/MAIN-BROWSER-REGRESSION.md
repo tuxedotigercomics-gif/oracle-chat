@@ -25,7 +25,7 @@ Rollback: `restore-live.command`
 
 ## Team + trigger manager — 2026-11-26b (pending)
 - [ ] Owner-only Teams & Triggers manager: roles, ordered chains, manual/keyword/daily-schedule rules, pause/resume, approval, guest denial, and non-secret cloud state (harness + live pending)
-- [ ] Git-backed `WORKSPACE/` snapshot committed and pushed; source, bridge, baselines, harness and docs included; caches, logs, runtime sessions and secrets excluded (pending)
+- [x] Git-backed `WORKSPACE/` snapshot committed and pushed; source, bridge, baselines, harness and docs included; caches, logs, runtime sessions and secrets excluded
 - [ ] Build `2026-11-26b` published; app SHA verified on bridge and canonical; service worker unchanged; zero console errors (pending)
 
 ## Full feature + UI audit — 2026-11-19 (host)
