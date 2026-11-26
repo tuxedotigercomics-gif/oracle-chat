@@ -194,7 +194,8 @@ a search tool. Do not try to fix this with prompts alone.
   folders and active room id. Guests, vault entries, API keys and tool results
   are never sent to it. It needs one owner dashboard binding named `ORACLE_DB`
   (see `CLOUD-VM-SETUP.md`); until then it returns a controlled
-  `binding-missing` code with HTTP 200 and the app stays device-local.
+  `binding-missing` code with HTTP 200 and the app stays device-local. That
+  binding was completed and verified on 2026-11-26.
 - `oracle_bridge.py` exposes a single owner-only `/api/computer` status/control
   endpoint. It shows vault credential **names only**, connector names/hostnames,
   secure-form names/field names and routine pause state. Guest tokens get 403.

@@ -17,6 +17,7 @@ Rollback: `restore-live.command`
 - [x] Teach-task flow drafts a skill/routine and still requires owner approval (harness + host smoke)
 - [x] Owner bot-to-bot handoff shows the chain; guests see no handoff or team UI (harness + live)
 - [x] `/api/cloud-state` stores only non-secret owner workspace data and degrades clearly without the D1 binding (harness + live)
+- [x] Free D1 `oracle-chat-cloud` is bound as `ORACLE_DB` in Production and Preview; canonical endpoint returns `{"ok":true,"state":null}` after redeploy (live)
 - [x] Owner-only Computer panel shows status, connector/form/vault names and pauses/resumes routines; guests get 403 and secrets never appear (harness + live + host smoke)
 - [x] `site:x.com` lookup works through the existing proxy; explicit off/offline still make zero fetches (harness)
 - [x] Build `2026-11-26a` published; app SHA verified on bridge and canonical; service worker unchanged; zero console errors (harness + live)

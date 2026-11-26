@@ -20,16 +20,17 @@ should be able to resume the work without access to the original Mac workspace.
 | Repo | `tuxedotigercomics-gif/oracle-chat` (this repository) |
 | Last fully verified build | `2026-11-26a` (harness + both live sites + host smoke, zero console errors) |
 
+## Completed setup
+
+- The free D1 database `oracle-chat-cloud` is bound as `ORACLE_DB` to both
+  Production and Preview on the `oracle-chat` Pages project (completed
+  2026-11-26). `/api/cloud-state` now returns `{"ok":true,"state":null}` when
+  there is no owner snapshot yet. Guest sessions, vault entries and tool results
+  are never sent to it. See [`CLOUD-VM-SETUP.md`](CLOUD-VM-SETUP.md).
+
 ## Open items
 
-1. **One-time free D1 binding.** Build `2026-11-26a` adds `/api/cloud-state`,
-   but it stores nothing until the owner creates the free D1 database
-   `oracle-chat-cloud` and binds it as `ORACLE_DB` on the `oracle-chat` Pages
-   project (Production and Preview). Until then the endpoint returns a
-   controlled `binding-missing` response with HTTP 200 and the app silently
-   keeps using device-local state. See [`CLOUD-VM-SETUP.md`](CLOUD-VM-SETUP.md).
-   Guest sessions, vault entries and tool results are never sent to it.
-2. **Physical iPhone confirmation** of build `2026-11-26a`. Use the canonical
+1. **Physical iPhone confirmation** of build `2026-11-26a`. Use the canonical
    site — it sends COOP/COEP, which the compat WASM's shared memory needs. Build
    `j` upgraded wllama to 4.0.0 (abort-reason extraction, iOS shared-memory
    retry, OPFS handle retry) and loads phone compat models with
@@ -71,16 +72,16 @@ should be able to resume the work without access to the original Mac workspace.
    aren't available on iPhone" message appears with no white flash; confirm
    chat and voice still work. In Profile → Web search, turn search on and set
    your city, then ask what is happening tomorrow and confirm source links.
-3. **Intermittent iPhone `Model error:`** — still open. The load abort was first
+2. **Intermittent iPhone `Model error:`** — still open. The load abort was first
    addressed by cross-origin isolation, then by wllama 4.0.0 and phone CPU/single
    thread options in build `2026-11-21j`. The later lookup-only symptom was not
    another model abort: it was the CORS-blocked GDELT fetch, fixed by the proxy
    in builds `k`–`m`. If any `Model error:` remains, capture the full text: it
    now starts with `[wllama load]` or `[wllama chat]` and includes COI/compat/
    phone state, plus a stack when one exists. Do not guess from bare `(ABORT)`.
-4. Host web search was added in `2026-11-21b`; the physical-device pass for the
+3. Host web search was added in `2026-11-21b`; the physical-device pass for the
    phone search setting is still open.
-5. Everything else listed as unchecked in
+4. Everything else listed as unchecked in
    [`TRACKING/PHONE-BROWSER-REGRESSION.md`](TRACKING/PHONE-BROWSER-REGRESSION.md)
    is awaiting a physical device pass, not a code change.
 

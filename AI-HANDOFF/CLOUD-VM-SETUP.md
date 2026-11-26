@@ -50,5 +50,10 @@ Expected before setup: `{"ok":false,"code":"binding-missing",...}` with HTTP 200
 (a 503 would be logged by the browser as a console error). The app falls back
 silently to device-local state either way.
 
+Current status: **bound and verified on 2026-11-26**. The free D1 database
+`oracle-chat-cloud` is bound as `ORACLE_DB` to both Production and Preview on
+the `oracle-chat` Pages project. After the redeploy, the canonical endpoint
+returned `{"ok":true,"state":null}`. No further dashboard action is needed.
+
 The backup GitHub Pages host has no Functions runtime, so `/api/cloud-state`
 returns 404 there and the app simply keeps working offline.

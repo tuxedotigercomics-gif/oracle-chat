@@ -18,6 +18,14 @@ dashboard. Re-frozen the live rollback baseline only after the local and live
 harnesses passed, both sites served matching app bytes with zero console errors,
 and the restarted owner bridge passed owner/guest `/api/computer` checks.
 
+Completed after publication: the owner created the free D1 database
+`oracle-chat-cloud` in the signed-in Cloudflare dashboard, bound it as
+`ORACLE_DB` to both Production and Preview on the `oracle-chat` Pages project,
+and retriggered the latest deployment. The canonical
+`/api/cloud-state?key=cs-harness-check-123` then returned `{"ok":true,"state":null}`
+with HTTP 200. No app or service-worker bytes changed; only Cloudflare config and
+handoff docs did.
+
 The user asked for research into Grok Bot and then chose **full parity**. The
 official sources reviewed were `x.ai/grok`, `x.ai/bot/guides/grok-bot-101`,
 `docs.x.ai/grok-bot/get-started`, `docs.x.ai/grok-bot/overview`, and the
