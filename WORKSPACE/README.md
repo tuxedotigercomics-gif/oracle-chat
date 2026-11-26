@@ -7,7 +7,7 @@ new computer can continue the project from GitHub alone.
 Snapshot date: 2026-11-26  
 Snapshot state: build `2026-11-26b` prepared from the verified `2026-11-26a` baseline  
 Published build at snapshot: `2026-11-26b` pending live verification  
-App SHA: `b9d355c6d558a332d3f32cc45252e73f816cbe616ebea2bf1b006707b36d1048`  
+App SHA: `230ae9cad770e595506da9b694ac73d81f96bd6ffb6341917784145d1d5f7953`  
 Service-worker SHA: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`  
 Bridge SHA: `4bf1df9fdbee35fc39dae6dc374d84f900447d2e2581a57eae2554be134ed922`
 

@@ -81,6 +81,8 @@ def source_checks(html, cloud, bridge):
     expect("'manual','keyword','schedule'" in html and "data-team-toggle=" in html
            and "r.paused=!r.paused" in html,
            "manual/keyword/daily rules expose pause and resume")
+    expect("function teamRule(" in html and "const r=teamRule(" in html,
+           "rule form uses the real rule validator")
     expect("const state={convs,folders,activeId},body=JSON.stringify({key,state});" in html
            and "oracle.teams." not in cloud,
            "cloud state still contains only workspace data, never team/vault state")
@@ -152,6 +154,8 @@ var teamA=teamValidate({name:'News team',roles:['a','b'],chain:['a','b'],
   triggers:[{type:'keyword',value:'idaho'}]});
 teams[teamA.id]=teamA;
 var needsApproval=teamA.triggers[0].approved===false&&teamA.triggers[0].paused===false;
+var ruleFromForm=teamRule({id:'rule-1',type:'keyword',value:'idaho',approved:false,paused:false});
+var ruleFormOk=!!ruleFromForm&&ruleFromForm.type==='keyword'&&ruleFromForm.value==='idaho'&&ruleFromForm.approved===false;
 teamOnUserText('idaho');
 var blockedBeforeApproval=convs.length===2;
 teamA.triggers[0].approved=true;
@@ -178,7 +182,7 @@ var once=convs.length===beforeSecond;
 var payload=JSON.stringify({key:'k',state:{convs:convs,folders:folders,activeId:'a'}});
 var noTeamInCloud=payload.indexOf('oracle.teams.')<0;
 JSON.stringify({social:social,identity:identity,q:q,xq:xq,off:off,
-  needsApproval:needsApproval,blockedBeforeApproval:blockedBeforeApproval,ran:ran,order:order,
+  needsApproval:needsApproval,ruleFormOk:ruleFormOk,blockedBeforeApproval:blockedBeforeApproval,ran:ran,order:order,
   pausedBlocked:pausedBlocked,rulePausedBlocked:rulePausedBlocked,scheduled:scheduled,
   once:once,noTeamInCloud:noTeamInCloud});
 '''
@@ -298,6 +302,7 @@ def main():
     expect(out["off"] is False, "explicit off/offline still returns no web sources")
     expect(out["needsApproval"] and out["blockedBeforeApproval"],
            "team keyword rules start unapproved and cannot run early")
+    expect(out["ruleFormOk"], "rule form creates a valid unapproved keyword rule")
     expect(out["ran"] == 2 and out["order"] == "Alpha Bot · team|Beta Bot · team",
            "approved keyword rule runs the full handoff chain in order")
     expect(out["pausedBlocked"] and out["rulePausedBlocked"],

@@ -2545,6 +2545,9 @@ function teamValidate(raw){
     created:Number(r.created)||Date.now(),
     history:(Array.isArray(r.history)?r.history:[]).slice(-10)};
 }
+function teamRule(raw){
+  return teamValidate({name:'rule helper',triggers:[raw]}).triggers[0]||null;
+}
 function teamBotLabel(id){const c=convs.find(x=>x.id===id);return c?c.name:id}
 function teamRunStep(botId,task,teamName,step){
   const t=convs.find(x=>x.id===botId);if(!t)return null;
@@ -3323,7 +3326,7 @@ function bindModal(){
     e.preventDefault();
     const t=teams[document.getElementById('ttId').value];if(!t)return;
     const type=document.getElementById('ttType').value,value=document.getElementById('ttValue').value.trim();
-    const r=teamValidate({id:teamId('rule'),type,value,approved:false,paused:false}).triggers[0];
+    const r=teamRule({id:teamId('rule'),type,value,approved:false,paused:false});
     if(!r){showToast('Enter a keyword or HH:MM time');return}
     t.triggers=t.triggers||[];t.triggers.push(r);teams[t.id]=teamValidate(t);teamSave();openTeams(t.id);showToast('Rule added — approve it before use');
   });
