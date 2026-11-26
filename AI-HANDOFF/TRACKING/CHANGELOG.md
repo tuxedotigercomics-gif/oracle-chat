@@ -3,12 +3,15 @@
 Record every change here before you make it, so there is always a clear trail
 between the frozen baseline and whatever is currently in the working file.
 
-## 2026-11-26b — Team + trigger manager (planned)
+## 2026-11-26b — Team + trigger manager and automatic free cloud model (planned)
 
 Status: **planned** — this entry exists before any code edits. The owner chose
 to build the team/trigger manager first, to keep any future guest connectors
 **own-accounts-only** with tokens on the guest device, and to stay on the free
-tier with no always-on cloud VM.
+tier with no always-on cloud VM. For the later personal-assistant connectors,
+the owner wants every person to own and connect their own Instagram/email pages
+using the best free method, with approval first and the ability to give a bot
+chat consent that upgrades only that bot's privileges.
 
 Intended change:
 
@@ -31,7 +34,21 @@ Intended change:
    runtime scripts. Exclude `.oracle-venv`, caches, OS files, local logs,
    `.oracle-backups`, and live `oracle-shared/sessions.json` because those are
    machine-local runtime/session data, not source. Record a SHA manifest.
-7. Bump the build marker to `2026-11-26b` only after local and live tests pass.
+7. Add an automatic free-cloud-model pull on the owner bridge. Read OpenCode's
+   `/api/model` catalog, cache the newest active free chat model, use it for
+   cloud chat, and on `free-limit` force a refresh and retry the next free model.
+   Show the selected model in status/Computer panel; never expose provider keys.
+8. Record the personal-assistant connector policy: each person connects and owns
+   their own Instagram/email pages; use the best free webhook/API method; sending
+   and replying start approval-first; chat consent may widen only that bot's
+   privileges and never another guest's or the owner's vault. Connectors are a
+   later build, not silently added to this one.
+9. Seed an **Oracle Bot** room for every person: owner and guest workspaces each
+   get one non-duplicating room with a pre-made “how to use Oracle” guide. It can
+   explain the app, draft UI/bug-fix instructions and use host tools only for the
+   owner with an approval card; guests and phone users get guidance, not host
+   file/vault access.
+10. Bump the build marker to `2026-11-26b` only after local and live tests pass.
 
 ## 2026-11-26 — Grok Bot parity (published and verified)
 

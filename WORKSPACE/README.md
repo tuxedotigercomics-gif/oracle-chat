@@ -5,11 +5,11 @@ This folder is the source-of-truth snapshot of the original Mac workspace at
 new computer can continue the project from GitHub alone.
 
 Snapshot date: 2026-11-26  
-Snapshot state: pre-change, before build `2026-11-26b`  
-Published build at snapshot: `2026-11-26a`  
-App SHA: `5b804997b2c63475a4314c36ffe2806bbf5e246e01017f490fe66d0cfabb7db4`  
+Snapshot state: build `2026-11-26b` prepared from the verified `2026-11-26a` baseline  
+Published build at snapshot: `2026-11-26b` pending live verification  
+App SHA: `25ffa54540d8ab689d6eb72c7ee5359afc7372192378bf7124e8ae0a829e5ef7`  
 Service-worker SHA: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`  
-Bridge SHA: `1e7dbcabd5af7637e06b0db51924c2fac2d58d716e4388188d10e5a7e4e59d95`
+Bridge SHA: `4bf1df9fdbee35fc39dae6dc374d84f900447d2e2581a57eae2554be134ed922`
 
 ## Included
 

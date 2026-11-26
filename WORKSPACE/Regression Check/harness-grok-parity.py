@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Harness for build 2026-11-26a (Grok-style agents + free cloud state).
+"""Harness for build 2026-11-26b (teams, triggers, seeded guide, auto free model).
 
 Local mode checks source invariants and runs the pure JS helpers through the
 macOS JavaScriptCore engine (osascript -l JavaScript). There is no Node on this
@@ -41,7 +41,7 @@ def expect(cond, label):
 
 
 def source_checks(html, cloud, bridge):
-    expect('content="2026-11-26a"' in html, "build marker is 2026-11-26a")
+    expect('content="2026-11-26b"' in html, "build marker is 2026-11-26b")
     expect("Socials Bot" in html and "Which platforms are you posting to?" in html,
            "Socials Bot template asks platform/audience/goal questions")
     expect("botOpener(name,job,desc)" in html, "room creation uses the local opener generator")
@@ -69,6 +69,28 @@ def source_checks(html, cloud, bridge):
            "bridge computer endpoint is guest-denied")
     expect("targetHost" in bridge and "credentialNames" in bridge and "pausedRoutines" in bridge,
            "bridge computer snapshot exposes names/hosts only")
+    expect("function ensureOracleBot(" in html and "function oracleBotGuide(" in html
+           and "How to use Oracle" in html and "id:ORACLE_BOT_ID" in html,
+           "every workspace gets one seeded Oracle Bot guide room")
+    expect("const TEAM_KEY='oracle.teams.'+vaultId" in html and "function openTeams(" in html
+           and 'id="openTeams"' in html and "guestMode?'':" in html,
+           "Teams & Triggers manager is owner-only on both hosts")
+    expect("approved:false,paused:false" in html and "if(guestMode)return 0" in html
+           and "if(!t||!t.active||t.paused)return 0" in html,
+           "team rules start unapproved and paused/guest chains cannot run")
+    expect("'manual','keyword','schedule'" in html and "data-team-toggle=" in html
+           and "r.paused=!r.paused" in html,
+           "manual/keyword/daily rules expose pause and resume")
+    expect("const state={convs,folders,activeId},body=JSON.stringify({key,state});" in html
+           and "oracle.teams." not in cloud,
+           "cloud state still contains only workspace data, never team/vault state")
+    expect('cli("get", "/api/model", timeout=20)' in bridge
+           and "cloud_models(force=True, exclude=tried)" in bridge
+           and '"provider.free-limit"' in bridge,
+           "bridge auto-pulls free models and switches on free-limit")
+    expect('(("", []) if self.guest_token else cloud_models(force=False))' in bridge
+           and '"free cloud: " + cloud_model_used' in bridge,
+           "cloud model status is owner-only and chat notes show the active model")
 
 
 def script_syntax_check(html):
@@ -103,12 +125,20 @@ def js_helper_checks(html):
     bot_src = between("const BOT_TEMPLATES=", "function heroAvatar(")
     search_src = between("function newsSearchPhrase(", "async function fetchGdeltItems(")
     web_src = between("function webSearchOn(){", "function setWebSearchOn(")
+    team_src = between("const TEAM_KEY=", "function chatTranscript(")
 
     script = r'''
 var localStorage={_v:{},getItem:function(k){return this._v[k]===undefined?null:this._v[k]},setItem:function(k,v){this._v[k]=String(v)}};
 var navigator={onLine:true};
+var vaultId='self',guestMode=false;
+var convs=[{id:'a',name:'Alpha Bot',job:'Research assistant',desc:'',hero:'vision',folder:'f',persona:'oracle',messages:[]},
+           {id:'b',name:'Beta Bot',job:'Social media planner',desc:'',hero:'deadpool',folder:'f',persona:'playful',messages:[]}];
+var folders=[{id:'f',name:'Chats',open:true}];
+function showToast(s){}
+function render(){}
+function saveState(){}
 var botJob=function(c){return String((c&&c.job)||'General assistant').slice(0,60)};
-''' + bot_src + "\n" + search_src + "\n" + web_src + r'''
+''' + bot_src + "\n" + search_src + "\n" + web_src + "\n" + team_src + r'''
 localStorage.setItem('oracle.botprefs.x','Use short answers');
 var social=botOpener('Socials Bot','Social media planner','Plan and review social posts');
 var identity=botIdentityPrompt({id:'x',name:'Socials Bot',job:'Social media planner',desc:'Social media planning'});
@@ -116,7 +146,41 @@ var q=newsSearchQuery('Please look up Whats going on this week in idaho falls','
 var xq=newsSearchQuery('What are people saying on X about Idaho Falls','');
 localStorage.setItem('oracle.websearch','0');navigator.onLine=false;
 var off=webSearchOn();
-JSON.stringify({social:social,identity:identity,q:q,xq:xq,off:off});
+navigator.onLine=true;
+
+var teamA=teamValidate({name:'News team',roles:['a','b'],chain:['a','b'],
+  triggers:[{type:'keyword',value:'idaho'}]});
+teams[teamA.id]=teamA;
+var needsApproval=teamA.triggers[0].approved===false&&teamA.triggers[0].paused===false;
+teamOnUserText('idaho');
+var blockedBeforeApproval=convs.length===2;
+teamA.triggers[0].approved=true;
+var before=convs.length;
+var ran=teamOnUserText('what about idaho');
+var order=convs.slice(before).map(function(c){return c.name}).join('|');
+teamA.paused=true;
+var beforePaused=convs.length;
+var pausedBlocked=teamOnUserText('idaho')===0&&convs.length===beforePaused;
+teamA.paused=false;
+teamA.triggers[0].paused=true;
+var beforeRule=convs.length;
+var rulePausedBlocked=teamOnUserText('idaho')===0&&convs.length===beforeRule;
+teamA.triggers[0].paused=false;
+teamA.triggers.push({id:'daily',type:'schedule',value:'00:00',approved:true,paused:false,
+  created:Date.now(),lastRun:0,lastRunDay:''});
+teamA=teamValidate(teamA);teams[teamA.id]=teamA;
+var beforeSchedule=convs.length;
+teamTick();
+var scheduled=convs.length-beforeSchedule===2;
+var beforeSecond=convs.length;
+teamTick();
+var once=convs.length===beforeSecond;
+var payload=JSON.stringify({key:'k',state:{convs:convs,folders:folders,activeId:'a'}});
+var noTeamInCloud=payload.indexOf('oracle.teams.')<0;
+JSON.stringify({social:social,identity:identity,q:q,xq:xq,off:off,
+  needsApproval:needsApproval,blockedBeforeApproval:blockedBeforeApproval,ran:ran,order:order,
+  pausedBlocked:pausedBlocked,rulePausedBlocked:rulePausedBlocked,scheduled:scheduled,
+  once:once,noTeamInCloud:noTeamInCloud});
 '''
     fd, path = tempfile.mkstemp(suffix=".jsc", text=True)
     try:
@@ -129,6 +193,38 @@ JSON.stringify({social:social,identity:identity,q:q,xq:xq,off:off});
         return json.loads(p.stdout.strip())
     finally:
         os.unlink(path)
+
+
+def bridge_model_checks():
+    """Pure check of automatic free-model discovery without touching the CLI."""
+    sys.path.insert(0, PROJECT)
+    import oracle_bridge
+
+    free_cost = [{"input": 0, "output": 0, "cache": {"read": 0, "write": 0}}]
+    catalog = {"data": [
+        {"id": "newest-free", "modelID": "newest-free", "providerID": "opencode",
+         "type": "chat", "status": "active", "cost": free_cost,
+         "time": {"released": 3000}, "limit": {"context": 100}},
+        {"id": "second-free", "modelID": "second-free", "providerID": "opencode",
+         "type": "chat", "status": "active", "cost": free_cost,
+         "time": {"released": 2000}, "limit": {"context": 100}},
+        {"id": "paid-model", "modelID": "paid-model", "providerID": "opencode",
+         "type": "chat", "status": "active",
+         "cost": [{"input": 1, "output": 2}], "time": {"released": 9999},
+         "limit": {"context": 100}},
+    ]}
+    original_cli = oracle_bridge.cli
+    oracle_bridge.cli = lambda *a, **k: catalog
+    try:
+        oracle_bridge.CLOUD_MODEL_CACHE.update(model="", updated=0.0, models=[])
+        newest, models = oracle_bridge.cloud_models(force=True)
+        expect(newest == "newest-free", "bridge picks the newest active free model")
+        expect([m["id"] for m in models] == ["newest-free", "second-free"],
+               "paid and inactive models never enter the free list")
+        alternate, _ = oracle_bridge.cloud_models(force=True, exclude={newest})
+        expect(alternate == "second-free", "free-limit fallback selects the next free model")
+    finally:
+        oracle_bridge.cli = original_cli
 
 
 def live_checks():
@@ -147,8 +243,8 @@ def live_checks():
 
     status, headers, body = get(CANONICAL)
     h = {k.lower(): v for k, v in headers.items()}
-    expect(status == 200 and 'content="2026-11-26a"' in body,
-           "canonical serves build 2026-11-26a")
+    expect(status == 200 and 'content="2026-11-26b"' in body,
+           "canonical serves build 2026-11-26b")
     expect(h.get("cross-origin-opener-policy") == "same-origin" and
            h.get("cross-origin-embedder-policy") == "require-corp",
            "canonical still sends COOP/COEP")
@@ -156,8 +252,8 @@ def live_checks():
     expect(hashlib.sha256(raw(CANONICAL)).hexdigest() == sha(APP),
            "canonical app bytes match the local build")
     status, headers, body = get(BACKUP)
-    expect(status == 200 and 'content="2026-11-26a"' in body,
-           "backup serves build 2026-11-26a")
+    expect(status == 200 and 'content="2026-11-26b"' in body,
+           "backup serves build 2026-11-26b")
     expect(hashlib.sha256(raw(BACKUP)).hexdigest() == sha(APP),
            "backup app bytes match the local build")
     expect(headers.get("Cross-Origin-Opener-Policy") is None,
@@ -200,6 +296,16 @@ def main():
     expect(out["q"] == "Idaho Falls", "lookup phrase still normalizes to Idaho Falls")
     expect(out["xq"].startswith("site:x.com "), "X lookup uses the existing proxy path")
     expect(out["off"] is False, "explicit off/offline still returns no web sources")
+    expect(out["needsApproval"] and out["blockedBeforeApproval"],
+           "team keyword rules start unapproved and cannot run early")
+    expect(out["ran"] == 2 and out["order"] == "Alpha Bot · team|Beta Bot · team",
+           "approved keyword rule runs the full handoff chain in order")
+    expect(out["pausedBlocked"] and out["rulePausedBlocked"],
+           "paused teams and paused rules block chain execution")
+    expect(out["scheduled"] and out["once"],
+           "daily schedule fires once per day while the app is open")
+    expect(out["noTeamInCloud"], "team state is excluded from cloud payloads")
+    bridge_model_checks()
 
     print("app sha: " + sha(APP))
     if args.live:

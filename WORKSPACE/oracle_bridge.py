@@ -91,6 +91,91 @@ def cli(api_method, path, data=None, timeout=120):
     return j.get("data", j) if isinstance(j, dict) else j
 
 
+# OpenCode's /api/model catalog marks free models with zero cost. Pick the
+# newest active free chat model automatically, and refresh on a free-limit so a
+# quota-exhausted model is replaced without any user action.
+CLOUD_MODEL_CACHE = {"model": "", "updated": 0.0, "models": []}
+CLOUD_MODEL_TTL = 6 * 60 * 60
+
+
+def _model_cost_is_free(cost):
+    if not isinstance(cost, dict):
+        return False
+    vals = [cost.get("input"), cost.get("output")]
+    cache = cost.get("cache")
+    if isinstance(cache, dict):
+        vals += [cache.get("read"), cache.get("write")]
+    for v in vals:
+        if v in (None, 0, 0.0, "0", "0.0"):
+            continue
+        try:
+            if float(v) == 0:
+                continue
+        except (TypeError, ValueError):
+            pass
+        return False
+    return True
+
+
+def cloud_models(force=False, exclude=()):
+    """Return (active model id, short free-model list) from OpenCode's catalog."""
+    excluded = {exclude} if isinstance(exclude, str) else set(exclude or ())
+    now = time.time()
+    cached = CLOUD_MODEL_CACHE.get("model") or ""
+    if (not force and cached and cached not in excluded
+            and now - float(CLOUD_MODEL_CACHE.get("updated") or 0) < CLOUD_MODEL_TTL):
+        return cached, CLOUD_MODEL_CACHE.get("models") or []
+
+    try:
+        data = cli("get", "/api/model", timeout=20)
+        items = data.get("data") if isinstance(data, dict) else data
+        if not isinstance(items, list):
+            items = []
+        free = []
+        for m in items:
+            if not isinstance(m, dict):
+                continue
+            if m.get("providerID") != "opencode" or m.get("type") not in (None, "chat"):
+                continue
+            if m.get("status") not in (None, "active") or m.get("enabled") is False:
+                continue
+            cost = m.get("cost")
+            costs = cost if isinstance(cost, list) else [cost]
+            if not costs or not all(_model_cost_is_free(c) for c in costs):
+                continue
+            mid = str(m.get("modelID") or m.get("id") or "").strip()
+            if not mid or mid in excluded:
+                continue
+            tm = m.get("time") if isinstance(m.get("time"), dict) else {}
+            lim = m.get("limit") if isinstance(m.get("limit"), dict) else {}
+            free.append({
+                "id": mid,
+                "name": str(m.get("name") or mid),
+                "released": int(tm.get("released") or 0),
+                "context": int(lim.get("context") or 0),
+            })
+        free.sort(key=lambda x: (x["released"], x["context"], x["id"]), reverse=True)
+        if free:
+            CLOUD_MODEL_CACHE.update(
+                model=free[0]["id"], updated=now,
+                models=[{k: v for k, v in m.items()
+                         if k in ("id", "name", "released", "context")}
+                        for m in free[:8]],
+            )
+            return free[0]["id"], CLOUD_MODEL_CACHE["models"]
+    except Exception:
+        pass
+
+    models = CLOUD_MODEL_CACHE.get("models") or []
+    still_free = [m for m in models
+                  if isinstance(m, dict) and m.get("id") and m["id"] not in excluded]
+    if still_free:
+        CLOUD_MODEL_CACHE.update(model=still_free[0]["id"], updated=now)
+        return still_free[0]["id"], models
+    fallback = CLOUD_MODEL if CLOUD_MODEL not in excluded else ""
+    return fallback, models
+
+
 def kv_get(key):
     """Read a secret from Keychain. Never log or return it to the model."""
     svc = VAULT_PREFIX + key
@@ -214,6 +299,9 @@ def computer_snapshot():
     except Exception:
         browser = {}
     st = computer_load()
+    cloud_model, cloud_choices = cloud_models(force=False)
+    cloud_name = next((m.get("name") for m in cloud_choices
+                       if isinstance(m, dict) and m.get("id") == cloud_model), cloud_model)
     emails = sorted((cfg.get("accounts", {}).get("email") or {}).keys())
     hooks = sorted((cfg.get("webhooks") or {}).keys())
     brouts = browser.get("routines", []) if isinstance(browser, dict) else []
@@ -235,6 +323,9 @@ def computer_snapshot():
         "tools": {"mode": tools_mode(),
                   "scope": ["read", "write", "shell", "fetch", "email", "webhook", "browser"]},
         "browserEnabled": bool(browser.get("enabled")) if isinstance(browser, dict) else False,
+        "cloud": {"model": cloud_model, "name": cloud_name,
+                  "choices": [{"id": m["id"], "name": m["name"]}
+                              for m in (cloud_choices or [])[:6]]},
         "routines": [{"name": n, "paused": n in st["pausedRoutines"]} for n in routine_names],
         "pausedRoutines": st["pausedRoutines"],
         "connectors": sorted(connectors.values(), key=lambda c: c["name"]),
@@ -758,11 +849,12 @@ def call_vision(image_b64, question, personality=None):
     return d.get("response", "").strip()
 
 
-def call_cloud(messages, cred_names, skills, perms_deny=True, knowledge=None, personality=None, search_context=None):
-    """Return (answer, error). error is a short code like 'free-limit'."""
+def _cloud_once(model_id, messages, cred_names, skills, perms_deny=True,
+                knowledge=None, personality=None, search_context=None):
+    """One cloud session against a specific free model id."""
     sess = cli("post", "/api/session", {
         "title": "oracle-chat-bridge",
-        "model": {"providerID": "opencode", "id": CLOUD_MODEL},
+        "model": {"providerID": "opencode", "id": model_id},
         "permissions": [{"action": "*", "resource": "*", "effect": "deny"}] if perms_deny else [],
     })
     sid = sess["id"]
@@ -797,6 +889,28 @@ def call_cloud(messages, cred_names, skills, perms_deny=True, knowledge=None, pe
             cli("delete", f"/api/session/{sid}")
         except Exception:
             pass
+
+
+def call_cloud(messages, cred_names, skills, perms_deny=True, knowledge=None,
+               personality=None, search_context=None):
+    """Return (answer, error, model id). A free-limit auto-switches models."""
+    tried = set()
+    model_id, _ = cloud_models(force=False)
+    for _ in range(3):
+        if not model_id or model_id in tried:
+            break
+        tried.add(model_id)
+        answer, err = _cloud_once(model_id, messages, cred_names, skills,
+                                  perms_deny=perms_deny, knowledge=knowledge,
+                                  personality=personality, search_context=search_context)
+        if answer:
+            CLOUD_MODEL_CACHE.update(model=model_id, updated=time.time())
+            return answer, None, model_id
+        if err != "free-limit":
+            return None, err, model_id
+        # Quota hit: force a catalog refresh and pick the next newest free model.
+        model_id, _ = cloud_models(force=True, exclude=tried)
+    return None, "free-limit", ""
 
 
 def silent_fill(text):
@@ -898,10 +1012,14 @@ class Handler(BaseHTTPRequestHandler):
             tools = ({"mode": "guest — chat only"} if self.guest_token else
                      {"mode": tools_mode(),
                       "scope": ["read", "write", "shell", "fetch", "email", "webhook", "browser"]})
+            cloud_model, cloud_choices = (("", []) if self.guest_token else cloud_models(force=False))
             return self.send_json({
                 "local": {"ok": local_ok, "model": LOCAL_MODEL, "deepModel": DEEP_MODEL, "deepOk": deep_ok},
                 "vision": {"ok": vision_ok, "model": VISION_MODEL},
-                "cloud": {"configured": find_cli() is not None, "model": CLOUD_MODEL},
+                "cloud": {"configured": find_cli() is not None,
+                          "model": cloud_model,
+                          "choices": [{"id": m["id"], "name": m["name"]}
+                                      for m in (cloud_choices or [])[:6]]},
                 "vault": {"ok": True, "storage": "macOS Keychain"},
                 "tools": tools,
             })
@@ -1002,13 +1120,16 @@ class Handler(BaseHTTPRequestHandler):
                 if found.get("ok"):
                     cloud_sources = found.get("result") or ""
             answer, used, note = "", backend, None
+            cloud_model_used = ""
             if backend in ("auto", "cloud"):
-                a, err = call_cloud(messages, cred_names, skills, knowledge=knowledge,
-                                    personality=persona, search_context=cloud_sources)
+                a, err, cloud_model_used = call_cloud(
+                    messages, cred_names, skills, knowledge=knowledge,
+                    personality=persona, search_context=cloud_sources)
                 if a:
                     answer, used = a, "cloud"
+                    note = "free cloud: " + cloud_model_used
                     if cloud_sources:
-                        note = "current web sources"
+                        note += " · current web sources"
                 else:
                     note = "Cloud free quota is exhausted; used local model."
                     if backend == "cloud":
@@ -1080,6 +1201,8 @@ class Handler(BaseHTTPRequestHandler):
                 "backend": used,
                 "note": " · ".join(notes),
             }
+            if cloud_model_used and used == "cloud":
+                response["model"] = cloud_model_used
             if tool_ran:
                 response["toolRan"] = tool_ran
             if tool:

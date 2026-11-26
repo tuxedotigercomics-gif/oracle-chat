@@ -33,6 +33,25 @@ every change. When in doubt, choose the more private/local option.
 - No continuous iPhone live video. Host camera is phased: still-image answer
   first, phone photo Q&A later.
 
+### Personal-assistant connectors (owner decision 2026-11-26)
+
+- The long-term goal is assistant bots that can help with Instagram pages, DMs
+  and email, but **every person connects and owns their own pages**. Guests never
+  borrow the owner's accounts, passwords, Keychain or connectors.
+- Use the best free, safest connector path: official APIs or webhooks such as
+  Make/Zapier/n8n before browser automation. Never store raw social passwords in
+  cloud state.
+- Sending and replying are approval-first. A user may give a specific bot chat
+  consent to widen only that bot's privileges. Consent must be explicit,
+  revocable, scoped to that user's own accounts, and never inherited by guests or
+  another bot.
+- The team/trigger manager is the bot brain; connectors are separate hands and
+  are a later build. No connector credentials are introduced in `2026-11-26b`.
+- Every owner and guest workspace gets one seeded **Oracle Bot** room with a
+  fixed help message. It explains how to use Oracle and can draft instructions or
+  bug/UI fix proposals. Actual host file changes and tools remain owner-only with
+  an approval card; guests and phone users never get host tools or vault access.
+
 ## Preserve existing behaviour
 
 Do not regress: voice input and spoken replies, folder sidebar, hero sprites and
