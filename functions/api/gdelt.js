@@ -48,6 +48,10 @@ function tag(block, name) {
   return match ? decodeXml(match[1]) : '';
 }
 
+function snippet(value) {
+  return String(value || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 220);
+}
+
 function seendate(pubDate) {
   const d = new Date(pubDate);
   return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10).replace(/-/g, '');
@@ -80,6 +84,7 @@ async function fetchBingNews(query) {
       title: title.slice(0, 140),
       url: link,
       domain: domain.slice(0, 80),
+      snippet: snippet(tag(item, 'description')),
       seendate: seendate(tag(item, 'pubDate'))
     });
     if (articles.length >= 4) break;
@@ -107,6 +112,7 @@ async function fetchGoogleNews(query) {
       title: title.slice(0, 140),
       url: link,
       domain: (source ? decodeXml(source[2]) : 'Google News').slice(0, 80),
+      snippet: snippet(tag(item, 'description')),
       seendate: seendate(tag(item, 'pubDate'))
     });
     if (articles.length >= 4) break;

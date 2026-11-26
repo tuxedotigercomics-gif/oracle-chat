@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#4a9861" />
-<meta name="oracle-build" content="2026-11-26b" />
+<meta name="oracle-build" content="2026-11-27a" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Oracle" />
@@ -170,6 +170,20 @@
   .web-sources{display:flex;flex-direction:column;gap:2px;margin-top:6px;font-size:11px}
   .web-sources a{color:var(--accent-2);text-decoration:none;overflow-wrap:anywhere}
   .web-sources a:hover{text-decoration:underline}
+  .source-list{display:flex;flex-direction:column;gap:6px;margin-top:8px;width:100%}
+  .source-card{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.34);border-radius:10px;overflow:hidden}
+  .source-card summary{list-style:none;cursor:pointer;display:flex;flex-wrap:wrap;align-items:baseline;gap:5px;padding:6px 8px;font-size:11px;line-height:1.35}
+  .source-card summary::-webkit-details-marker{display:none}
+  .source-num{font-weight:800;opacity:.9}
+  .source-title{font-weight:650;flex:1 1 120px;overflow-wrap:anywhere}
+  .source-meta{font-size:10px;opacity:.85}
+  .source-body{padding:0 8px 8px;font-size:11px;line-height:1.45;white-space:normal}
+  .source-body p{margin:4px 0 0}
+  .source-body a{color:#fff;text-decoration:underline;overflow-wrap:anywhere}
+  .source-why{opacity:.9;font-style:italic}
+  .connector-card{background:rgba(0,0,0,.16);border:1px solid rgba(255,255,255,.45);border-radius:12px;padding:9px;margin-top:8px;width:100%;white-space:normal;font-size:11.5px}
+  .connector-card.done{border-color:rgba(255,255,255,.8)}
+  .connector-card.error{border-style:dashed}
   .status{font-size:12.5px;color:var(--muted);font-style:italic;align-self:flex-start;padding-left:2px}
   .composer-wrap{flex-shrink:0;width:calc(100% - 40px);max-width:780px;margin:0 auto 18px}
   .attach-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
@@ -379,7 +393,7 @@ function personalityLabel(c){return botPersona(c).name}
 // opener is generated from the bot's own name/title/description on this device.
 const BOT_TEMPLATES=[
   {id:'oracle',name:'Oracle Bot',job:'Oracle guide and technical assistant',desc:'Explains how to use Oracle, drafts UI or bug fixes, and asks before using owner Mac tools.',persona:'concise',hero:'vision'},
-  {id:'socials',name:'Socials Bot',job:'Social media planner',desc:'Plan, draft and review social posts; ask about platforms, audience and posting goals.',persona:'playful',hero:'deadpool'},
+  {id:'socials',name:'Socials Bot',job:'Social media planner',desc:'Plan and draft social posts; publishing needs your own approved connector. Ask about platforms, audience and goals.',persona:'playful',hero:'deadpool'},
   {id:'research',name:'Research Bot',job:'Research assistant',desc:'Find current sources, compare claims and summarise with links.',persona:'formal',hero:'vision'},
   {id:'tutor',name:'Tutor Bot',job:'Patient tutor',desc:'Teach one step at a time and check understanding.',persona:'tutor',hero:'storm'},
   {id:'coach',name:'Coach Bot',job:'Accountability coach',desc:'Turn goals into one concrete next step and follow up.',persona:'coach',hero:'captainamerica'},
@@ -418,6 +432,10 @@ function botIdentityPrompt(c){
   const parts=[`You are ${String(c.name||'the assistant').trim()}, the agent the user named for this chat.`,`Your title/job is ${botJob(c)}.`];
   const d=String(c.desc||'').trim();if(d)parts.push('Your purpose: '+d.slice(0,400));
   const p=botPrefs(c).trim();if(p)parts.push('Durable preferences for this bot — follow these unless the user changes them: '+p.slice(0,600));
+  parts.push('You cannot log into, read, post to, or manage any external account (Instagram, email, socials) by yourself. You may plan and draft content. Only after the user has added their own connector in My Connectors may you request one CONNECTOR action, and the user must approve it. Never ask for, invent, print or store a token or password.');
+  parts.push('You cannot drive the device browser like a person, read other apps or notifications, or monitor/post in the background. On a phone, actions only work while the app is open in the foreground. Continuous scheduling needs a separate user-owned automation; say so plainly instead of claiming you can do it.');
+  const cn=connectorNames();
+  if(cn.length)parts.push('Available connectors (names only, never tokens): '+cn.join(', ')+'. To use one, output one line exactly: CONNECTOR {"name":"exact connector name","action":"check" or "publish","text":"draft text","imageUrl":"optional public image URL"}. The user will see an approval card before anything runs.');
   return parts.join(' ');
 }
 function heroAvatar(id,state=''){
@@ -596,7 +614,7 @@ async function cloudLoadState(){
 function saveState(){localStorage.setItem(stateKey,JSON.stringify({convs,folders,activeId}));cloudSaveState()}
 const ORACLE_BOT_ID='oracle-bot';
 function oracleBotGuide(){
-  return `Hi — I'm Oracle Bot, your built-in guide and technical assistant.\n\nHow to use Oracle:\n• Pick a bot in the left list, or make a new one with the + button.\n• Use the model pill to switch between Mac models, private on-device models, or automatic free cloud.\n• Use folders to group chats, the microphone/call buttons to talk, and the ⋯ menu to rename, move, hand off or teach a task.\n• In Profile you will find your vault, routines, Teams & Triggers, help, and update status. Guests only see their own private copy.\n\nAsk me to explain the app, plan a change, draft a bug fix, or review the UI. On the owner Mac I can also propose and run changes with an approval card. On a phone or guest link I can guide and draft, but I never get host files, tools or vault secrets.`;
+  return `Hi — I'm Oracle Bot, your built-in guide and technical assistant.\n\nHow to use Oracle:\n• Pick a bot in the left list, or make a new one with the + button.\n• Use the model pill to switch between Mac models, private on-device models, or automatic free cloud.\n• Use folders to group chats, the microphone/call buttons to talk, and the ⋯ menu to rename, move, hand off or teach a task.\n• In Profile you will find My Connectors, your vault, routines, Teams & Triggers, help, and update status. Guests only see their own private copy.\n\nAsk me to explain the app, plan a change, draft a bug fix, or review the UI. I can plan and draft social posts, but I cannot log into Instagram or manage an account until you add your own connector and approve a specific action. I cannot drive the phone browser for you or keep monitoring in the background; actions run only while the app is open in the foreground. On the owner Mac I can also propose and run changes with an approval card. On a phone or guest link I can guide and draft, but I never get host files, tools or vault secrets.`;
 }
 function oracleBotConversation(){
   const folder=folders[0]?.id||'general';
@@ -734,6 +752,33 @@ async function gvGet(name){
   return new TextDecoder().decode(buf);
 }
 function guestFill(text){return String(text).replace(/\[\[USE:([^|\]]+)\|([^\]]+)\]\]/g,(m,n)=>`[credential '${n}' — value stayed on this device]`)}
+
+// ---- Own-account connectors (owner, guest and phone) ----
+// Each person adds their own Instagram token or their own webhook. Metadata is
+// device-local; the secret is encrypted in the same device vault above. No
+// connector value is ever sent to the bridge, cloud state or a model prompt.
+const CONNECTOR_KEY='oracle.connectors.'+vaultId;
+function connLoad(){try{const o=JSON.parse(localStorage.getItem(CONNECTOR_KEY)||'{}');return (o&&typeof o==='object'&&!Array.isArray(o))?o:{}}catch(e){return {}}}
+function connSave(all){try{localStorage.setItem(CONNECTOR_KEY,JSON.stringify(all))}catch(e){}}
+function connectorList(){return Object.values(connLoad()).filter(x=>x&&x.id&&x.name).slice(0,20)}
+function connectorNames(){return connectorList().map(x=>x.name)}
+function parseConnectorRequest(text){
+  const raw=String(text||''),lines=raw.split('\n');
+  for(let i=0;i<lines.length;i++){
+    const m=lines[i].match(/^\s*CONNECTOR\s+(\{[\s\S]*\})\s*$/i);
+    if(!m)continue;
+    let req=null;try{req=JSON.parse(m[1])}catch(e){continue}
+    const all=connLoad(),byName={};
+    Object.keys(all).forEach(id=>{if(all[id]&&all[id].name)byName[all[id].name]=id});
+    const id=all[req.id]?req.id:(byName[req.name]||'');
+    if(!id||!all[id])continue;
+    const action=String(req.action||'check').toLowerCase()==='publish'?'publish':'check';
+    lines.splice(i,1);
+    return {clean:lines.join('\n').trim(),request:{id,name:all[id].name,type:all[id].type,
+      action,text:String(req.text||'').slice(0,1200),imageUrl:String(req.imageUrl||'').slice(0,500)}};
+  }
+  return {clean:raw,request:null};
+}
 
 // ---- Host-only approval rules ----
 // "Always allow" is an explicit owner choice stored in this browser. It matches
@@ -1197,6 +1242,42 @@ function webSearchOn(){
 function setWebSearchOn(v){try{localStorage.setItem('oracle.websearch',v?'1':'0')}catch(e){}}
 function webSearchCity(){try{return localStorage.getItem('oracle.city')||''}catch(e){return ''}}
 function setWebSearchCity(v){try{localStorage.setItem('oracle.city',String(v||'').slice(0,80))}catch(e){}}
+function searchDomains(){try{return localStorage.getItem('oracle.search.domains')||''}catch(e){return ''}}
+function setSearchDomains(v){try{localStorage.setItem('oracle.search.domains',String(v||'').slice(0,240))}catch(e){}}
+// Optional owner/static domain preference. Only hostnames pass through, so a
+// pasted URL or script can never become part of the outgoing query.
+function domainClause(){
+  const raw=String(searchDomains()||'').split(/[\s,;]+/);
+  const parts=[];
+  for(const item of raw){
+    const d=item.toLowerCase().replace(/^https?:\/\//,'').replace(/^www\./,'').replace(/[^a-z0-9.-]/g,'');
+    if(/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(d)&&!parts.includes(d))parts.push(d);
+    if(parts.length>=3)break;
+  }
+  return parts.length?' ('+parts.map(d=>'site:'+d).join(' OR ')+')':'';
+}
+// Deep Search fans out a few different public angles from the same normalized
+// query. No accounts, keys or private data are added to the fan-out.
+function deepQueries(query,city){
+  const base=newsSearchQuery(query,city);
+  if(!base)return [];
+  const tail=domainClause(),yr=String(new Date().getFullYear());
+  const extra=(city&&!base.toLowerCase().includes(String(city).toLowerCase()))?String(city):'latest';
+  const raw=[base+tail,base+' '+yr+tail,base+' '+extra+tail];
+  const seen={},out=[];
+  for(const q of raw){const k=q.toLowerCase();if(!seen[k]){seen[k]=1;out.push(q.slice(0,220))}}
+  return out.slice(0,3);
+}
+function mergeSources(batches,cap){
+  const seen={},out=[];
+  for(const batch of batches){for(const s of (batch||[])){
+    const url=String(s&&s.url||'').split('#')[0].toLowerCase();
+    if(!url||seen[url])continue;
+    seen[url]=1;out.push(s);
+    if(out.length>=cap)break;
+  }if(out.length>=cap)break}
+  return out;
+}
 let webSearchAt=0;const webSearchCache={};
 // Turn "Please look up Whats going on this week in idaho falls" into
 // "Idaho Falls" before querying. Ordinary questions are left mostly intact;
@@ -1251,8 +1332,9 @@ async function fetchGdeltItems(q){
       const d=String(a.seendate||'').slice(0,8);
       return {title:String(a.title||'').replace(/\s+/g,' ').trim().slice(0,140),
         url:String(a.url||''),domain:String(a.domain||''),
+        snippet:String(a.snippet||a.description||'').replace(/<[^>]+>/g,'').replace(/\s+/g,' ').trim().slice(0,220),
         date:d.length===8?d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6,8):d};
-    }).filter(x=>x.title&&x.url);
+    }).filter(x=>x.title&&x.url&&/^https?:\/\//i.test(x.url));
   }catch(e){return []}
   finally{clearTimeout(timer)}
 }
@@ -1278,23 +1360,37 @@ async function fetchWikipediaItems(q){
   }catch(e){return []}
   finally{clearTimeout(wt)}
 }
-async function webSources(query){
+async function webSources(query,deep=false){
   if(!webSearchOn())return null;
   const city=webSearchCity().trim();
   const q=newsSearchQuery(query,city);
   if(!q)return null;
-  const key=q.toLowerCase(),cached=webSearchCache[key];
+  const key=(deep?'deep:':'quick:')+q.toLowerCase()+'|'+searchDomains().toLowerCase();
+  const cached=webSearchCache[key];
   if(cached&&Date.now()-cached.at<300000)return cached;
   const wait=5000-(Date.now()-webSearchAt);
   if(wait>0)await new Promise(r=>setTimeout(r,wait));
   webSearchAt=Date.now();
   // Each source is isolated: a failed CORS/proxy request can never stop the
-  // fallback or escape as a model abort.
+  // fallback or escape as a model abort. Deep mode staggers the fan-out so a
+  // free public proxy is never hammered by one message.
   let items=[];
-  try{items=await fetchGdeltItems(q)}catch(e){}
-  if(!items.length){try{items=await fetchWikipediaItems(q)}catch(e){}}
-  const text=items.map(x=>'- '+x.title+' ('+x.date+(x.domain?', '+x.domain:'')+') '+x.url+(x.snippet?' — '+x.snippet:'')).join('\n');
-  const out={items,text:text||'No current sources found.',at:Date.now()};
+  const queries=deep?deepQueries(query,city):[q];
+  if(!/(^|\.)github\.io$/i.test(location.hostname)){
+    const batches=await Promise.all(queries.map(async(x,idx)=>{
+      try{
+        if(idx)await new Promise(r=>setTimeout(r,idx*250));
+        return (await fetchGdeltItems(x)).map(s=>Object.assign({},s,{query:x,rank:idx+1}));
+      }catch(e){return []}
+    }));
+    items=mergeSources(batches,12);
+  }
+  if(!items.length){
+    try{items=(await fetchWikipediaItems(q)).map(s=>Object.assign({},s,{query:q,rank:1}))}catch(e){}
+  }
+  if(deep&&items.length>1)items.sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+  const text=items.map((x,i)=>'- ['+(i+1)+'] '+x.title+' ('+x.date+(x.domain?', '+x.domain:'')+') '+x.url+(x.snippet?' — '+x.snippet:'')+(x.query?' [found via: '+x.query+']':'')).join('\n');
+  const out={items,text:text||'No current sources found.',at:Date.now(),deep:!!deep,queries};
   webSearchCache[key]=out;
   return out;
 }
@@ -2126,7 +2222,14 @@ function render(){
         <div style="margin-top:14px">${vaultKeys.length?vaultKeys.map(k=>`<div class="vault-row"><span>${esc(k)}</span><span><code>••••••••</code> <button class="btn danger" data-del="${esc(k)}" style="padding:4px 8px;font-size:11px">Remove</button></span></div>`).join(''):'<p style="color:var(--muted);font-size:13px">No saved credentials yet.</p>'}</div>
       </div></div>`;
   } else {
-    const msgs=c.messages.map((m,i)=>`<div class="row ${m.from}"><div class="bubble ${m.from}">${esc(m.text)}${m.retryable&&i===c.messages.length-1?`<button class="bubble-retry" data-retry-msg="${i}">Retry with short history</button>`:''}${m.imageId?`<div class="img-msg"><img class="chat-image" data-img-id="${esc(m.imageId)}" alt="${esc(m.imagePrompt||'Generated image')}" /><div class="img-actions"><button class="btn" data-img-copy="${esc(m.imageId)}">Copy</button><button class="btn" data-img-download="${esc(m.imageId)}">Download</button></div></div>`:''}${m.note?`<div class="meta">${esc(m.note)}</div>`:''}${m.sources&&m.sources.length?`<div class="web-sources">${m.sources.map(s=>`<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.title)}${s.date?' · '+esc(s.date):''}</a>`).join('')}</div>`:''}${m.tool?`<div class="tool-card ${m.toolState||''}">
+    const msgs=c.messages.map((m,i)=>`<div class="row ${m.from}"><div class="bubble ${m.from}">${esc(m.text)}${m.retryable&&i===c.messages.length-1?`<button class="bubble-retry" data-retry-msg="${i}">Retry with short history</button>`:''}${m.imageId?`<div class="img-msg"><img class="chat-image" data-img-id="${esc(m.imageId)}" alt="${esc(m.imagePrompt||'Generated image')}" /><div class="img-actions"><button class="btn" data-img-copy="${esc(m.imageId)}">Copy</button><button class="btn" data-img-download="${esc(m.imageId)}">Download</button></div></div>`:''}${m.note?`<div class="meta">${esc(m.note)}</div>`:''}${m.sources&&m.sources.length?`<div class="source-list">${m.sources.map((s,i)=>`<details class="source-card"><summary><span class="source-num">[${i+1}]</span><span class="source-title">${esc(s.title)}</span><span class="source-meta">${esc(s.domain||'')}${s.date?' · '+esc(s.date):''}</span></summary><div class="source-body"><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">Open source ↗</a>${s.snippet?`<p>${esc(s.snippet)}</p>`:''}${s.query?`<p class="source-why">Why this source? Found by Deep Search via “${esc(s.query)}”. A public page from the free news proxy — not an account login or saved secret.</p>`:''}</div></details>`).join('')}</div>`:''}${m.connector?`<div class="connector-card ${m.connectorState||''}">
+         <div class="tool-title">${icon('spark',14)} ${esc(m.connector.name)} · ${esc(m.connector.action)}</div>
+         <pre class="tool-preview">${esc(connectorPreview(m.connector))}</pre>
+         ${m.connectorState==='pending'?`<div class="risk-chips"><span class="risk-chip">uses your own connector</span><span class="risk-chip">leaves this app</span></div><div class="tool-actions"><button class="btn primary" data-conn-approve="${i}">Allow once</button><button class="btn danger" data-conn-deny="${i}">Deny</button></div>`:''}
+         ${m.connectorResult?`<pre class="tool-preview">${esc(String(JSON.stringify(m.connectorResult.result||m.connectorResult.error||{})).slice(0,600))}</pre>`:''}
+         ${m.connectorState==='working'?'<div class="meta">Running — your token stays on this device…</div>':''}
+         ${m.connectorDecision==='denied'?'<div class="meta">Denied — nothing was sent.</div>':''}
+       </div>`:''}${m.tool?`<div class="tool-card ${m.toolState||''}">
         <div class="tool-title">${icon('spark',14)} ${esc(m.toolSummary||'Tool action')}</div>
         ${m.toolState==='pending'?`<div class="risk-chips">${toolRisk(m.tool).map(x=>`<span class="risk-chip">${esc(x)}</span>`).join('')}</div>`:''}
         ${m.tool.preview?`<pre class="tool-preview">${esc(m.tool.preview)}</pre>`:''}
@@ -2152,6 +2255,7 @@ function render(){
             <button class="menu-item" id="moreNewChat">${icon('plus',18)}<span><strong>New chat room</strong><span class="mi-sub">Name it and pick an agent</span></span></button>
             <button class="menu-item" id="moreNewFolder">${icon('file',18)}<span><strong>New folder</strong><span class="mi-sub">Group chats together</span></span></button>
             <button class="menu-item" id="morePersonality">${icon('spark',18)}<span><strong>Personality: ${esc(personalityLabel(c))}</strong><span class="mi-sub">${esc(botPersona(c).sub)} — tap to change this bot's tone</span></span></button>
+            <button class="menu-item" id="moreDeepSearch">${icon('search',18)}<span><strong>Deep search: ${c.deep?'On':'Off'}</strong><span class="mi-sub">${c.deep?'Multi-query dated source cards':'One quick search with link list'}</span></span></button>
             ${guestMode?'':`<button class="menu-item" data-cm="teach" data-id="${c.id}">${icon('spark',18)}<span><strong>Teach this task</strong><span class="mi-sub">${staticMode?'Draft a device routine':'Save an owner-only skill'}</span></span></button>`}
             ${staticMode?'':`<button class="menu-item" id="moreToolMode">${icon('spark',18)}<span><strong>Tools: ${toolMode==='auto'?'Auto':'Ask first'}</strong><span class="mi-sub">${toolMode==='auto'?'Local model can act — click to require approvals':'Click to allow automatic basic tools'}</span></span></button>
             <button class="menu-item" id="moreToolRules">${icon('lock',18)}<span><strong>Always-allow rules (${toolRules.length})</strong><span class="mi-sub">Review and remove saved approvals</span></span></button>`}
@@ -2220,6 +2324,7 @@ function render(){
         <button class="menu-item" id="openRoutines">${icon('spark',18)}<span><strong>Web Routines</strong><span class="mi-sub">Email, webhooks &amp; browser actions</span></span></button>
         ${guestMode?'':`<button class="menu-item" id="openComputer">${icon('lock',18)}<span><strong>Computer (owner)</strong><span class="mi-sub">Connectors, forms &amp; routine pause</span></span></button>`}
         <div class="menu-sep"></div>`}
+        <button class="menu-item" id="openConnectors">${icon('lock',18)}<span><strong>My Connectors</strong><span class="mi-sub">Your own accounts — tokens stay on this device</span></span></button>
         <button class="menu-item" id="installApp">${icon('plus',18)}<span><strong>Install this web app</strong><span class="mi-sub">${installPrompt?'Add Oracle to your device':'Add to Home Screen / Install'}</span></span></button>
         <button class="menu-item" id="openAbout">${icon('info',18)}<span><strong>About / Update status</strong><span class="mi-sub">Build, model and service worker</span></span></button>
         <button class="menu-item" id="toggleTheme">${icon('theme',18)}<span><strong>Appearance: ${themeLabel()}</strong><span class="mi-sub">System, light or dark — tap to change</span></span></button>
@@ -2272,6 +2377,10 @@ function bind(){
   document.getElementById('moreNewChat')?.addEventListener('click',()=>{moreOpen=false;openRoomModal(activeFolder)});
   document.getElementById('moreNewFolder')?.addEventListener('click',()=>{moreOpen=false;openFolderModal()});
   document.getElementById('morePersonality')?.addEventListener('click',()=>{moreOpen=false;openPersonalityPicker()});
+  document.getElementById('moreDeepSearch')?.addEventListener('click',()=>{
+    const chat=active();chat.deep=!chat.deep;moreOpen=false;saveState();render();
+    showToast('Deep Search '+(chat.deep?'on':'off')+' for '+chat.name);
+  });
   document.getElementById('moreToolMode')?.addEventListener('click',async()=>{
     const next=(status.tools?.mode||'auto')==='auto'?'ask':'auto';
     try{
@@ -2318,6 +2427,7 @@ function bind(){
   document.getElementById('openComputer')?.addEventListener('click',async()=>{profileOpen=false;await openComputerModal()});
   document.getElementById('openDeviceRoutines')?.addEventListener('click',()=>{profileOpen=false;openDeviceRoutines()});
   document.getElementById('openWebSearch')?.addEventListener('click',()=>{profileOpen=false;openWebSearchSettings()});
+  document.getElementById('openConnectors')?.addEventListener('click',()=>{profileOpen=false;openConnectors()});
   document.getElementById('installApp')?.addEventListener('click',()=>{profileOpen=false;openInstallApp()});
   document.getElementById('openAbout')?.addEventListener('click',()=>{profileOpen=false;openAbout()});
   document.getElementById('toggleTheme')?.addEventListener('click',()=>cycleTheme());
@@ -2376,6 +2486,8 @@ function bind(){
   document.querySelectorAll('[data-tool-approve]').forEach(b=>b.onclick=()=>toolAction(+b.dataset.toolApprove,'once'));
   document.querySelectorAll('[data-tool-always]').forEach(b=>b.onclick=()=>toolAction(+b.dataset.toolAlways,'always'));
   document.querySelectorAll('[data-tool-deny]').forEach(b=>b.onclick=()=>toolAction(+b.dataset.toolDeny,'deny'));
+  document.querySelectorAll('[data-conn-approve]').forEach(b=>b.onclick=()=>connectorAction(+b.dataset.connApprove,'once'));
+  document.querySelectorAll('[data-conn-deny]').forEach(b=>b.onclick=()=>connectorAction(+b.dataset.connDeny,'deny'));
   document.getElementById('retrySend')?.addEventListener('click',()=>{
     const c=active(),last=c.messages.at(-1);
     if(!last||last.from!=='user')return;
@@ -2990,12 +3102,60 @@ function openWebSearchSettings(){
     <label style="display:flex;gap:8px;align-items:center;margin:12px 0"><input type="checkbox" id="wsOn" ${on?'checked':''}/><span>Use web search on this device</span></label>
     <label style="display:block;font-size:12px;color:var(--muted)">Your city (added to searches)
       <input id="wsCity" class="share-text" style="width:100%;margin-top:4px" value="${esc(city)}" placeholder="e.g. Toronto" /></label>
-    <p class="camera-note">This applies to owner, guest and host chats alike. With search off — or while offline — the app stays fully local. Answers are still limited by the small local model, but they can now use current sources.</p>
+    <label style="display:block;font-size:12px;color:var(--muted);margin-top:10px">Only these domains in Deep Search (optional, comma separated)
+      <input id="wsDomains" class="share-text" style="width:100%;margin-top:4px" value="${esc(searchDomains())}" placeholder="e.g. reuters.com, apnews.com" /></label>
+    <p class="camera-note">Turn on <strong>Deep search</strong> in a chat's ⋯ menu for multi-query fan-out and dated source cards. This owner-only setting adds optional domain filters; guests never see or use it. With search off — or while offline — the app makes zero fetches and stays fully local.</p>
     <div class="modal-actions"><button class="btn primary" id="wsDone">Done</button></div></div></div>`;
   render();
   document.getElementById('wsOn')?.addEventListener('change',e=>setWebSearchOn(e.target.checked));
   document.getElementById('wsCity')?.addEventListener('change',e=>setWebSearchCity(e.target.value));
+  document.getElementById('wsDomains')?.addEventListener('change',e=>setSearchDomains(e.target.value));
   document.getElementById('wsDone')?.addEventListener('click',()=>{modal=null;render()});
+}
+function openConnectors(){
+  const rows=connectorList();
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal" style="max-width:560px"><h3>My Connectors</h3>
+    <p>Connect <strong>your own</strong> account. Every person gets their own copy — guests and phone users never borrow the owner's login. Tokens are encrypted on this device; the model only sees connector names. Nothing is sent to the Mac, the cloud or a chat prompt.</p>
+    <div>${rows.length?rows.map(c=>`<div class="vault-row"><span><strong>${esc(c.name)}</strong><br><small>${esc(c.type==='instagram'?'Instagram · own Meta token':'Webhook · your URL')} · ${esc(c.type==='instagram'?'account '+String(c.target).slice(0,24):String(c.target).slice(0,42))}</small></span><button class="btn danger" data-conn-del="${esc(c.id)}" style="padding:4px 8px;font-size:11px">Remove</button></div>`).join(''):'<p style="color:var(--muted);font-size:13px">No connectors yet.</p>'}</div>
+    <h4 style="margin:16px 0 6px">Add a connector</h4>
+    <form id="connForm">
+      <label>Name the model will see<input id="cnName" required maxlength="40" placeholder="e.g. My Instagram" /></label>
+      <label>Type<select id="cnType" style="width:100%;box-sizing:border-box"><option value="instagram">Instagram (your own Meta token)</option><option value="webhook">Webhook (your own URL)</option></select></label>
+      <label id="cnTargetLabel">Instagram account ID<input id="cnTarget" required maxlength="160" placeholder="Your own Instagram account ID" /></label>
+      <label>Token / secret<input id="cnSecret" type="password" required maxlength="800" placeholder="Your own token — never shown again" /></label>
+      <p class="camera-note">Oracle cannot create a Meta token. Use your own Meta app token with Instagram permissions; publishing also needs a public image URL. Actions run only while Oracle is open in the foreground and you approve them. A backgrounded iPhone tab is suspended by iOS, so scheduled posts and continuous monitoring are not available in this web app.</p>
+      <div class="modal-actions"><button type="button" class="btn" id="mc">Cancel</button><button class="btn primary" type="submit">Save on this device</button></div>
+    </form></div></div>`;
+  render();
+  document.getElementById('cnType')?.addEventListener('change',e=>{
+    const ig=e.target.value==='instagram';
+    const label=document.getElementById('cnTargetLabel'),input=document.getElementById('cnTarget');
+    if(label)label.innerHTML=ig?'Instagram account ID':'Webhook URL';
+    if(input){input.placeholder=ig?'Your own Instagram account ID':'https://your-own-automation.example/hook';input.value=''}
+  });
+  document.querySelectorAll('[data-conn-del]').forEach(b=>b.onclick=async()=>{
+    const id=b.dataset.connDel,all=connLoad(),meta=all[id];
+    if(!meta)return;
+    gvDel('connector.'+id+'.secret');delete all[id];connSave(all);
+    render();showToast('Removed '+meta.name);
+  });
+  document.getElementById('connForm')?.addEventListener('submit',async e=>{
+    e.preventDefault();
+    const name=document.getElementById('cnName').value.trim();
+    const type=document.getElementById('cnType').value;
+    const target=document.getElementById('cnTarget').value.trim();
+    const secret=document.getElementById('cnSecret').value.trim();
+    if(!name||!secret||!target){showToast('Fill in the name, target and your own token');return}
+    if(type==='webhook'&&!/^https:\/\//i.test(target)){showToast('Webhook URL must start with https://');return}
+    if(type==='instagram'&&!/^\d{5,25}$/.test(target)){showToast('Enter your own numeric Instagram account ID');return}
+    if(!gvKey){showToast('Device vault is not ready yet — try again in a moment');return}
+    const id='conn-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+    const all=connLoad();all[id]={id,name:name.slice(0,40),type,target:target.slice(0,160),created:Date.now()};
+    try{
+      await gvSet('connector.'+id+'.secret',secret);
+      connSave(all);modal=null;render();showToast('Saved '+name+' on this device');
+    }catch(err){showToast('Could not encrypt that token: '+err.message)}
+  });
 }
 async function openAbout(){
   const build=document.querySelector('meta[name="oracle-build"]')?.content||'unknown';
@@ -3186,6 +3346,10 @@ function commandItems(){
   items.push({label:'About / Update status',sub:'command · build, model and service worker',art:icon('info',16),run:openAbout});
   if(!staticMode&&!guestMode)items.push({label:'See this',sub:'command · ask about the webcam view',art:icon('camera',16),run:openCameraModal});
   if(staticMode&&!guestMode)items.push({label:'Web search: '+(webSearchOn()?'On':'Off'),sub:'command · current info for private chat',art:icon('search',16),run:openWebSearchSettings});
+  items.push({label:'Deep search: '+(active().deep?'On':'Off'),sub:'command · multi-query dated source cards',art:icon('search',16),run:()=>{
+    const chat=active();chat.deep=!chat.deep;saveState();render();showToast('Deep Search '+(chat.deep?'on':'off')+' for '+chat.name);
+  }});
+  items.push({label:'My Connectors',sub:'your own accounts · device-local tokens',art:icon('lock',16),run:openConnectors});
   if(staticMode&&!guestMode)items.push({label:'Make an image',sub:imageUnsupported()?'not available on iPhone':'command · on-device image generation',art:icon('spark',16),run:openImageModal});
   if(staticMode&&!guestMode)items.push({label:'Copy image diagnostics',sub:'command · recent image failures',art:icon('info',16),run:copyImageDiagnostics});
   items.push({label:'Appearance: '+themeLabel(),sub:'command · switch light and dark',art:icon('theme',16),run:cycleTheme});
@@ -3494,6 +3658,67 @@ function bindModal(){
 
 function noteOf(r){return [r.backend&&'backend: '+r.backend,r.note].filter(Boolean).join(' · ')}
 
+// Connector actions always show exactly what will leave the device, then wait
+// for a one-time approval. No always-allow rule can be saved for a connector.
+function connectorPreview(req){
+  const c=connLoad()[req.id];
+  if(!c)return 'This connector is no longer on this device.';
+  if(c.type==='instagram'){
+    return (req.action==='publish'?'POST Instagram media + publish':'GET Instagram profile')+'\nAccount: '+c.target+
+      (req.text?'\nCaption: '+req.text:'')+(req.imageUrl?'\nImage: '+req.imageUrl:'');
+  }
+  return 'POST '+c.target+'\n'+String(req.text||'').slice(0,300);
+}
+async function connectorExecute(req){
+  const c=connLoad()[req.id];
+  if(!c)return {ok:false,error:'This connector is no longer on this device.'};
+  if(!gvKey)return {ok:false,error:'The device vault is not ready yet.'};
+  const secret=await gvGet('connector.'+req.id+'.secret');
+  if(!secret)return {ok:false,error:'No saved token for this connector.'};
+  const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),15000);
+  try{
+    if(c.type==='instagram'){
+      const base='https://graph.facebook.com/v19.0/'+encodeURIComponent(c.target);
+      if(req.action!=='publish'){
+        const r=await fetch(base+'?fields=username,account_type&access_token='+encodeURIComponent(secret),{signal:ctl.signal});
+        const d=await r.json().catch(()=>({}));
+        return r.ok?{ok:true,result:{username:d.username||'',account_type:d.account_type||''}}:
+          {ok:false,error:d.error?.message||('HTTP '+r.status)};
+      }
+      if(!req.imageUrl)return {ok:false,error:'Instagram publishing needs a public image URL. The draft was kept — add one and approve again.'};
+      const m=await fetch(base+'/media',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({caption:req.text||'',image_url:req.imageUrl,access_token:secret}),signal:ctl.signal});
+      const md=await m.json().catch(()=>({}));
+      if(!m.ok||!md.id)return {ok:false,error:md.error?.message||('HTTP '+m.status)};
+      const p=await fetch(base+'/media_publish',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({creation_id:md.id,access_token:secret}),signal:ctl.signal});
+      const pd=await p.json().catch(()=>({}));
+      return p.ok?{ok:true,result:{id:pd.id||md.id,status:'published'}}:{ok:false,error:pd.error?.message||('HTTP '+p.status)};
+    }
+    const headers={'Content-Type':'application/json'};
+    if(secret)headers.Authorization='Bearer '+secret;
+    const r=await fetch(c.target,{method:'POST',headers,
+      body:JSON.stringify({text:req.text||'',source:'Oracle',action:req.action}),signal:ctl.signal});
+    const txt=await r.text();
+    return r.ok?{ok:true,result:(txt.slice(0,600)||'Webhook accepted')}:{ok:false,error:'HTTP '+r.status+' '+txt.slice(0,300)};
+  }catch(err){
+    return {ok:false,error:err.name==='AbortError'?'Timed out — nothing was posted':err.message};
+  }finally{clearTimeout(timer)}
+}
+async function connectorAction(idx,decision='once'){
+  const c=active(),m=c.messages[idx];
+  if(!m||!m.connector||m.connectorState!=='pending')return;
+  const approved=decision===true||decision==='once';
+  m.connectorDecision=approved?'once':'denied';
+  m.connectorState=approved?'working':'denied';render();
+  const result=approved?await connectorExecute(m.connector):{ok:false,error:'Denied by you.'};
+  m.connectorResult=result;m.connectorState=result.ok?'done':'error';
+  const msg=result.ok?('Connector '+m.connector.name+' finished: '+String(JSON.stringify(result.result||{}).slice(0,300)||'done')):
+    ('Connector '+m.connector.name+' did not run: '+result.error);
+  c.messages.push({from:'bot',text:msg,note:'Connector action · '+(approved?'approved':'denied')});
+  c.preview=msg.slice(0,40);render();
+}
+
 async function toolAction(idx,decision='once'){
   const c=active(), m=c.messages[idx];
   if(!m||!(m.toolState==='pending'||m.toolState==='working'))return;
@@ -3530,6 +3755,14 @@ async function followUp(idx,result){
   afterReply(c.messages.at(-1)?.text||'');
 }
 
+function pushBotAnswer(c,answer,note,sources){
+  const parsed=parseConnectorRequest(answer);
+  c.messages.push({from:'bot',text:parsed.clean||'I set up that connector action for you — approve it to continue.',
+    note,sources:sources&&sources.length?sources.items:null,
+    connector:parsed.request||null,connectorState:parsed.request?'pending':null});
+  c.preview=(parsed.clean||'').slice(0,40);
+  return !!parsed.request;
+}
 async function sendMessage(e){
   e.preventDefault();
   const text=draft.trim();if(!text&&!files.length)return;
@@ -3550,7 +3783,7 @@ async function sendMessage(e){
     const msgs=c.messages.map(m=>({from:m.from,text:m.text}));
     let sysText=[personalityPrompt(c),botIdentityPrompt(c)].filter(Boolean).join('\n\n'),sources=null;
     if(webSearchOn()){
-      sources=await webSources(text);
+      sources=await webSources(text,!!c.deep);
       if(sources&&sources.items.length){
         sysText=(sysText?sysText+'\n\n':'')+'Current web sources for this question. Use them for facts that may have changed recently; say so if they do not answer the question:\n'+sources.text;
       }else sources=null;
@@ -3559,12 +3792,12 @@ async function sendMessage(e){
     if(credSelected.length)msgs.push({from:'user',text:'[Saved credentials available by name only: '+credSelected.join(', ')+'. Never ask for their values.]'});
     if(backend==='device'||backend==='device-small'||backend==='device-smart'||backend==='device-free'||(cm&&cm.type==='device')){
       const answer=await deviceChat(msgs,activeDeviceModel(),shortSend);
-      c.messages.push({from:'bot',text:answer,note:(cm?cm.name:'On-device')+' · private'+(sources?' · '+sources.items.length+' web sources':''),sources:sources?sources.items:null});
-      c.preview=answer.slice(0,40);replyText=answer;
+      const srcNote=sources?' · '+sources.items.length+(sources.deep?' Deep Search':' web')+' sources':'';
+      if(!pushBotAnswer(c,answer,(cm?cm.name:'On-device')+' · private'+srcNote,sources))replyText=answer;
     }else if(cm&&cm.type==='cloud'){
       const answer=await customCloudChat(cm,msgs);
-      c.messages.push({from:'bot',text:answer,note:cm.name+' · your provider'+(sources?' · '+sources.items.length+' web sources':''),sources:sources?sources.items:null});
-      c.preview=answer.slice(0,40);replyText=answer;
+      const srcNote=sources?' · '+sources.items.length+(sources.deep?' Deep Search':' web')+' sources':'';
+      if(!pushBotAnswer(c,answer,cm.name+' · your provider'+srcNote,sources))replyText=answer;
     }else{
       const r=await api('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:msgs,backend,credentials:credSelected})});
       if(r.tool){
@@ -3576,8 +3809,8 @@ async function sendMessage(e){
         render();
         if(!r.needsApproval||auto){delegated=true;await toolAction(c.messages.indexOf(m),auto?'auto':true)}
       }else{
-        c.messages.push({from:'bot',text:r.answer||'(no answer)',note:noteOf(r)});
-        c.preview=(r.answer||'').slice(0,40);replyText=r.answer||'';
+        const note=noteOf(r)+(sources?' · '+sources.items.length+(sources.deep?' Deep Search':' web')+' sources':'');
+        if(!pushBotAnswer(c,r.answer||'(no answer)',note,sources))replyText=r.answer||'';
       }
     }
   }catch(err){
