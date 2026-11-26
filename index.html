@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#4a9861" />
-<meta name="oracle-build" content="2026-11-21m" />
+<meta name="oracle-build" content="2026-11-26a" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Oracle" />
@@ -375,6 +375,48 @@ function personality(id){return PERSONALITIES.find(p=>p.id===id)||PERSONALITIES[
 function botPersona(c){return personality(c&&c.persona)}
 function personalityPrompt(c){return botPersona(c).prompt}
 function personalityLabel(c){return botPersona(c).name}
+// Local Grok-style bot templates. No account, sync, model call or fetch: the
+// opener is generated from the bot's own name/title/description on this device.
+const BOT_TEMPLATES=[
+  {id:'socials',name:'Socials Bot',job:'Social media planner',desc:'Plan, draft and review social posts; ask about platforms, audience and posting goals.',persona:'playful',hero:'deadpool'},
+  {id:'research',name:'Research Bot',job:'Research assistant',desc:'Find current sources, compare claims and summarise with links.',persona:'formal',hero:'vision'},
+  {id:'tutor',name:'Tutor Bot',job:'Patient tutor',desc:'Teach one step at a time and check understanding.',persona:'tutor',hero:'storm'},
+  {id:'coach',name:'Coach Bot',job:'Accountability coach',desc:'Turn goals into one concrete next step and follow up.',persona:'coach',hero:'captainamerica'},
+  {id:'computer',name:'Computer Bot',job:'Mac bridge operator',desc:'Run approved shell, browser and connector work on the owner Mac.',persona:'concise',hero:'ironman'}
+];
+function botRoleKind(name,job,desc){
+  const s=[name,job,desc].join(' ').toLowerCase();
+  if(/social|instagram|tiktok|facebook|twitter|\bx\b|post|reel|audience/.test(s))return 'social';
+  if(/tutor|teach|lesson|study|explain|homework/.test(s))return 'tutor';
+  if(/coach|fitness|habit|goal|accountab|trainer/.test(s))return 'coach';
+  if(/research|news|source|lookup|competitive|scout/.test(s))return 'research';
+  if(/computer|bridge|shell|browser|automation|routine|connector/.test(s))return 'computer';
+  return 'general';
+}
+function botOpener(name,job,desc){
+  const n=String(name||'Assistant').trim()||'Assistant';
+  const j=String(job||'General assistant').trim();
+  const d=String(desc||'').trim();
+  const q={
+    social:['Which platforms are you posting to?','Who is the audience you are trying to reach?','What posting goals or style should I match?'],
+    tutor:['What are you learning right now?','How much do you already know?','Would you like short steps or full explanations?'],
+    coach:['What goal are you working toward?','What has blocked you before?','How often do you want a check-in?'],
+    research:['What question should I answer?','Which sources do you trust most?','How current does the information need to be?'],
+    computer:['What should I run on your Mac?','Which approved tools or connectors should I use?','When should I ask before acting?'],
+    general:['What are you working on?','What should I know about your goal?','How would you like me to help?']
+  }[botRoleKind(n,j,d)];
+  const purpose=d?' '+d.replace(/[.!?]+$/,'')+'.':'';
+  return `Hi — I'm ${n}, your ${j}.${purpose} To start, ${q[0]} ${q[1]} ${q[2]}`;
+}
+function botPrefs(c){try{return localStorage.getItem('oracle.botprefs.'+(c&&c.id))||''}catch(e){return ''}}
+function saveBotPrefs(id,text){try{localStorage.setItem('oracle.botprefs.'+id,String(text||'').slice(0,1200))}catch(e){}}
+function botIdentityPrompt(c){
+  if(!c)return '';
+  const parts=[`You are ${String(c.name||'the assistant').trim()}, the agent the user named for this chat.`,`Your title/job is ${botJob(c)}.`];
+  const d=String(c.desc||'').trim();if(d)parts.push('Your purpose: '+d.slice(0,400));
+  const p=botPrefs(c).trim();if(p)parts.push('Durable preferences for this bot — follow these unless the user changes them: '+p.slice(0,600));
+  return parts.join(' ');
+}
 function heroAvatar(id,state=''){
   const h=hero(id), rows=SPRITES[h.sprite]||SPRITES.mask;
   const rects=[];
@@ -518,7 +560,37 @@ try{
   }
 }catch(e){}
 function botJob(c){return String((c&&c.job)||'General assistant').slice(0,60)}
-function saveState(){localStorage.setItem(stateKey,JSON.stringify({convs,folders,activeId}))}
+let cloudSaveTimer=null;
+function cloudKey(){
+  if(!staticMode||guestMode)return '';
+  try{
+    let k=localStorage.getItem('oracle.cloud.key');
+    if(!k){k='cs-'+Date.now().toString(36)+Math.random().toString(36).slice(2,10);localStorage.setItem('oracle.cloud.key',k)}
+    return k;
+  }catch(e){return ''}
+}
+function cloudSaveState(){
+  const key=cloudKey();if(!key)return;
+  clearTimeout(cloudSaveTimer);
+  cloudSaveTimer=setTimeout(async()=>{
+    try{
+      const state={convs,folders,activeId},body=JSON.stringify({key,state});
+      if(body.length>250000)return;
+      await fetch('/api/cloud-state',{method:'POST',headers:{'Content-Type':'application/json'},body});
+    }catch(e){}
+  },900);
+}
+async function cloudLoadState(){
+  const key=cloudKey();if(!key)return null;
+  try{
+    const r=await fetch('/api/cloud-state?key='+encodeURIComponent(key));
+    if(!r.ok)return null;
+    const d=await r.json(),s=d&&d.state;
+    if(s&&Array.isArray(s.convs)&&Array.isArray(s.folders)&&s.convs.length&&s.folders.length)return s;
+  }catch(e){}
+  return null;
+}
+function saveState(){localStorage.setItem(stateKey,JSON.stringify({convs,folders,activeId}));cloudSaveState()}
 // A phone tab can be killed while a model loads. If the saved chat ends on a
 // user message, offer to resend it instead of silently losing the question.
 function interruptedConv(){
@@ -705,7 +777,7 @@ function drValidate(r){
       minutes:Math.max(5,Math.min(Number(t.minutes)||60,10080)),
       time:/^\d{1,2}:\d{2}$/.test(t.time||'')?t.time:'08:00'},
     // Never trust a newly authored/edited routine. The owner must approve it.
-    trusted:false,created:Date.now()
+    trusted:false,paused:r.paused===true,created:Date.now()
   }};
 }
 async function drResolve(text,vars,secrets){
@@ -730,6 +802,7 @@ function drSafePreview(text){
     .slice(0,140);
 }
 async function drRun(r,opts={}){
+  if(r&&r.paused)return 'Routine is paused. Resume it in My Routines first.';
   if(drRunning&&!opts.dryRun)return 'Another routine is still running.';
   const v=drValidate(r);if(v.error)return v.error;
   const route=v.routine,secrets=[],vars={},log=[];
@@ -793,7 +866,7 @@ async function drRun(r,opts={}){
 function drTick(){
   const now=new Date(),hhmm=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
   for(const r of Object.values(deviceRoutines.routines)){
-    if(!r.trusted||!r.trigger||r.trigger.type==='manual')continue;
+    if(!r.trusted||r.paused||!r.trigger||r.trigger.type==='manual')continue;
     const last=Number(deviceRoutines.lastRun[r.id]||0);
     // A daily trigger must fire once per calendar day, not on every tick inside
     // the matching minute. An interval waits that long after the last run.
@@ -1120,6 +1193,17 @@ function newsSearchPhrase(query){
   }
   return s.slice(0,160);
 }
+// Public X/Twitter lookup stays inside the existing news proxy. It never adds
+// an account, token or direct X fetch, and offline/explicit-off still return
+// before this point.
+function newsSearchQuery(query,city){
+  const phrase=newsSearchPhrase(query);
+  const wantsX=/\b(?:x\.com|twitter|tweet|on x|grok)\b/i.test(String(query||''));
+  let q=((city?city+' ':'')+phrase).slice(0,200);
+  if(city&&phrase.toLowerCase().includes(city.toLowerCase()))q=phrase;
+  if(wantsX&&!/\bsite:/i.test(q))q=('site:x.com '+q).slice(0,200);
+  return q;
+}
 async function fetchGdeltItems(q){
   // GitHub Pages has no Functions runtime. Skip the missing endpoint there and
   // let webSources() fall straight back to Wikipedia.
@@ -1168,9 +1252,7 @@ async function fetchWikipediaItems(q){
 async function webSources(query){
   if(!webSearchOn())return null;
   const city=webSearchCity().trim();
-  const phrase=newsSearchPhrase(query);
-  let q=((city?city+' ':'')+phrase).slice(0,200);
-  if(city&&phrase.toLowerCase().includes(city.toLowerCase()))q=phrase;
+  const q=newsSearchQuery(query,city);
   if(!q)return null;
   const key=q.toLowerCase(),cached=webSearchCache[key];
   if(cached&&Date.now()-cached.at<300000)return cached;
@@ -2040,6 +2122,7 @@ function render(){
             <button class="menu-item" id="moreNewChat">${icon('plus',18)}<span><strong>New chat room</strong><span class="mi-sub">Name it and pick an agent</span></span></button>
             <button class="menu-item" id="moreNewFolder">${icon('file',18)}<span><strong>New folder</strong><span class="mi-sub">Group chats together</span></span></button>
             <button class="menu-item" id="morePersonality">${icon('spark',18)}<span><strong>Personality: ${esc(personalityLabel(c))}</strong><span class="mi-sub">${esc(botPersona(c).sub)} — tap to change this bot's tone</span></span></button>
+            ${guestMode?'':`<button class="menu-item" data-cm="teach" data-id="${c.id}">${icon('spark',18)}<span><strong>Teach this task</strong><span class="mi-sub">${staticMode?'Draft a device routine':'Save an owner-only skill'}</span></span></button>`}
             ${staticMode?'':`<button class="menu-item" id="moreToolMode">${icon('spark',18)}<span><strong>Tools: ${toolMode==='auto'?'Auto':'Ask first'}</strong><span class="mi-sub">${toolMode==='auto'?'Local model can act — click to require approvals':'Click to allow automatic basic tools'}</span></span></button>
             <button class="menu-item" id="moreToolRules">${icon('lock',18)}<span><strong>Always-allow rules (${toolRules.length})</strong><span class="mi-sub">Review and remove saved approvals</span></span></button>`}
             <button class="menu-item" id="moreVoice">${icon('volume',18)}<span><strong>Voice replies: ${voiceReplies?'On':'Off'}</strong><span class="mi-sub">Jarvis-style voice when available</span></span></button>
@@ -2105,6 +2188,7 @@ function render(){
         ${guestMode?'':`<button class="menu-item" id="openWebSearch">${icon('search',18)}<span><strong>Web search: ${webSearchOn()?'On':'Off'}</strong><span class="mi-sub">Current info for private chat</span></span></button>`}<div class="menu-sep"></div>`:`<button class="menu-item" id="openVault">${icon('lock',18)}<span><strong>Credential Vault</strong><span class="mi-sub">macOS Keychain — values hidden</span></span></button>
         <button class="menu-item" id="openMemory">${icon('spark',18)}<span><strong>My Memory</strong><span class="mi-sub">Notes &amp; skills the model recalls</span></span></button>
         <button class="menu-item" id="openRoutines">${icon('spark',18)}<span><strong>Web Routines</strong><span class="mi-sub">Email, webhooks &amp; browser actions</span></span></button>
+        ${guestMode?'':`<button class="menu-item" id="openComputer">${icon('lock',18)}<span><strong>Computer (owner)</strong><span class="mi-sub">Connectors, forms &amp; routine pause</span></span></button>`}
         <div class="menu-sep"></div>`}
         <button class="menu-item" id="installApp">${icon('plus',18)}<span><strong>Install this web app</strong><span class="mi-sub">${installPrompt?'Add Oracle to your device':'Add to Home Screen / Install'}</span></span></button>
         <button class="menu-item" id="openAbout">${icon('info',18)}<span><strong>About / Update status</strong><span class="mi-sub">Build, model and service worker</span></span></button>
@@ -2200,6 +2284,7 @@ function bind(){
   document.querySelectorAll('[data-gvdel]').forEach(b=>b.onclick=()=>{gvDel(b.dataset.gvdel);render()});
   document.getElementById('openMemory')?.addEventListener('click',async()=>{await loadMemory();view='memory';mobileView='chat';profileOpen=false;render()});
   document.getElementById('openRoutines')?.addEventListener('click',async()=>{profileOpen=false;await openRoutines()});
+  document.getElementById('openComputer')?.addEventListener('click',async()=>{profileOpen=false;await openComputerModal()});
   document.getElementById('openDeviceRoutines')?.addEventListener('click',()=>{profileOpen=false;openDeviceRoutines()});
   document.getElementById('openWebSearch')?.addEventListener('click',()=>{profileOpen=false;openWebSearchSettings()});
   document.getElementById('installApp')?.addEventListener('click',()=>{profileOpen=false;openInstallApp()});
@@ -2310,9 +2395,11 @@ function heroPicker(field){
   return `<div class="hero-grid">${HEROES.map(h=>`<button type="button" class="hero-choice" data-hero="${h.id}" data-hero-field="${field}">${heroAvatar(h.id)}<span>${esc(h.name)}</span></button>`).join('')}</div>`;
 }
 function openRoomModal(folderId=activeFolder){
-  modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>New chat room</h3><p>Name the room and pick its pixel agent. The agent stands beside the room title.</p>
-    <form id="roomForm"><label>Room name</label><input id="rn" placeholder="e.g. Marketing ideas" maxlength="50" required autofocus onfocus="this.select()" onclick="this.select()"/>
-    <label>Job / role</label><input id="rj" placeholder="e.g. Research assistant" maxlength="60"/>
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>New chat room</h3><p>Name the bot, give it one job, and it will open by asking questions that fit its name and role.</p>
+    <form id="roomForm"><label>Start from a template</label><select id="rt"><option value="">Blank agent…</option>${BOT_TEMPLATES.map(t=>`<option value="${t.id}">${esc(t.name)} — ${esc(t.job)}</option>`).join('')}</select>
+    <label>Name / title</label><input id="rn" placeholder="e.g. Socials Bot" maxlength="50" required autofocus onfocus="this.select()" onclick="this.select()"/>
+    <label>Job / role</label><input id="rj" placeholder="e.g. Social media planner" maxlength="60"/>
+    <label>Description</label><textarea id="rd" rows="2" placeholder="One clear job, in the user's words"></textarea>
     <label>Personality / tone</label><select id="rp-tone">${PERSONALITIES.map(p=>`<option value="${p.id}">${esc(p.name)} — ${esc(p.sub)}</option>`).join('')}</select>
     <label>Folder</label><select id="rf">${folders.map(f=>`<option value="${f.id}" ${f.id===folderId?'selected':''}>${esc(f.name)}</option>`).join('')}<option value="__new__">＋ Create new folder…</option></select>
     <input id="rfNew" placeholder="New folder name" maxlength="40" style="display:none;margin-top:6px"/>
@@ -2343,6 +2430,7 @@ function openChatMenu(id){
     <button class="menu-item" data-cm="smart-name" data-id="${c.id}">${icon('spark',18)}<span><strong>Smart: name this room</strong></span></button>
     <button class="menu-item" data-cm="smart-folder" data-id="${c.id}">${icon('spark',18)}<span><strong>Smart: suggest folder</strong></span></button>
     <button class="menu-item" data-cm="smart-summary" data-id="${c.id}">${icon('spark',18)}<span><strong>Smart: summarize chat</strong></span></button>
+    ${guestMode?'':`<button class="menu-item" data-cm="handoff" data-id="${c.id}">${icon('spark',18)}<span><strong>Hand off to another bot</strong><span class="mi-sub">Owner-only team handoff</span></span></button>`}
     <div class="menu-sep"></div>
     <button class="menu-item" data-cm="share" data-id="${c.id}">${icon('share',18)}<span><strong>Share / export</strong></span></button>
     <button class="menu-item" data-cm="delete" data-id="${c.id}">${icon('more',18)}<span><strong>Delete chat</strong></span></button>
@@ -2365,6 +2453,29 @@ function openDeleteChatModal(id){
   if(convs.length===1){showToast('Keep at least one chat room');return}
   modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Delete chat?</h3><p>This removes “${esc(c.name)}” and its messages from this Mac.</p>
     <div class="modal-actions"><button class="btn" id="mc">Cancel</button><button class="btn danger" id="confirmDeleteChat" data-id="${id}">Delete chat</button></div></div></div>`;render();
+}
+function openHandoffModal(id){
+  if(guestMode){showToast('Team handoff is owner-only');return}
+  const src=convs.find(x=>x.id===id);if(!src)return;
+  const targets=convs.filter(x=>x.id!==id);
+  if(!targets.length){showToast('Create another bot first');return}
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Hand off to another bot</h3><p>The receiving bot gets its own room and opens with its own role-aware questions, plus the current task.</p>
+    ${targets.map(t=>`<button class="menu-item" data-handoff-to="${esc(t.id)}">${heroAvatar(t.hero)}<span><strong>${esc(t.name)}</strong><span class="mi-sub">${esc(botJob(t))} · ${esc(personalityLabel(t))}</span></span></button>`).join('')}
+    <div class="modal-actions"><button class="btn primary" id="mc">Close</button></div></div></div>`;render();
+  document.querySelectorAll('[data-handoff-to]').forEach(b=>b.onclick=()=>handoffChat(id,b.dataset.handoffTo));
+}
+function handoffChat(fromId,toId){
+  if(guestMode)return;
+  const src=convs.find(x=>x.id===fromId),tgt=convs.find(x=>x.id===toId);
+  if(!src||!tgt)return;
+  const lastUser=[...(src.messages||[])].reverse().find(m=>m.from==='user');
+  const task=String((lastUser&&lastUser.text)||src.preview||src.name).slice(0,140);
+  const opener=botOpener(tgt.name,botJob(tgt),tgt.desc||'')+`\n\nHanded off from ${src.name}: “${task}”`;
+  const id='chat-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+  convs.push({id,name:tgt.name+' · handoff',preview:opener.slice(0,60),hero:tgt.hero,folder:tgt.folder,
+    job:botJob(tgt),desc:tgt.desc||'',prefs:'',persona:tgt.persona||'oracle',primary:false,
+    handedFrom:src.id,messages:[{from:'bot',text:opener,note:'Team handoff'}]});
+  activeId=id;activeFolder=tgt.folder;view='chat';mobileView='chat';modal=null;saveState();render();showToast('Handed off to '+tgt.name);
 }
 function chatTranscript(c){
   return c.messages.map(m=>`${m.from==='user'?'You':c.name}: ${m.text}${m.imageId?`\n[Image: ${m.imagePrompt||'generated'} · ${m.imageSize} · saved on this device]`:''}`).join('\n\n');
@@ -2504,6 +2615,64 @@ async function openRoutines(){
     }catch(e){showToast('Invalid configuration: '+e.message)}
   });
 }
+async function computerAction(action,name,extra={}){
+  const body={action,name,...extra};
+  try{
+    const r=await api('/api/computer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok)throw new Error(r.error||'Could not save');
+    await openComputerModal();
+  }catch(e){showToast('Computer action failed: '+e.message)}
+}
+async function openComputerModal(){
+  if(staticMode||guestMode){showToast('Computer controls are owner-only on this Mac');return}
+  let s;
+  try{s=await api('/api/computer')}catch(e){showToast('Computer unavailable: '+e.message);return}
+  if(!s||!s.ok){showToast(s?.error||'Computer unavailable');return}
+  const rows=(items,empty)=>items.length?items.map(esc).join(', '):`<em>${empty}</em>`;
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal" style="max-width:720px">
+    <h3>Computer — owner only</h3>
+    <p>Live status from this Mac. Connectors, forms and the vault are shown as <strong>names only</strong>; secret values never reach the model or this panel.</p>
+    <div class="status" style="text-align:left;margin:10px 0;line-height:1.7">
+      Bridge uptime: ${Math.floor(s.uptime/60)} min · Tools: ${esc(s.tools.mode)}<br/>
+      Browser routines: ${s.browserEnabled?'enabled':'disabled'}<br/>
+      Vault credential names: ${rows(s.credentialNames||[],'none')}<br/>
+      Connectors: ${rows((s.connectors||[]).map(c=>c.name+(c.targetHost?' ('+c.targetHost+')':'')),'none')}<br/>
+      Secure forms: ${rows((s.secureForms||[]).map(f=>f.name+' ['+f.fields.join(', ')+']'),'none')}
+    </div>
+    <label>Routines — pause or resume</label>
+    <div>${(s.routines||[]).length?s.routines.map(r=>`<div class="vault-row"><span style="flex:1"><strong>${esc(r.name)}</strong> · ${r.paused?'<em>paused</em>':'active'}</span><button class="btn tiny" data-crouter="${r.paused?'resume':'pause'}" data-cname="${esc(r.name)}">${r.paused?'Resume':'Pause'}</button></div>`).join(''):'<div class="status" style="text-align:left">No configured routines yet.</div>'}</div>
+    <label>Add connector — name and hostname only</label>
+    <div class="tool-actions"><input id="cnName" placeholder="e.g. social-webhook" maxlength="60"/><input id="cnTarget" placeholder="hostname or URL (stored as hostname)" maxlength="160"/><select id="cnKind"><option value="custom">custom</option><option value="webhook">webhook</option><option value="browser">browser</option><option value="email">email</option></select><button class="btn primary" id="cnAdd">Add</button></div>
+    <label>Add secure form — field names only, values stay in the vault</label>
+    <div class="tool-actions"><input id="cfName" placeholder="e.g. account sign-in" maxlength="60"/><input id="cfFields" placeholder="email_login, app_token" maxlength="200"/><button class="btn primary" id="cfAdd">Add</button></div>
+    <p style="font-size:11.5px;color:var(--muted)">${esc(s.note||'')}</p>
+    <div class="modal-actions"><button class="btn primary" id="mc">Close</button></div>
+  </div></div>`;render();
+  document.querySelectorAll('[data-crouter]').forEach(b=>b.onclick=()=>computerAction(b.dataset.crouter,b.dataset.cname));
+  document.getElementById('cnAdd')?.addEventListener('click',()=>{
+    const name=document.getElementById('cnName').value.trim();
+    if(!name){showToast('Enter a connector name');return}
+    computerAction('connector/add',name,{kind:document.getElementById('cnKind').value,target:document.getElementById('cnTarget').value.trim()});
+  });
+  document.getElementById('cfAdd')?.addEventListener('click',()=>{
+    const name=document.getElementById('cfName').value.trim();
+    if(!name){showToast('Enter a form name');return}
+    const fields=document.getElementById('cfFields').value.split(',').map(x=>x.trim()).filter(Boolean);
+    computerAction('form/add',name,{fields});
+  });
+}
+function openTeachTaskModal(id){
+  if(guestMode){showToast('Teaching this bot is owner-only');return}
+  const c=convs.find(x=>x.id===id)||active();if(!c)return;
+  const recent=[...(c.messages||[])].reverse().find(m=>m.text&&m.text.trim());
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Teach this task</h3>
+    <p>${staticMode?'On this device the draft becomes a routine. It is saved unapproved — nothing runs until you review and approve it in My Routines.':'On this Mac the instruction becomes a skill the local model sees. This is an owner-only action.'}</p>
+    <form id="teachForm">
+      <label>Name</label><input id="ttName" value="${esc((c.name||'Bot')+' task')}" maxlength="60" required/>
+      <label>Instruction</label><textarea id="ttText" rows="3" placeholder="What should this bot learn?">${esc(String((recent&&recent.text)||'').slice(0,500))}</textarea>
+      <div class="modal-actions"><button type="button" class="btn" id="mc">Cancel</button><button class="btn primary" type="submit">Save draft</button></div>
+    </form></div></div>`;render();
+}
 function openDeviceRoutines(){
   const rows=Object.values(deviceRoutines.routines);
   const tpl=(drEditorText||JSON.stringify({name:'My routine',steps:[{op:'log',text:'Hello from this device'}],trigger:{type:'manual'}},null,2));
@@ -2515,9 +2684,10 @@ function openDeviceRoutines(){
     <div class="tool-actions"><button class="btn" id="drSaveHosts">Save endpoints</button><button class="btn" id="drNotify">Enable alerts</button></div>
     <label>Your routines</label>
     <div id="drList">${rows.length?rows.map(r=>`<div class="vault-row" style="align-items:center;flex-wrap:wrap">
-      <span style="flex:1;min-width:150px"><strong>${esc(r.name)}</strong><br/><small style="color:var(--muted)">${r.steps.length} step(s) · ${esc(r.trigger?.type||'manual')} ${r.trigger?.type==='at'?esc(r.trigger.time):''} ${r.trusted?'· approved':'· NEEDS APPROVAL'}</small></span>
+      <span style="flex:1;min-width:150px"><strong>${esc(r.name)}</strong><br/><small style="color:var(--muted)">${r.steps.length} step(s) · ${esc(r.trigger?.type||'manual')} ${r.trigger?.type==='at'?esc(r.trigger.time):''} ${r.trusted?'· approved':'· NEEDS APPROVAL'} ${r.paused?'· PAUSED':''}</small></span>
       <button class="btn tiny" data-dr-test="${esc(r.id)}">Test</button>
       <button class="btn tiny" data-dr-run="${esc(r.id)}">Run</button>
+      <button class="btn tiny" data-dr-toggle="${esc(r.id)}">${r.paused?'Resume':'Pause'}</button>
       ${r.trusted?'':`<button class="btn primary tiny" data-dr-approve="${esc(r.id)}">Approve</button>`}
       <button class="btn tiny" data-dr-edit="${esc(r.id)}">Edit</button>
       <button class="btn danger tiny" data-dr-del="${esc(r.id)}">Delete</button>
@@ -2568,7 +2738,7 @@ function openDeviceRoutines(){
       const parsed=JSON.parse(document.getElementById('drJson').value);
       const v=drValidate(parsed);if(v.error){drOutput=v.error;openDeviceRoutines();return}
       const id=drEditorId||v.routine.id;v.routine.id=id;
-      const prev=deviceRoutines.routines[id];if(prev)v.routine.created=prev.created;
+      const prev=deviceRoutines.routines[id];if(prev){v.routine.created=prev.created;v.routine.paused=prev.paused===true}
       deviceRoutines.routines[id]=v.routine;drSave();
       drEditorId=null;drEditorText='';drOutput='Saved “'+v.routine.name+'”. Approve it before it can run.';openDeviceRoutines();
     }catch(e){drOutput='Invalid JSON: '+e.message;openDeviceRoutines()}
@@ -2603,6 +2773,11 @@ function openDeviceRoutines(){
   document.querySelectorAll('[data-dr-test]').forEach(b=>b.onclick=async()=>{
     const r=deviceRoutines.routines[b.dataset.drTest];if(!r)return;
     drOutput=await drRun(r,{dryRun:true});openDeviceRoutines();
+  });
+  document.querySelectorAll('[data-dr-toggle]').forEach(b=>b.onclick=()=>{
+    const r=deviceRoutines.routines[b.dataset.drToggle];if(!r)return;
+    r.paused=!r.paused;drSave();
+    drOutput='“'+r.name+'” is now '+(r.paused?'paused':'active')+'.';openDeviceRoutines();
   });
   document.querySelectorAll('[data-dr-edit]').forEach(b=>b.onclick=()=>{
     drEditorId=b.dataset.drEdit;drEditorText=JSON.stringify(deviceRoutines.routines[drEditorId],null,2);drOutput='';openDeviceRoutines();
@@ -2743,7 +2918,7 @@ async function openCameraModal(){
     try{
       const q=document.getElementById('camQuestion').value.trim()||'What do you see?';
       const d=await api('/api/vision',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({image:cameraShot,question:q,personality:personalityPrompt(active())})});
+        body:JSON.stringify({image:cameraShot,question:q,personality:[personalityPrompt(active()),botIdentityPrompt(active())].filter(Boolean).join('\n\n')})});
       if(d.error)throw new Error(d.error);
       const c=active();
       c.messages.push({from:'user',text:'[See this] '+q});
@@ -2792,7 +2967,7 @@ function openPersonalityPicker(){
 }
 function openBotRoster(){
   const rows=convs.map(x=>`<div class="vault-row" style="justify-content:flex-start;gap:9px;flex-wrap:wrap">
-    ${heroAvatar(x.hero)}<span style="flex:1;min-width:150px"><strong>${esc(x.name)}</strong>${x.primary?'<span class="primary-badge">PRIMARY</span>':''}<br/><small style="color:var(--accent-2);font-weight:600">${esc(botJob(x))} · ${esc(personalityLabel(x))}</small></span>
+    ${heroAvatar(x.hero)}<span style="flex:1;min-width:150px"><strong>${esc(x.name)}</strong>${x.primary?'<span class="primary-badge">PRIMARY</span>':''}<br/><small style="color:var(--accent-2);font-weight:600">${esc(botJob(x))} · ${esc(personalityLabel(x))}${x.desc?' · '+esc(String(x.desc).slice(0,60)):''}</small></span>
     <button class="btn tiny" data-bot-open="${esc(x.id)}">Open</button><button class="btn tiny" data-bot-edit="${esc(x.id)}">Edit</button></div>`).join('');
   modal=`<div class="modal-backdrop" id="mb"><div class="modal" style="max-width:620px"><h3>Bot roster</h3>
     <p>Each chat is one local bot with a name, job and avatar. The primary bot is the one that opens first. Nothing here is synced or shared.</p>
@@ -2812,6 +2987,8 @@ function openBotEditModal(id){
     <form id="botEditForm"><input type="hidden" id="beId" value="${esc(c.id)}"/>
     <label>Name</label><input id="bn" value="${esc(c.name)}" maxlength="50" required/>
     <label>Job / role</label><input id="bj" value="${esc(botJob(c))}" maxlength="60" placeholder="e.g. Research assistant"/>
+    <label>Description</label><textarea id="bd" rows="2" placeholder="One clear job, in the user's words">${esc(c.desc||'')}</textarea>
+    <label>Remembered preferences</label><textarea id="bp-prefs" rows="2" placeholder="e.g. Use short answers; never post without approval">${esc(botPrefs(c))}</textarea>
     <label>Personality / tone</label><select id="bp-tone">${PERSONALITIES.map(p=>`<option value="${p.id}" ${botPersona(c).id===p.id?'selected':''}>${esc(p.name)} — ${esc(p.sub)}</option>`).join('')}</select>
     <label class="check-row"><input type="checkbox" id="bp" ${c.primary?'checked':''}/> Primary bot</label>
     <div class="modal-actions"><button type="button" class="btn" id="mc">Cancel</button><button class="btn primary" type="submit">Save bot</button></div></form></div></div>`;
@@ -2821,6 +2998,8 @@ function openBotEditModal(id){
     const item=convs.find(x=>x.id===document.getElementById('beId').value);if(!item)return;
     item.name=document.getElementById('bn').value.trim()||item.name;
     item.job=document.getElementById('bj').value.trim()||'General assistant';
+    item.desc=document.getElementById('bd').value.trim();
+    saveBotPrefs(item.id,document.getElementById('bp-prefs')?.value||'');
     item.persona=document.getElementById('bp-tone').value||'oracle';
     const primary=document.getElementById('bp').checked;
     if(primary)convs.forEach(x=>x.primary=false);
@@ -2974,6 +3153,12 @@ function bindModal(){
     if(input)input.value=b.dataset.hero;
     document.querySelectorAll(`[data-hero-field="${field}"]`).forEach(x=>x.classList.toggle('selected',x===b));
   });
+  document.getElementById('rt')?.addEventListener('change',e=>{
+    const t=BOT_TEMPLATES.find(x=>x.id===e.target.value);if(!t)return;
+    const set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v};
+    set('rn',t.name);set('rj',t.job);set('rd',t.desc);set('rp-tone',t.persona);set('rh',t.hero);
+    document.querySelectorAll('[data-hero-field="rh"]').forEach(x=>x.classList.toggle('selected',x.dataset.hero===t.hero));
+  });
   document.getElementById('rf')?.addEventListener('change',e=>{
     const n=document.getElementById('rfNew');if(!n)return;
     n.style.display=e.target.value==='__new__'?'block':'none';
@@ -2983,6 +3168,7 @@ function bindModal(){
     e.preventDefault();
     const name=document.getElementById('rn').value.trim(),heroId=document.getElementById('rh').value;
     const job=(document.getElementById('rj')?.value.trim()||'General assistant');
+    const desc=(document.getElementById('rd')?.value.trim()||'');
     const primary=!!document.getElementById('rp')?.checked;
     const persona=document.getElementById('rp-tone')?.value||'oracle';
     let folder=document.getElementById('rf').value;
@@ -2995,7 +3181,8 @@ function bindModal(){
     }
     const id='chat-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
     if(primary)convs.forEach(x=>x.primary=false);
-    convs.push({id,name,preview:'Ask me anything…',hero:heroId,folder,job,persona,primary:primary||convs.length===0,messages:[]});
+    const opener=botOpener(name,job,desc);
+    convs.push({id,name,preview:opener.slice(0,60),hero:heroId,folder,job,desc,prefs:'',persona,primary:primary||convs.length===0,messages:[{from:'bot',text:opener,note:'Intro'}]});
     const f=folders.find(x=>x.id===folder);if(f){f.open=true;activeFolder=f.id}
     activeId=id;mobileView='chat';modal=null;saveState();render();showToast('Room created: '+name);
   });
@@ -3034,6 +3221,8 @@ function bindModal(){
     if(act==='rename')openRenameModal('chat',id);
     if(act==='move')openMoveModal(id);
     if(act.startsWith('smart-'))smartChat(act.slice(6),id);
+    if(act==='handoff')openHandoffModal(id);
+    if(act==='teach')openTeachTaskModal(id);
     if(act==='share'){activeId=id;openShareModal()}
     if(act==='delete')openDeleteChatModal(id);
   });
@@ -3097,6 +3286,23 @@ function bindModal(){
     await api('/api/skills',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,desc})});
     modal=null;render();showToast('Skill saved: '+name);
   });
+  document.getElementById('teachForm')?.addEventListener('submit',async e=>{
+    e.preventDefault();
+    const name=document.getElementById('ttName').value.trim();
+    const text=document.getElementById('ttText').value.trim();
+    if(!name||!text){showToast('Give the task a name and an instruction');return}
+    if(staticMode){
+      const v=drValidate({name,steps:[{op:'log',text:text.slice(0,800)}],trigger:{type:'manual'}});
+      if(v.error){showToast(v.error);return}
+      deviceRoutines.routines[v.routine.id]=v.routine;drSave();
+      drEditorId=v.routine.id;drEditorText=JSON.stringify(v.routine,null,2);
+      drOutput='Draft saved — review it below. Nothing ran; approve it in My Routines first.';
+      modal=null;render();openDeviceRoutines();
+    }else{
+      const r=await api('/api/skills',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,desc:text})});
+      modal=null;render();showToast(r.ok?'Skill saved on this Mac':'Could not save skill');
+    }
+  });
 }
 
 function noteOf(r){return [r.backend&&'backend: '+r.backend,r.note].filter(Boolean).join(' · ')}
@@ -3155,7 +3361,7 @@ async function sendMessage(e){
   const shortSend=nextSendShort;nextSendShort=false;
   try{
     const msgs=c.messages.map(m=>({from:m.from,text:m.text}));
-    let sysText=personalityPrompt(c)||'',sources=null;
+    let sysText=[personalityPrompt(c),botIdentityPrompt(c)].filter(Boolean).join('\n\n'),sources=null;
     if(webSearchOn()){
       sources=await webSources(text);
       if(sources&&sources.items.length){
@@ -3204,6 +3410,18 @@ document.addEventListener('keydown',e=>{
   openCommandPalette();
 });
 (async()=>{
+  // Cloud state is a convenience backup for the owner, never a source of host
+  // credentials or guest data. A fresh device can restore its own bot roster
+  // when the Cloudflare D1 binding is configured; otherwise local state wins.
+  if(staticMode&&!guestMode&&!localStorage.getItem(stateKey)){
+    const cloud=await cloudLoadState();
+    if(cloud){
+      convs=cloud.convs;folders=cloud.folders;
+      activeId=cloud.activeId||convs[0].id;
+      activeFolder=convs.find(x=>x.id===activeId)?.folder||folders[0]?.id||'general';
+      saveState();
+    }
+  }
   await gvInit();
   // Routines are device-local: load this session's set and start the in-page
   // scheduler only on the static/phone build. The host Mac is never involved.
