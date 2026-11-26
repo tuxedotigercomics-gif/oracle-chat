@@ -4,12 +4,21 @@ Run this at **320 / 360 / 390 / 430 px** on the real iPhone in Safari, and in
 an emulated iPhone viewport against `https://oracle-chat.pages.dev/`.
 The backup host is `https://tuxedotigercomics-gif.github.io/oracle-chat/`.
 
-Baseline SHA (live UI): `a640db6d59a509542d299986ea328fe4115bf50994d7a7a8fc93dc808039a4b0`
+Baseline SHA (live UI): `1ee397885f4eee930cd77deef400feb362ce6b8559e95f74c2bfcfd765f032c5`
 Service-worker SHA: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`
 Rollback: `restore-live.command`
 
 > The desktop/host checklist lives in `MAIN-BROWSER-REGRESSION.md`.
 > Voice-call fixes are marked **VOICE FIX 2026-11-19** below.
+
+## Plain-language connector automation — 2026-11-27b (harness + live verified; physical pass open)
+- [x] “Connect my Instagram”, “check my Instagram” and “post this to Instagram” work without special syntax on canonical, guest and backup pages (live browser; physical voice/layout pass open)
+- [x] Quick buttons use the same normal-language path as typed phrases (live browser; 320–430 px layout pass open)
+- [x] Guided setup opens with the person's own Instagram selected; no owner token, account picker or borrowed login appears (live browser, including guest share)
+- [x] “Monitor my DMs/emails” gets the honest foreground answer plus a Shortcuts/webhook offer; no background claim (live browser)
+- [x] Allow once / Deny approval cards remain reachable with no token in chat, console, cloud state or model prompt (harness + live)
+- [ ] Physical iPhone pass at 320 / 360 / 390 / 430 px in Safari, including voice input and real connector setup
+- [x] Build `2026-11-27b` served by the unchanged worker on both sites with zero console errors (harness + live; physical iPhone pass still open)
 
 ## Deep Search, source cards + own-account connectors — 2026-11-27a (harness + live verified; physical pass open)
 - [ ] Per-chat Deep Search toggle is reachable in the phone More menu at 320–430 px and persists per bot

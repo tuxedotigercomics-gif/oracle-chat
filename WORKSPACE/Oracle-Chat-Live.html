@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#4a9861" />
-<meta name="oracle-build" content="2026-11-27a" />
+<meta name="oracle-build" content="2026-11-27b" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Oracle" />
@@ -186,6 +186,9 @@
   .connector-card.error{border-style:dashed}
   .status{font-size:12.5px;color:var(--muted);font-style:italic;align-self:flex-start;padding-left:2px}
   .composer-wrap{flex-shrink:0;width:calc(100% - 40px);max-width:780px;margin:0 auto 18px}
+  .quick-actions{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 7px}
+  .quick-btn{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:999px;padding:5px 10px;font-size:11.5px;line-height:1.2;cursor:pointer;white-space:nowrap}
+  .quick-btn:hover{border-color:var(--accent);color:var(--accent)}
   .attach-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
   .chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface-3);border-radius:8px;padding:5px 9px;font-size:12px}
   .chip button{background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;line-height:1;padding:0}
@@ -435,7 +438,7 @@ function botIdentityPrompt(c){
   parts.push('You cannot log into, read, post to, or manage any external account (Instagram, email, socials) by yourself. You may plan and draft content. Only after the user has added their own connector in My Connectors may you request one CONNECTOR action, and the user must approve it. Never ask for, invent, print or store a token or password.');
   parts.push('You cannot drive the device browser like a person, read other apps or notifications, or monitor/post in the background. On a phone, actions only work while the app is open in the foreground. Continuous scheduling needs a separate user-owned automation; say so plainly instead of claiming you can do it.');
   const cn=connectorNames();
-  if(cn.length)parts.push('Available connectors (names only, never tokens): '+cn.join(', ')+'. To use one, output one line exactly: CONNECTOR {"name":"exact connector name","action":"check" or "publish","text":"draft text","imageUrl":"optional public image URL"}. The user will see an approval card before anything runs.');
+  if(cn.length)parts.push('Available connectors (names only, never tokens): '+cn.join(', ')+'. If the user asks in plain language to check or post with one and no card was prepared, output one line exactly: CONNECTOR {"name":"exact connector name","action":"check" or "publish","text":"draft text","imageUrl":"optional public image URL"}. The user will see an approval card before anything runs.');
   return parts.join(' ');
 }
 function heroAvatar(id,state=''){
@@ -614,7 +617,7 @@ async function cloudLoadState(){
 function saveState(){localStorage.setItem(stateKey,JSON.stringify({convs,folders,activeId}));cloudSaveState()}
 const ORACLE_BOT_ID='oracle-bot';
 function oracleBotGuide(){
-  return `Hi — I'm Oracle Bot, your built-in guide and technical assistant.\n\nHow to use Oracle:\n• Pick a bot in the left list, or make a new one with the + button.\n• Use the model pill to switch between Mac models, private on-device models, or automatic free cloud.\n• Use folders to group chats, the microphone/call buttons to talk, and the ⋯ menu to rename, move, hand off or teach a task.\n• In Profile you will find My Connectors, your vault, routines, Teams & Triggers, help, and update status. Guests only see their own private copy.\n\nAsk me to explain the app, plan a change, draft a bug fix, or review the UI. I can plan and draft social posts, but I cannot log into Instagram or manage an account until you add your own connector and approve a specific action. I cannot drive the phone browser for you or keep monitoring in the background; actions run only while the app is open in the foreground. On the owner Mac I can also propose and run changes with an approval card. On a phone or guest link I can guide and draft, but I never get host files, tools or vault secrets.`;
+  return `Hi — I'm Oracle Bot, your built-in guide and technical assistant.\n\nHow to use Oracle:\n• Pick a bot in the left list, or make a new one with the + button.\n• Use the model pill to switch between Mac models, private on-device models, or automatic free cloud.\n• Use folders to group chats, the microphone/call buttons to talk, and the ⋯ menu to rename, move, hand off or teach a task.\n• In Profile you will find My Connectors, your vault, routines, Teams & Triggers, help, and update status. Guests only see their own private copy.\n• Just say “connect my Instagram”, “check my Instagram” or “draft a post” — no special command words to remember. Quick buttons under the message box do the same thing.\n\nAsk me to explain the app, plan a change, draft a bug fix, or review the UI. I can plan and draft social posts, but I cannot log into Instagram or manage an account until you add your own connector and approve a specific action. I cannot drive the phone browser for you or keep monitoring in the background; actions run only while the app is open in the foreground. On the owner Mac I can also propose and run changes with an approval card. On a phone or guest link I can guide and draft, but I never get host files, tools or vault secrets.`;
 }
 function oracleBotConversation(){
   const folder=folders[0]?.id||'general';
@@ -801,6 +804,78 @@ function parseConnectorRequest(text){
       action,text:String(req.text||'').slice(0,1200),imageUrl:String(req.imageUrl||'').slice(0,500)}};
   }
   return {clean:raw,request:null};
+}
+// Plain-language connector control. Only intents and optional public URLs are
+// read from the message; tokens, account IDs and secrets never are.
+function publicUrlIn(text){
+  const m=String(text||'').match(/https?:\/\/[^\s<>"']+/i);
+  return m?m[0].replace(/[.,;!?)]+$/,'').slice(0,500):'';
+}
+function connectorTypeFrom(text){
+  const s=String(text||'').toLowerCase();
+  if(/instagram|\big\b/.test(s))return 'instagram';
+  if(/webhook|automation|automate/.test(s))return 'webhook';
+  return 'instagram';
+}
+function pickConnector(text){
+  const s=String(text||'').toLowerCase(),list=connectorList();
+  if(!list.length)return null;
+  const named=list.find(c=>s.includes(String(c.name).toLowerCase()));
+  if(named)return named;
+  const typed=list.find(c=>c.type===connectorTypeFrom(s));
+  return typed||list[0];
+}
+function connectorIntent(text,files){
+  const raw=String(text||''),s=raw.toLowerCase().replace(/[’]/g,"'");
+  if(!/instagram|\big\b|webhook|automation|connector|account|dm|dms|email|mail|social/i.test(s))return null;
+  if(/monitor|watch|track|keep an eye|background|always|automat|schedule|remind/.test(s)
+     &&/instagram|dm|dms|message|email|mail|social|account/i.test(s)){
+    return {kind:'monitor',type:connectorTypeFrom(s)};
+  }
+  if(/connect|link|add|set up|hook up|log in|sign in/.test(s))return {kind:'connect',type:connectorTypeFrom(s)};
+  const draft=/draft|write|plan/.test(s);
+  if(/post|publish|share|upload|send/.test(s)&&!draft){
+    const m=raw.match(/(?:post|publish|share|upload|send)\s+([\s\S]+?)\s+(?:to|on)\s+(?:my\s+)?(?:instagram|ig|webhook|connector)/i);
+    const caption=m?m[1]:raw.replace(/^(?:please\s+)?(?:post|publish|share|upload|send)\s+/i,'')
+      .replace(/\s+(?:to|on)\s+(?:my\s+)?(?:instagram|ig|webhook|connector).*$/i,'').trim();
+    return {kind:'publish',type:connectorTypeFrom(s),imageUrl:publicUrlIn(raw),
+      text:String(caption||'').replace(/\s+/g,' ').slice(0,1200),files:!!(files&&files.length)};
+  }
+  if(/check|look|view|see|status|inspect|read|what'?s happening/.test(s))return {kind:'check',type:connectorTypeFrom(s)};
+  return null;
+}
+function connectorLabel(type){return type==='webhook'?'Webhook':type==='instagram'?'Instagram':'connector'}
+async function runConnectorIntent(raw,c,intent){
+  let reply='';
+  if(intent.kind==='monitor'){
+    reply='I can check '+connectorLabel(intent.type)+' once right now, but I cannot watch it in the background. '
+      +'For automatic checks or scheduled posts, use your own iOS Shortcut or webhook — tap “Set up automation” and I will plan it with you.';
+  }else if(intent.kind==='connect'){
+    openConnectors({type:intent.type,name:intent.type==='instagram'?'My Instagram':'My Webhook'});
+    reply='I cannot log into an account for you, but I opened My Connectors with '
+      +connectorLabel(intent.type)+' selected. Add your own token there and I will use it only after you approve each action.';
+  }else{
+    const conn=pickConnector(raw);
+    if(!conn){
+      openConnectors({type:intent.type,name:intent.type==='instagram'?'My Instagram':'My Webhook'});
+      reply='You have not added your own '+connectorLabel(intent.type)+' connector yet. I opened setup — add your own token there, then ask me again.';
+    }else if(intent.kind==='check'){
+      c.messages.push({from:'bot',text:'I can check '+conn.name+' now. Review the details and approve below.',
+        note:'Connector · ready',connector:{id:conn.id,name:conn.name,type:conn.type,action:'check',text:'',imageUrl:''},
+        connectorState:'pending'});
+    }else if(intent.kind==='publish'){
+      if(conn.type==='instagram'&&!intent.imageUrl){
+        reply='I have the draft for '+conn.name+'. Instagram publishing needs a public image URL — send me one and I will put it on an approval card. Attached files stay on this device.';
+      }else{
+        c.messages.push({from:'bot',text:'I can post that with '+conn.name+'. Review the exact caption and target below.',
+          note:'Connector · ready',connector:{id:conn.id,name:conn.name,type:conn.type,action:'publish',
+            text:intent.text||'',imageUrl:intent.imageUrl||''},connectorState:'pending'});
+      }
+    }
+  }
+  if(reply)c.messages.push({from:'bot',text:reply,note:'Connector help'});
+  c.preview=(c.messages.at(-1)?.text||'').slice(0,40);
+  saveState();waiting=false;if(callActive)setCallState('idle');render();
 }
 
 // ---- Host-only approval rules ----
@@ -2304,6 +2379,12 @@ function render(){
           <button class="btn primary" id="retrySend" style="padding:4px 10px;font-size:12px;margin-left:6px">Try again</button></div>`:''}
       </div></div>
       <div class="composer-wrap">
+        ${(c.id==='socials'||String(c.name).trim()==='Socials Bot'||connectorList().length)?`<div class="quick-actions">
+          <button type="button" class="quick-btn" data-quick="check">${icon('search',13)} Check Instagram</button>
+          <button type="button" class="quick-btn" data-quick="draft">${icon('spark',13)} Draft a post</button>
+          <button type="button" class="quick-btn" data-quick="connect">${icon('lock',13)} Connect Instagram</button>
+          <button type="button" class="quick-btn" data-quick="monitor">${icon('info',13)} Set up automation</button>
+        </div>`:''}
         <div class="call-bar thinking" id="deviceBar" style="${deviceStatus?'':'display:none'}"><span class="call-dot"></span><span id="deviceBarText">${esc(deviceStatus)}</span></div>
         <div class="progress-track" id="deviceProgress" role="progressbar" aria-label="Model download progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(deviceProgress)}" style="${deviceProgressActive?'':'display:none'}"><div class="progress-fill" style="width:${deviceProgress}%"></div></div>
         ${callActive?`<div class="call-bar ${callState}"><span class="call-dot"></span><span>${callState==='listening'?'Listening — talk now…':callState==='thinking'?'Thinking…':'Speaking…'}</span><button id="endCall">End call</button></div>`:''}
@@ -2555,6 +2636,15 @@ function bind(){
   const input=document.getElementById('draft'), send=document.getElementById('send');
   if(input){input.oninput=()=>{draft=input.value;send.disabled=!draft.trim()&&!files.length};input.onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();document.getElementById('composer').requestSubmit()}}}
   document.getElementById('composer')?.addEventListener('submit',sendMessage);
+  document.querySelectorAll('[data-quick]').forEach(b=>b.onclick=()=>{
+    const kind=b.dataset.quick;
+    const phrases={check:'Check my Instagram',draft:'Draft a social post about my comic',
+      connect:'Connect my Instagram',monitor:'Monitor my Instagram DMs'};
+    draft=phrases[kind]||'';
+    if(kind==='draft'){
+      render();const el=document.getElementById('draft');if(el){el.value=draft;try{el.focus({preventScroll:true})}catch(e){}}
+    }else sendMessage({preventDefault(){}});
+  });
 }
 
 function closeMenus(){plusOpen=modelOpen=profileOpen=moreOpen=false}
@@ -3135,16 +3225,16 @@ function openWebSearchSettings(){
   document.getElementById('wsDomains')?.addEventListener('change',e=>setSearchDomains(e.target.value));
   document.getElementById('wsDone')?.addEventListener('click',()=>{modal=null;render()});
 }
-function openConnectors(){
-  const rows=connectorList();
+function openConnectors(preset){
+  const rows=connectorList(),ptype=(preset&&preset.type)||'instagram',pname=(preset&&preset.name)||'';
   modal=`<div class="modal-backdrop" id="mb"><div class="modal" style="max-width:560px"><h3>My Connectors</h3>
     <p>Connect <strong>your own</strong> account. Every person gets their own copy — guests and phone users never borrow the owner's login. Tokens are encrypted on this device; the model only sees connector names. Nothing is sent to the Mac, the cloud or a chat prompt.</p>
     <div>${rows.length?rows.map(c=>`<div class="vault-row"><span><strong>${esc(c.name)}</strong><br><small>${esc(c.type==='instagram'?'Instagram · own Meta token':'Webhook · your URL')} · ${esc(c.type==='instagram'?'account '+String(c.target).slice(0,24):String(c.target).slice(0,42))}</small></span><button class="btn danger" data-conn-del="${esc(c.id)}" style="padding:4px 8px;font-size:11px">Remove</button></div>`).join(''):'<p style="color:var(--muted);font-size:13px">No connectors yet.</p>'}</div>
     <h4 style="margin:16px 0 6px">Add a connector</h4>
     <form id="connForm">
-      <label>Name the model will see<input id="cnName" required maxlength="40" placeholder="e.g. My Instagram" /></label>
-      <label>Type<select id="cnType" style="width:100%;box-sizing:border-box"><option value="instagram">Instagram (your own Meta token)</option><option value="webhook">Webhook (your own URL)</option></select></label>
-      <label id="cnTargetLabel">Instagram account ID<input id="cnTarget" required maxlength="160" placeholder="Your own Instagram account ID" /></label>
+      <label>Name the model will see<input id="cnName" required maxlength="40" value="${esc(pname)}" placeholder="e.g. My Instagram" /></label>
+      <label>Type<select id="cnType" style="width:100%;box-sizing:border-box"><option value="instagram" ${ptype==='instagram'?'selected':''}>Instagram (your own Meta token)</option><option value="webhook" ${ptype==='webhook'?'selected':''}>Webhook (your own URL)</option></select></label>
+      <label id="cnTargetLabel">${ptype==='webhook'?'Webhook URL':'Instagram account ID'}<input id="cnTarget" required maxlength="160" placeholder="${ptype==='webhook'?'https://your-own-automation.example/hook':'Your own Instagram account ID'}" /></label>
       <label>Token / secret<input id="cnSecret" type="password" required maxlength="800" placeholder="Your own token — never shown again" /></label>
       <p class="camera-note">Oracle cannot create a Meta token. Use your own Meta app token with Instagram permissions; publishing also needs a public image URL. Actions run only while Oracle is open in the foreground and you approve them. A backgrounded iPhone tab is suspended by iOS, so scheduled posts and continuous monitoring are not available in this web app.</p>
       <div class="modal-actions"><button type="button" class="btn" id="mc">Cancel</button><button class="btn primary" type="submit">Save on this device</button></div>
@@ -3790,6 +3880,7 @@ async function sendMessage(e){
   e.preventDefault();
   const text=draft.trim();if(!text&&!files.length)return;
   const extra=(files.length?'\n[Attached files: '+files.join(', ')+']':'');
+  const intent=connectorIntent(text,files);
   const c=active();
   c.messages.push({from:'user',text:text+extra});c.preview=(text||'file')+'…';
   // Save now — if a phone tab is killed while the model loads, the question
@@ -3799,6 +3890,7 @@ async function sendMessage(e){
   // render() rebuilds the input; refocus it so the phone keyboard stays open
   // instead of looking like the page jumped or reset.
   if(!callActive){const el=document.getElementById('draft');if(el){try{el.focus({preventScroll:true})}catch(e){}}}
+  if(intent){await runConnectorIntent(text,c,intent);return}
   let replyText='',delegated=false;
   const cm=customModels.find(m=>m.id===backend);
   const shortSend=nextSendShort;nextSendShort=false;

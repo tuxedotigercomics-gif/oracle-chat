@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Harness for build 2026-11-27a (deep search, source cards, own-account connectors).
+"""Harness for build 2026-11-27b (deep search, source cards, own-account connectors).
 
 Local mode checks source invariants and runs the pure JS helpers through the
 macOS JavaScriptCore engine (osascript -l JavaScript). There is no Node on this
@@ -42,7 +42,7 @@ def expect(cond, label):
 
 
 def source_checks(html, cloud, bridge, gdelt):
-    expect('content="2026-11-27a"' in html, "build marker is 2026-11-27a")
+    expect('content="2026-11-27b"' in html, "build marker is 2026-11-27b")
     expect("Socials Bot" in html and "Which platforms are you posting to?" in html,
            "Socials Bot template asks platform/audience/goal questions")
     expect("botOpener(name,job,desc)" in html, "room creation uses the local opener generator")
@@ -105,13 +105,24 @@ def source_checks(html, cloud, bridge, gdelt):
             and "migrateSeededWording();" in html
             and "oldSocial=/Plan, draft and\\s+review social posts/i" in html,
             "saved chats migrate old Socials Bot and Oracle Bot wording")
-    expect("function openConnectors()" in html
+    expect("function openConnectors(preset)" in html
             and "CONNECTOR_KEY='oracle.connectors.'+vaultId" in html
             and "gvSet('connector.'+id+'.secret',secret)" in html,
             "own-account connectors keep metadata local and encrypt tokens on device")
     expect("parseConnectorRequest(answer)" in html and "data-conn-approve=" in html
             and "data-conn-deny=" in html,
             "connector actions require a one-time approval card")
+    expect("function connectorIntent(text,files)" in html
+            and "function runConnectorIntent(raw,c,intent)" in html
+            and "if(intent){await runConnectorIntent(text,c,intent);return}" in html,
+            "plain-language connector intents run locally without model syntax")
+    expect('data-quick="check"' in html and 'data-quick="draft"' in html
+            and 'data-quick="connect"' in html and 'data-quick="monitor"' in html
+            and "function openConnectors(preset)" in html,
+            "quick buttons and guided setup use the same plain-language path")
+    expect("I cannot watch it in the background" in html
+            and "use your own iOS Shortcut or webhook" in html,
+            "monitor intent explains the foreground limit and offers user-owned automation")
     expect("cannot log into, read, post to, or manage any external account" in html
             and "publishing needs your own approved connector" in html
             and "cannot log into Instagram" in html,
@@ -222,6 +233,14 @@ localStorage.setItem('oracle.connectors.self',JSON.stringify({x:{id:'x',name:'My
 var parsed=parseConnectorRequest('Draft ready.\nCONNECTOR {"name":"My IG","action":"publish","text":"Hello","imageUrl":"https://img.test/a.jpg"}');
 var parseOk=!!parsed.request&&parsed.request.id==='x'&&parsed.request.action==='publish'&&parsed.clean.indexOf('CONNECTOR')<0;
 var noConnector=parseConnectorRequest('No action.').request===null;
+var ciCheck=connectorIntent('Check my Instagram',[]);
+var ciConnect=connectorIntent('Connect my Instagram',[]);
+var ciPublish=connectorIntent('Post this to Instagram https://img.test/a.jpg',[]);
+var ciMonitor=connectorIntent('Monitor my Instagram DMs',[]);
+var ciDraft=connectorIntent('Draft a social post about my comic',[]);
+var intentOk=ciCheck&&ciCheck.kind==='check'&&ciConnect&&ciConnect.kind==='connect'&&
+  ciPublish&&ciPublish.kind==='publish'&&ciPublish.imageUrl==='https://img.test/a.jpg'&&
+  ciMonitor&&ciMonitor.kind==='monitor'&&ciDraft===null;
 var payload=JSON.stringify({key:'k',state:{convs:convs,folders:folders,activeId:'a'}});
 var noTeamInCloud=payload.indexOf('oracle.teams.')<0;
 var noConnectorInCloud=payload.indexOf('connector.')<0;
@@ -239,7 +258,7 @@ JSON.stringify({social:social,identity:identity,q:q,xq:xq,off:off,
   pausedBlocked:pausedBlocked,rulePausedBlocked:rulePausedBlocked,scheduled:scheduled,
   once:once,noTeamInCloud:noTeamInCloud,deepOk:deepOk,mergeOk:mergeOk,
   parseOk:parseOk,noConnector:noConnector,noConnectorInCloud:noConnectorInCloud,
-  migrationOk:migrationOk});
+  intentOk:intentOk,migrationOk:migrationOk});
 '''
     fd, path = tempfile.mkstemp(suffix=".jsc", text=True)
     try:
@@ -302,8 +321,8 @@ def live_checks():
 
     status, headers, body = get(CANONICAL)
     h = {k.lower(): v for k, v in headers.items()}
-    expect(status == 200 and 'content="2026-11-27a"' in body,
-           "canonical serves build 2026-11-27a")
+    expect(status == 200 and 'content="2026-11-27b"' in body,
+           "canonical serves build 2026-11-27b")
     expect(h.get("cross-origin-opener-policy") == "same-origin" and
            h.get("cross-origin-embedder-policy") == "require-corp",
            "canonical still sends COOP/COEP")
@@ -311,8 +330,8 @@ def live_checks():
     expect(hashlib.sha256(raw(CANONICAL)).hexdigest() == sha(APP),
            "canonical app bytes match the local build")
     status, headers, body = get(BACKUP)
-    expect(status == 200 and 'content="2026-11-27a"' in body,
-           "backup serves build 2026-11-27a")
+    expect(status == 200 and 'content="2026-11-27b"' in body,
+           "backup serves build 2026-11-27b")
     expect(hashlib.sha256(raw(BACKUP)).hexdigest() == sha(APP),
            "backup app bytes match the local build")
     expect(headers.get("Cross-Origin-Opener-Policy") is None,
@@ -371,6 +390,7 @@ def main():
     expect(out["mergeOk"], "source dedupe drops repeated URLs")
     expect(out["parseOk"] and out["noConnector"], "connector requests create approval cards only")
     expect(out["noConnectorInCloud"], "connector state is excluded from cloud payloads")
+    expect(out["intentOk"], "plain phrases map to check, connect, publish and monitor intents")
     expect(out["migrationOk"], "saved chats migrate to the corrected bot wording")
     bridge_model_checks()
 

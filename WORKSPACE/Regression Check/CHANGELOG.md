@@ -3,6 +3,50 @@
 Record every change here before you make it, so there is always a clear trail
 between the frozen baseline and whatever is currently in the working file.
 
+## 2026-11-27b — Plain-language connector automation (published and verified)
+
+Status: **published and verified**. The owner said the exact connector wording was
+hard to remember and not user friendly, and wants Oracle to feel very user
+friendly and automated, like Grok. This build keeps the same device-local,
+approval-first safety but moves the complexity behind the scenes.
+
+Intended change:
+
+1. Add a local intent parser so normal phrases such as “connect my Instagram”,
+   “check my Instagram”, “post this to Instagram” and “monitor my DMs” are
+   understood without special syntax. No secret, token or account value is read
+   from the phrase; only the intent and optional public image URL are used.
+2. Auto-select the matching own-account connector on the device. A check or
+   publish intent creates the same approval card the model used to request, with
+   plain wording and Allow once / Deny only.
+3. If no matching connector exists, “connect my Instagram” opens My Connectors
+   with Instagram preselected; “check my Instagram” opens setup and explains
+   that Oracle uses the person's own account, never the owner's.
+4. Add compact quick buttons under the composer for Socials Bot and connector
+   chats: Check Instagram, Draft a post, Connect Instagram, and Set up
+   automation. They fill or run the same normal-language path.
+5. “Monitor my DMs / emails / Instagram” does not pretend to run in the
+   background. It answers plainly that one check is available now and offers a
+   Shortcuts/webhook handoff as the free, user-owned automation path.
+6. Keep the explicit `CONNECTOR {…}` line working for models as a fallback.
+   Guests, phone users and owner all get the same plain-language path; tokens
+   still remain encrypted on that person's device and never enter cloud state,
+   prompts, bridge logs or console.
+7. Extend the harness for the intent parser, auto connector selection, quick
+   buttons, honest monitoring answer and unchanged privacy gates. Bump the
+   marker to `2026-11-27b`, run local/live harnesses and browser smoke, verify
+   both SHAs and the unchanged worker, then re-freeze only after verification.
+   Physical iPhone confirmation stays a separate open checklist.
+
+Shipped in build `2026-11-27b`: local and live harness PASS; app SHA
+`1ee397885f4eee930cd77deef400feb362ce6b8559e95f74c2bfcfd765f032c5` verified byte-for-byte
+on the source, canonical and backup copies; service worker unchanged at
+`6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`; zero console
+errors on owner, guest, backup and bridge-host pages. Published in Pages commit
+`36f733a`. Plain phrases, quick buttons, guided setup, check/publish approval
+cards and the honest monitoring answer were verified in the browser. Physical
+iPhone confirmation remains a separate open checklist.
+
 ## 2026-11-27a — Deep Search, source cards, own-account connectors and truthful wording (published and verified)
 
 Status: **published and verified**. The owner asked for another Grok deep dive, then

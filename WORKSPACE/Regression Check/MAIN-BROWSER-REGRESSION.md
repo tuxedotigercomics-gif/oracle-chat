@@ -4,11 +4,21 @@ Run this on **Chrome, Edge or Safari on the Mac**, against the bridge-served app
 (`Oracle-Chat-Live.html` via `oracle_bridge.py`) and against
 `https://oracle-chat.pages.dev/`.
 
-Baseline SHA (live UI): `a640db6d59a509542d299986ea328fe4115bf50994d7a7a8fc93dc808039a4b0`
+Baseline SHA (live UI): `1ee397885f4eee930cd77deef400feb362ce6b8559e95f74c2bfcfd765f032c5`
 Rollback: `restore-live.command`
 
 > The phone-only checklist lives in `PHONE-BROWSER-REGRESSION.md`.
 > Voice-call fixes are marked **VOICE FIX 2026-11-19** below.
+
+## Plain-language connector automation — 2026-11-27b (harness + live + host smoke verified)
+- [x] Phrases like “connect my Instagram”, “check my Instagram” and “post this to Instagram” work without special syntax on owner, guest and host
+- [x] “Check” and “post” intents auto-select the matching device-local connector and show a plain Allow once / Deny approval card
+- [x] Missing connector opens guided setup with Instagram preselected; no owner account or token is offered to guests
+- [x] “Monitor my DMs/emails/Instagram” explains the foreground limit and offers a user-owned Shortcuts/webhook handoff instead of pretending to run in the background
+- [x] Quick buttons under the composer fill/run the same normal-language path and stay readable at desktop width
+- [x] Explicit `CONNECTOR` model requests still work as a fallback; tokens never enter prompts, cloud state, bridge logs or console
+- [x] Harness passes locally and live on both sites; service worker SHA unchanged; zero console errors on owner, guest and host pages
+- [x] Build `2026-11-27b` published with matching app SHAs, then baseline/restore/README re-frozen only after harness passes
 
 ## Deep Search, source cards + own-account connectors — 2026-11-27a (harness + live + host smoke verified)
 - [x] Chat More menu has a per-chat Deep Search toggle on owner/guest/host, default off, persisted in non-secret chat state only
