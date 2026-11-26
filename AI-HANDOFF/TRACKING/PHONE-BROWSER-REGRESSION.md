@@ -23,6 +23,8 @@ Rollback: `restore-live.command`
 - [x] Saved model, CPU load options, stage-tagged errors, voice/call, folders, hero colours and send/call visibility unchanged (harness)
 - [x] Build `2026-11-26a` is served by auto-update with unchanged worker SHA; zero console errors (harness + live)
 - [ ] Physical iPhone: confirm name/title/description fields, template gallery, role-aware opener, cloud-state fallback and the exact Idaho Falls lookup prompt at 320–430 px
+- [ ] Physical iPhone: confirm owner Teams & Triggers manager is hidden for guests, roles/chains render at 320–430 px, manual/keyword/schedule rules respect pause and approval, and guest sessions make no cloud-state write (pending)
+- [ ] Git-backed `WORKSPACE/` snapshot includes phone-affecting source and checklists; no device vault, guest session or runtime log data committed (pending)
 
 ## Full feature + UI audit — 2026-11-19 (phone/static)
 - [x] Static mode detected on `oracle-chat.pages.dev`; zero console errors

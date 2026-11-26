@@ -3,6 +3,36 @@
 Record every change here before you make it, so there is always a clear trail
 between the frozen baseline and whatever is currently in the working file.
 
+## 2026-11-26b — Team + trigger manager (planned)
+
+Status: **planned** — this entry exists before any code edits. The owner chose
+to build the team/trigger manager first, to keep any future guest connectors
+**own-accounts-only** with tokens on the guest device, and to stay on the free
+tier with no always-on cloud VM.
+
+Intended change:
+
+1. Add an owner-only **Teams & Triggers** manager for named bot teams with roles,
+   an ordered handoff chain, and active/paused state.
+2. Add trigger rules: **manual**, **keyword**, and **daily schedule**. Every
+   rule is owner-approved, pausable, and stored with non-secret owner state.
+3. Keep guests isolated: no team UI, no chain execution, and no cloud-state
+   writes. Static/phone owner sessions use device-local, per-session rules with
+   approval; host tool actions still use the existing owner approval path.
+4. Add safe runtime hooks that enqueue chain steps. On the free tier, scheduled
+   rules run while the app or owner bridge is active; there is no app-closed
+   cloud VM.
+5. Extend the harness for owner/guest gates, paused-rule enforcement, chain
+   order, and cloud-state exclusion of guest/vault data; verify both live sites
+   and the unchanged service worker.
+6. Publish a git-backed `WORKSPACE/` snapshot so another model or a new PC can
+   resume from the repo. Include source, frozen/offline files, baselines,
+   bridge/browser/routine scripts, harnesses, regression docs, icons and
+   runtime scripts. Exclude `.oracle-venv`, caches, OS files, local logs,
+   `.oracle-backups`, and live `oracle-shared/sessions.json` because those are
+   machine-local runtime/session data, not source. Record a SHA manifest.
+7. Bump the build marker to `2026-11-26b` only after local and live tests pass.
+
 ## 2026-11-26 — Grok Bot parity (published and verified)
 
 Status: **published and verified** — build `2026-11-21m` → `2026-11-26a`.

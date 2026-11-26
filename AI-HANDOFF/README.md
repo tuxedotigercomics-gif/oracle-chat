@@ -103,6 +103,7 @@ touching any image code.
 | `CLOUD-VM-SETUP.md` | One-time free D1 `ORACLE_DB` binding and verification |
 | `IMAGE-GENERATION-HISTORY.md` | Every image build, what failed, and why we stopped |
 | `TRACKING/` | Snapshots of the changelog, both regression checklists, active SHA index and rollback script |
+| `WORKSPACE/` | Git-backed snapshot of the wider Mac workspace: source, bridge, harness, baselines, knowledge and dev assets; runtime logs, sessions, caches and virtualenv excluded |
 
 The `TRACKING/` files are snapshots. The authoritative working copies live in
 the original Mac workspace at `/Users/macbookair/Documents/Default Project/Regression Check/`.

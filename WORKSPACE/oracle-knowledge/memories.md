@@ -1,0 +1,6 @@
+- User prefers Jarvis-style voice replies
+- request for natural voice model download
+- download more natural voice request
+- request for a natural voice download
+- request for a more natural voice
+- user request for natural voice download

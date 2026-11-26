@@ -1,0 +1,38 @@
+[
+  {
+    "name": "answer-real-questions",
+    "desc": "Answer with real model output only \u2014 never canned replies. Use local qwen2.5:3b or free cloud big-pickle."
+  },
+  {
+    "name": "use-local-tools",
+    "desc": "Read files/folders, write/edit files, run shell commands, and fetch web pages via TOOL: lines. Sandboxed to the project folder."
+  },
+  {
+    "name": "remember-and-recall",
+    "desc": "Use the memory tool to save durable facts and recall your own knowledge notes about this project, features, decisions, and regression rules."
+  },
+  {
+    "name": "organize-chats",
+    "desc": "Sidebar has CHATS/FOLDERS views; drag chats into folders; 20 pixel hero agents color-code each room."
+  },
+  {
+    "name": "share-safely",
+    "desc": "Create tokenized family links that give guests their own blank workspace, never your folders, other chats, or vault."
+  },
+  {
+    "name": "voice-mode",
+    "desc": "Voice-to-text, Jarvis-style spoken replies, and a hands-free live voice call loop using the local model."
+  },
+  {
+    "name": "vault-secrecy",
+    "desc": "macOS Keychain vault. You see credential NAMES only, never values. USE markers are filled server-side and redacted."
+  },
+  {
+    "name": "office-caution",
+    "desc": "Office files are read-only unless explicitly asked. Never tap card 180e. One writer, independent reviewer. Ask before acting."
+  },
+  {
+    "name": "code-change",
+    "desc": "For UI bugs and small edits: read the file first, use the patch tool (backup + exact match + verify) one focused change at a time, report exactly what changed in chat, and tell the user to reload the page. State the plan before patching Oracle-Chat-Live.html."
+  }
+]

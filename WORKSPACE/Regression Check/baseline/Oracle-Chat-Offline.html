@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Oracle · Chat (Offline)</title>
+<style>
+  :root{
+    --sidebar-bg:#f5f5f5; --sidebar-active:#e4e4e4; --sidebar-hover:#ececec;
+    --main-bg:#f0f0f0; --surface:#fff; --border:#e2e2e2;
+    --text:#1f1f1f; --muted:#6b6b6b; --accent:#4a9861;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--main-bg);-webkit-font-smoothing:antialiased}
+  button,input,textarea{font:inherit;color:inherit}
+  .app{display:flex;height:100vh;width:100%;overflow:hidden}
+
+  /* Sidebar */
+  .sidebar{width:20%;min-width:230px;max-width:320px;background:var(--sidebar-bg);border-right:1px solid var(--border);display:flex;flex-direction:column}
+  .sidebar-top{display:flex;align-items:center;justify-content:space-between;padding:14px 14px 10px}
+  .workspace{display:flex;align-items:baseline;gap:4px;min-width:0}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);align-self:center;margin-right:2px}
+  .workspace-name{font-weight:650;font-size:15px}
+  .workspace-sub{color:var(--muted);font-size:13px}
+  .icon-btn{background:transparent;border:none;border-radius:8px;padding:6px;cursor:pointer;color:var(--muted);display:inline-flex;align-items:center;justify-content:center}
+  .icon-btn:hover{background:var(--sidebar-hover);color:var(--text)}
+  .conv-list{flex:1;overflow-y:auto;padding:4px 8px}
+  .conv{display:flex;flex-direction:column;align-items:flex-start;width:100%;text-align:left;background:transparent;border:none;border-radius:10px;padding:9px 10px;margin-bottom:2px;cursor:pointer}
+  .conv:hover{background:var(--sidebar-hover)}
+  .conv.active{background:var(--sidebar-active)}
+  .conv-name{font-size:13.5px;font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .conv-preview{font-size:12.5px;color:var(--muted);line-height:1.3;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .profile{display:flex;align-items:center;gap:10px;padding:12px 14px;border-top:1px solid var(--border)}
+  .avatar{width:32px;height:32px;border-radius:50%;background:#d8d8d8;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+  .profile-info{display:flex;flex-direction:column;min-width:0}
+  .profile-name{font-size:13px;font-weight:600}
+  .profile-sub{font-size:11.5px;color:var(--muted)}
+  .badge{margin-left:auto;background:#dcdcdc;color:#444;font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px}
+
+  /* Main */
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--main-bg)}
+  .chat-header{height:56px;flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px;position:relative;z-index:30}
+  .chat-title-name{font-size:15px;font-weight:650}
+  .header-actions{display:flex;align-items:center;gap:8px}
+  .model-pill{display:inline-flex;align-items:center;gap:6px;background:#f6f6f6;border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12.5px;cursor:pointer}
+  .model-pill:hover{background:#efefef}
+  .model-pill .mname{font-weight:600}
+  .model-pill .caret{color:var(--muted);font-size:10px}
+  .share-btn{display:inline-flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer}
+  .share-btn:hover{background:var(--main-bg)}
+  .messages{flex:1;overflow-y:auto;padding:24px 20px}
+  .messages-inner{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+  .row{display:flex}
+  .row.user{justify-content:flex-start}
+  .row.bot{justify-content:flex-end}
+  .bubble{max-width:78%;padding:11px 15px;border-radius:16px;font-size:14px;line-height:1.5;white-space:pre-wrap}
+  .bubble.user{background:transparent;padding-left:0}
+  .bubble.bot{background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+  .att-line{font-size:12px;color:var(--muted);margin-top:6px}
+  .status{font-size:12.5px;color:var(--muted);font-style:italic;align-self:flex-start;padding-left:2px}
+  .composer-wrap{flex-shrink:0;width:calc(100% - 40px);max-width:760px;margin:0 auto 18px}
+  .attach-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+  .attach-chip{display:inline-flex;align-items:center;gap:6px;background:#e8e8e8;border-radius:8px;padding:4px 8px;font-size:12px}
+  .attach-chip button{background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;line-height:1;padding:0}
+  .composer{background:var(--surface);border:1px solid var(--border);border-radius:14px;display:flex;align-items:center;gap:8px;padding:8px 10px;box-shadow:0 2px 10px rgba(0,0,0,.04);position:relative}
+  .composer-plus{background:transparent;border:none;border-radius:8px;padding:6px;cursor:pointer;color:var(--muted);display:flex}
+  .composer-plus:hover,.composer-plus.open{background:var(--main-bg);color:var(--text)}
+  .composer input{flex:1;border:none;outline:none;background:transparent;font-size:14px;padding:6px 4px}
+  .composer input::placeholder{color:#9a9a9a}
+  .composer-send{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:7px 9px;cursor:pointer;display:flex}
+  .composer-send:disabled{background:#cfcfcf;cursor:default}
+
+  /* Menus / modal */
+  .backdrop{position:fixed;inset:0;z-index:40}
+  .dropdown{position:absolute;z-index:50;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.14);padding:6px;min-width:190px}
+  .dropdown.model{top:48px;right:20px}
+  .dropdown.plus{bottom:54px;left:10px}
+  .menu-item{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:none;border-radius:8px;padding:9px 10px;font-size:13.5px;cursor:pointer}
+  .menu-item:hover{background:var(--main-bg)}
+  .menu-item .mi-sub{display:block;font-size:11.5px;color:var(--muted);margin-top:1px}
+  .menu-item .cnt{margin-left:auto;background:var(--accent);color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px}
+  .menu-sep{height:1px;background:var(--border);margin:5px 4px}
+  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:60}
+  .modal{background:#fff;border-radius:16px;padding:22px;width:min(420px,90vw);box-shadow:0 12px 40px rgba(0,0,0,.2)}
+  .modal h3{margin:0 0 4px;font-size:17px}
+  .modal p{margin:0 0 16px;font-size:13px;color:var(--muted)}
+  .modal label{display:block;font-size:12.5px;font-weight:600;margin:12px 0 5px}
+  .modal input,.modal textarea{width:100%;border:1px solid var(--border);border-radius:8px;padding:9px 10px;font-size:13.5px;outline:none;resize:vertical}
+  .modal input:focus,.modal textarea:focus{border-color:var(--accent)}
+  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+  .btn{border:1px solid var(--border);background:#fff;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:80;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+  svg{flex-shrink:0}
+  @media(max-width:640px){.sidebar{display:none}.messages{padding:16px 12px}.composer-wrap{width:calc(100% - 24px)}}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+
+<script>
+const ICONS={
+  search:'<circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/>',
+  edit:'<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  share:'<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.5" x2="15.4" y2="6.5"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/>',
+  more:'<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
+  plus:'<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  arrow:'<line x1="22" y1="12" x2="4" y2="12"/><polyline points="10 6 4 12 10 18"/>',
+  file:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><polyline points="14 2 14 8 20 8"/>',
+  spark:'<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8Z"/><path d="M19 16l.7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7Z"/>',
+};
+function icon(name,size=18){return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]}</svg>`}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+
+const MODELS=[
+  {id:'qwen-coder-30b', name:'Qwen Coder 30B', sub:'fast worker'},
+  {id:'qwen3.6-27b', name:'Qwen3.6 27B', sub:'hard bugs · current'},
+  {id:'qwen3.8-27b', name:'Qwen3.8 27B', sub:'successor'},
+  {id:'qwen3.8-flash', name:'Qwen3.8 Flash Next', sub:'long context'},
+  {id:'qwen3.6-35b-a3b', name:'Qwen3.6 35B-A3B', sub:'fast · sparse'},
+];
+
+const conversations=[
+  {id:'icona-lives-website-bot',name:'Icona Lives Website Bot',preview:'Got it. Everything live stays fr…',messages:[
+    {from:'user',text:"don't match their pre-change hashes. Both were changed at 12:44 PM with your 12:42 approval, and the backup copies differ, as expected."},
+    {from:'user',text:'Nothing live has changed since 12:44, and scripts/chat-responder.py is unchanged since 10:33 AM. So the label fix and the card cleanup are now active.'},
+    {from:'bot',text:'Thanks — that clears up the live state. Current state accepted: live has only the label fix and card cleanup; responder PID 47461 restarted at 1:14:33; card 180e is untouched.'},
+    {from:'bot',text:'Keep all live actions frozen. Do not tap card 180e, send test requests, restart again, or roll back unless I approve after review.'},
+    {from:'user',text:'Got it. Everything live stays frozen, and the corrected report will include the live-state timeline with proof alongside the 12 staging and isolation items.'},
+  ]},
+  {id:'socials-bot',name:'Socials Bot',preview:'Billionaire mentor and Jordan …',messages:[
+    {from:'user',text:'Can you queue tonight’s posts?'},
+    {from:'bot',text:'Billionaire mentor and Jordan the Outreach Bot threads are drafted. Ready for your review.'},
+  ]},
+  {id:'icona-live-assistant',name:'Icona Live Assistant',preview:'I fixed the names on both of…',messages:[
+    {from:'user',text:'The names still look wrong.'},
+    {from:'bot',text:'I fixed the names on both of the live cards. They should now match the roster.'},
+  ]},
+  {id:'jordan-outreach',name:'Jordan the Outreach Bot',preview:'Someone liked a comment…',messages:[
+    {from:'bot',text:'Someone liked a comment on your last outreach post. Want me to reply?'},
+  ]},
+  {id:'ebay-bot',name:'Ebay bot • Handles eBay re…',preview:'The “Partially refunded” label…',messages:[
+    {from:'bot',text:'The “Partially refunded” label was applied to three orders. Reviewing them now.'},
+  ]},
+  {id:'pip',name:'Pip',preview:'Dani’s email is ready to send f…',messages:[
+    {from:'bot',text:'Dani’s email is ready to send for your approval.'},
+  ]},
+  {id:'finance-bot',name:'Finance Bot',preview:'Tesla’s deadline is today. T…',messages:[
+    {from:'bot',text:'Tesla’s deadline is today. The payment needs to go out before 5 PM.'},
+  ]},
+  {id:'billionaire-mentor',name:'Billionaire mentor',preview:'Tuxedo is at $439.84 net for t…',messages:[
+    {from:'bot',text:'Tuxedo is at $439.84 net for the week. Want the full breakdown?'},
+  ]},
+  {id:'icona-how-to',name:'Icona How-To Clips',preview:'This week’s video is ready. It’s…',messages:[
+    {from:'bot',text:'This week’s video is ready. It’s queued for review.'},
+  ]},
+  {id:'therapist',name:'Therapist',preview:'Hi Michael, it’s time for We…',messages:[
+    {from:'bot',text:'Hi Michael, it’s time for your weekly check-in. How have you been?'},
+  ]},
+  {id:'ads-research',name:'Ads Research Manager',preview:'I sent Oracle a short write-up…',messages:[
+    {from:'bot',text:'I sent Oracle a short write-up of the ad tests from this week.'},
+  ]},
+  {id:'icona-growth',name:'Icona Growth',preview:'Sellers are slow this week, Mi…',messages:[
+    {from:'bot',text:'Sellers are slow this week, Michael. I pulled a few ideas to help.'},
+  ]},
+  {id:'michael-lynch',name:'Michael Lynch',preview:'87',messages:[
+    {from:'bot',text:'You have 87 unread items across your bots.'},
+  ]},
+];
+
+let activeId=conversations[0].id;
+let compiling=false;
+let draft='';
+let plusOpen=false;
+let modelOpen=false;
+let modalOpen=false;
+let modelId=localStorage.getItem('oracle-model')||'qwen3.6-27b';
+let skills=JSON.parse(localStorage.getItem('oracle-skills')||'[]');
+let attachments=[];
+let toastTimer=null;
+
+function active(){return conversations.find(c=>c.id===activeId)||conversations[0]}
+function currentModel(){return MODELS.find(m=>m.id===modelId)||MODELS[0]}
+function showToast(msg){
+  document.getElementById('app').insertAdjacentHTML('beforeend',`<div class="toast" id="toast">${esc(msg)}</div>`);
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>{const t=document.getElementById('toast');if(t)t.remove()},2200);
+}
+
+function render(){
+  const c=active();
+  const cm=currentModel();
+  const convs=conversations.map(x=>`<button class="conv ${x.id===activeId?'active':''}" data-id="${esc(x.id)}">
+      <span class="conv-name">${esc(x.name)}</span><span class="conv-preview">${esc(x.preview)}</span></button>`).join('');
+  const msgs=c.messages.map(m=>`<div class="row ${m.from}"><div class="bubble ${m.from}">${esc(m.text)}${m.att?'<div class="att-line">📎 '+esc(m.att)+'</div>':''}</div></div>`).join('');
+  const chips=attachments.length?`<div class="attach-chips">${attachments.map((a,i)=>`<span class="attach-chip">📎 ${esc(a)} <button data-rm="${i}" title="Remove">×</button></span>`).join('')}</div>`:'';
+
+  document.getElementById('app').innerHTML=`
+    <aside class="sidebar">
+      <div class="sidebar-top">
+        <div class="workspace"><span class="dot"></span><span class="workspace-name">Oracle</span><span class="workspace-sub">• Open</span></div>
+        <div><button class="icon-btn" title="Search">${icon('search')}</button><button class="icon-btn" title="New chat">${icon('edit')}</button></div>
+      </div>
+      <nav class="conv-list">${convs}</nav>
+      <div class="profile">
+        <div class="avatar">ML</div>
+        <div class="profile-info"><span class="profile-name">Michael Lynch</span><span class="profile-sub">Personal workspace</span></div>
+        <span class="badge">87</span>
+      </div>
+    </aside>
+    <main class="main">
+      <header class="chat-header">
+        <div class="chat-title-name">${esc(c.name)}</div>
+        <div class="header-actions">
+          <button class="model-pill" id="modelPill"><span class="mname">${esc(cm.name)}</span><span class="caret">▾</span></button>
+          <button class="icon-btn" title="More">${icon('more')}</button>
+          <button class="share-btn">${icon('share',16)} Share</button>
+          ${modelOpen?`<div class="dropdown model">
+            ${MODELS.map(m=>`<button class="menu-item" data-model="${m.id}">
+              <span>${m.id===modelId?'✓':'&nbsp;&nbsp;'}</span>
+              <span><strong>${esc(m.name)}</strong><span class="mi-sub">${esc(m.sub)}</span></span></button>`).join('')}
+          </div>`:''}
+        </div>
+      </header>
+      <div class="messages" id="messages"><div class="messages-inner">
+        ${msgs}${compiling?'<div class="status">Compiling report items…</div>':''}
+      </div></div>
+      <div class="composer-wrap">
+        ${chips}
+        <form class="composer" id="composer">
+          <button type="button" class="composer-plus ${plusOpen?'open':''}" id="plusBtn" title="Add">${icon('plus')}</button>
+          <input id="draft" value="${esc(draft)}" placeholder="Message ${esc(c.name)}" autocomplete="off" />
+          <button type="submit" class="composer-send" id="send" title="Send" ${draft.trim()?'':'disabled'}>${icon('arrow')}</button>
+          ${plusOpen?`<div class="dropdown plus">
+            <button class="menu-item" id="attachItem">${icon('file',18)}<span><strong>Attach a file</strong><span class="mi-sub">Add a file to this chat</span></span></button>
+            <div class="menu-sep"></div>
+            <button class="menu-item" id="skillItem">${icon('spark',18)}<span><strong>Teach a Skill</strong><span class="mi-sub">Give the bot a new skill</span></span>${skills.length?`<span class="cnt">${skills.length}</span>`:''}</button>
+          </div>`:''}
+        </form>
+      </div>
+    </main>
+    ${(plusOpen||modelOpen)?'<div class="backdrop" id="backdrop"></div>':''}
+    ${modalOpen?`<div class="modal-backdrop" id="modalBackdrop"><div class="modal" id="modal">
+      <h3>Teach a Skill</h3><p>Save a skill for this bot to use later.</p>
+      <form id="skillForm">
+        <label>Skill name</label><input id="skillName" placeholder="e.g. Summarize reports" required />
+        <label>Instructions</label><textarea id="skillDesc" rows="3" placeholder="What should the bot do?"></textarea>
+        <div class="modal-actions"><button type="button" class="btn" id="skillCancel">Cancel</button><button type="submit" class="btn primary">Save skill</button></div>
+      </form>
+    </div></div>`:''}
+    <input type="file" id="fileInput" style="display:none" multiple />`;
+
+  const m=document.getElementById('messages'); if(m) m.scrollTop=m.scrollHeight;
+  bind();
+}
+
+function bind(){
+  document.querySelectorAll('.conv').forEach(b=>b.addEventListener('click',()=>{
+    activeId=b.dataset.id; compiling=false; draft=''; plusOpen=false; modelOpen=false; render();
+  }));
+
+  document.getElementById('modelPill').addEventListener('click',e=>{
+    e.stopPropagation(); modelOpen=!modelOpen; plusOpen=false; render();
+  });
+  document.querySelectorAll('[data-model]').forEach(b=>b.addEventListener('click',()=>{
+    modelId=b.dataset.model; localStorage.setItem('oracle-model',modelId);
+    modelOpen=false; render(); showToast('Model: '+currentModel().name);
+  }));
+
+  const plus=document.getElementById('plusBtn');
+  plus.addEventListener('click',e=>{ e.stopPropagation(); plusOpen=!plusOpen; modelOpen=false; render(); });
+
+  const attach=document.getElementById('attachItem');
+  if(attach) attach.addEventListener('click',e=>{
+    e.stopPropagation(); plusOpen=false; render();
+    document.getElementById('fileInput').click();
+  });
+  const skill=document.getElementById('skillItem');
+  if(skill) skill.addEventListener('click',e=>{
+    e.stopPropagation(); plusOpen=false; modalOpen=true; render();
+    setTimeout(()=>document.getElementById('skillName')?.focus(),0);
+  });
+
+  const backdrop=document.getElementById('backdrop');
+  if(backdrop) backdrop.addEventListener('click',()=>{plusOpen=false;modelOpen=false;render()});
+
+  document.getElementById('fileInput').addEventListener('change',e=>{
+    const files=[...e.target.files].map(f=>f.name);
+    if(files.length){attachments.push(...files);render();showToast('Attached '+files.length+' file'+(files.length>1?'s':''));}
+    e.target.value='';
+  });
+  document.querySelectorAll('[data-rm]').forEach(b=>b.addEventListener('click',()=>{
+    attachments.splice(Number(b.dataset.rm),1); render();
+  }));
+
+  const mc=document.getElementById('skillCancel');
+  if(mc) mc.addEventListener('click',()=>{modalOpen=false;render()});
+  const mb=document.getElementById('modalBackdrop');
+  if(mb) mb.addEventListener('click',e=>{if(e.target===mb){modalOpen=false;render()}});
+  const sf=document.getElementById('skillForm');
+  if(sf) sf.addEventListener('submit',e=>{
+    e.preventDefault();
+    const name=document.getElementById('skillName').value.trim();
+    const desc=document.getElementById('skillDesc').value.trim();
+    if(!name) return;
+    skills.push({name,desc}); localStorage.setItem('oracle-skills',JSON.stringify(skills));
+    modalOpen=false; render(); showToast('Skill saved: '+name);
+  });
+
+  const input=document.getElementById('draft');
+  const send=document.getElementById('send');
+  input.addEventListener('input',()=>{draft=input.value;send.disabled=!draft.trim()});
+  document.getElementById('composer').addEventListener('submit',e=>{
+    e.preventDefault();
+    const text=draft.trim(); if(!text) return;
+    const att=attachments.length?attachments.join(', '):'';
+    c.messages.push({from:'user',text,att}); c.preview=text;
+    draft=''; attachments=[]; compiling=true; render();
+    setTimeout(()=>{
+      const cur=active();
+      cur.messages.push({from:'bot',text:'Got it — I’ll take a look and get back to you.'});
+      cur.preview='Got it — I’ll take a look…';
+      compiling=false; render();
+    },900);
+  });
+  input.focus();
+}
+render();
+</script>
+</body>
+</html>

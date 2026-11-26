@@ -1,0 +1,10 @@
+{
+  "name": "Oracle Chat",
+  "short_name": "Oracle",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f0f0f0",
+  "theme_color": "#4a9861",
+  "icons": []
+}
