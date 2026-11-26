@@ -4,7 +4,7 @@ Run this on **Chrome, Edge or Safari on the Mac**, against the bridge-served app
 (`Oracle-Chat-Live.html` via `oracle_bridge.py`) and against
 `https://oracle-chat.pages.dev/`.
 
-Baseline SHA (live UI): `5b804997b2c63475a4314c36ffe2806bbf5e246e01017f490fe66d0cfabb7db4`
+Baseline SHA (live UI): `230ae9cad770e595506da9b694ac73d81f96bd6ffb6341917784145d1d5f7953`
 Rollback: `restore-live.command`
 
 > The phone-only checklist lives in `PHONE-BROWSER-REGRESSION.md`.

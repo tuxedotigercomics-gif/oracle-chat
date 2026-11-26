@@ -61,7 +61,11 @@ browser console errors on owner and guest pages. Pages commits: `e736d02`
 The live rollback baseline and restore script were refreshed only after those
 checks. One UI bug was caught in live browser testing — the rule form wrapped a
 single raw rule in `teamValidate()` incorrectly — and fixed with a dedicated
-`teamRule()` helper before final publication.
+`teamRule()` helper before final publication. The owner then confirmed on a
+physical iPhone that Home Screen auto-update, the exact Idaho Falls lookup
+prompt, Socials Bot fields/template, the single seeded Oracle Bot guide room,
+guest-hidden Teams & Triggers, and pause/approval behaviour all work at
+320–430 px; the phone checklist is now fully complete.
 
 ## 2026-11-26 — Grok Bot parity (published and verified)
 

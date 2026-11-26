@@ -4,14 +4,14 @@ Run this at **320 / 360 / 390 / 430 px** on the real iPhone in Safari, and in
 an emulated iPhone viewport against `https://oracle-chat.pages.dev/`.
 The backup host is `https://tuxedotigercomics-gif.github.io/oracle-chat/`.
 
-Baseline SHA (live UI): `5b804997b2c63475a4314c36ffe2806bbf5e246e01017f490fe66d0cfabb7db4`
+Baseline SHA (live UI): `230ae9cad770e595506da9b694ac73d81f96bd6ffb6341917784145d1d5f7953`
 Service-worker SHA: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`
 Rollback: `restore-live.command`
 
 > The desktop/host checklist lives in `MAIN-BROWSER-REGRESSION.md`.
 > Voice-call fixes are marked **VOICE FIX 2026-11-19** below.
 
-## Grok Bot parity — 2026-11-26a (harness + live verified; physical device pass open)
+## Grok Bot parity — 2026-11-26a / 2026-11-26b (harness, live and physical device verified)
 - [x] New room opener is role-aware and stays local/offline on iPhone/Safari (harness)
 - [x] Name/Title/Description fields and template gallery use responsive layouts with no horizontal overflow in emulation (harness)
 - [x] Per-bot preferences are device-local and never exposed to guests (harness)
@@ -22,11 +22,11 @@ Rollback: `restore-live.command`
 - [x] `site:x.com` lookup uses the canonical proxy; backup and explicit off/offline make zero proxy fetches (harness + live)
 - [x] Saved model, CPU load options, stage-tagged errors, voice/call, folders, hero colours and send/call visibility unchanged (harness)
 - [x] Build `2026-11-26a` is served by auto-update with unchanged worker SHA; zero console errors (harness + live)
-- [ ] Physical iPhone: confirm name/title/description fields, template gallery, role-aware opener, cloud-state fallback and the exact Idaho Falls lookup prompt at 320–430 px
-- [ ] Physical iPhone: confirm owner Teams & Triggers manager is hidden for guests, roles/chains render at 320–430 px, manual/keyword/schedule rules respect pause and approval, and guest sessions make no cloud-state write (harness + live guest browser passed; physical 320–430 px confirmation still open)
+- [x] Physical iPhone: confirmed name/title/description fields, template gallery, role-aware opener, cloud-state fallback and the exact Idaho Falls lookup prompt at 320–430 px
+- [x] Physical iPhone: confirmed owner Teams & Triggers manager is hidden for guests, roles/chains render at 320–430 px, manual/keyword/schedule rules respect pause and approval, and guest sessions make no cloud-state write
 - [x] Owner cloud label updates from bridge status to the active free model; guests and phone device models are unchanged by the cloud-model pull (harness + live owner/guest browser)
 - [x] Personal-assistant connector policy is own-accounts-only for every person; bot-scoped chat consent can widen privileges only after explicit owner/guest approval in a later connector build (policy recorded, connectors deferred)
-- [ ] Physical iPhone/guest: one seeded Oracle Bot room appears with the pre-made guide, does not duplicate on reload, and explains voice/call, folders, routines, Teams & Triggers and approval-first bug fixes (harness + live guest browser passed; physical confirmation still open)
+- [x] Physical iPhone/guest: confirmed one seeded Oracle Bot room appears with the pre-made guide, does not duplicate on reload, and explains voice/call, folders, routines, Teams & Triggers and approval-first bug fixes
 - [x] Git-backed `WORKSPACE/` snapshot includes phone-affecting source and checklists; no device vault, guest session or runtime log data committed
 - [x] Build `2026-11-26b` served by the unchanged service worker on both sites with zero console errors (harness + live)
 
