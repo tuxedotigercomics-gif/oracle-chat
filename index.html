@@ -628,6 +628,29 @@ function ensureOracleBot(){
   if(!folders.some(f=>f.id==='general'))folders.unshift({id:'general',name:guestMode?'My Chats':'Oracle',open:true});
   convs.push(oracleBotConversation());saveState();return true;
 }
+// Saved workspaces keep their chat text, so older seeded wording would otherwise
+// survive a build update. Replace only the exact old built-in wording; custom
+// names, notes, preferences and user messages are left untouched.
+function migrateSeededWording(){
+  let changed=false;
+  const social=(BOT_TEMPLATES.find(x=>x.id==='socials')||{}).desc||'';
+  const oldSocial=/Plan, draft and\s+review social posts/i;
+  for(const c of convs){
+    if(!c)continue;
+    if(String(c.name).trim()==='Socials Bot'){
+      if(oldSocial.test(String(c.desc||''))||!c.desc){c.desc=social;changed=true}
+      if(oldSocial.test(String(c.preview||''))){c.preview=social.slice(0,40);changed=true}
+    }
+    if(c.id===ORACLE_BOT_ID||String(c.name).trim()==='Oracle Bot'){
+      const first=c.messages&&c.messages[0];
+      if(first&&first.from==='bot'&&/^Hi — I'm Oracle Bot, your built-in guide/.test(String(first.text||''))){
+        first.text=oracleBotGuide();c.preview='How to use Oracle — ask me anything';changed=true;
+      }
+    }
+  }
+  if(changed)saveState();
+  return changed;
+}
 // A phone tab can be killed while a model loads. If the saved chat ends on a
 // user message, offer to resend it instead of silently losing the question.
 function interruptedConv(){
@@ -3849,6 +3872,7 @@ document.addEventListener('keydown',e=>{
   // after cloud/local restore so an existing workspace cannot miss it and an
   // older saved state cannot create a duplicate.
   ensureOracleBot();
+  migrateSeededWording();
   await gvInit();
   // Team rules are owner-only and stay in this browser. Schedules run only while
   // this app is open; there is no app-closed cloud VM on the free tier.
