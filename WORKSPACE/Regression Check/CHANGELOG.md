@@ -3,7 +3,7 @@
 Record every change here before you make it, so there is always a clear trail
 between the frozen baseline and whatever is currently in the working file.
 
-## 2026-11-29 — Approval inbox, bot gallery, local Library, template share and more routines (planned before edits)
+## 2026-11-29 — Approval inbox, bot gallery, local Library, template share and more routines (published and verified)
 
 Status: **published and verified** (planned before edits). After re-reading the
 Grok Bot video, the owner said to do whatever is best for the app and then
