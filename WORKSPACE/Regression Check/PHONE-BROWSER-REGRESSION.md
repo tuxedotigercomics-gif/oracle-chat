@@ -11,13 +11,13 @@ Rollback: `restore-live.command`
 > The desktop/host checklist lives in `MAIN-BROWSER-REGRESSION.md`.
 > Voice-call fixes are marked **VOICE FIX 2026-11-19** below.
 
-## iPhone composer zoom and keyboard reset — 2026-11-30 (harness + live + 320–430 px emulation verified; physical pass open)
+## iPhone composer zoom and keyboard reset — 2026-11-30 (harness + live + emulation + physical iPhone verified)
 - [x] Composer and modal text fields stay 16px at 320–430 px with no Safari focus zoom (emulated)
 - [x] Send closes the keyboard without a second check tap and leaves the page fitted (emulated)
 - [x] Keyboard’s Send key submits the message (emulated)
 - [x] Existing approvals, bot gallery, Library, template share, routines and backup host remain reachable (emulated)
 - [x] Harness, live harness and 320–430 px emulation pass; physical iPhone pass open
-- [ ] Physical iPhone pass: tap the field, type, send, and confirm no zoom and no check/pinch cleanup
+- [x] Physical iPhone pass: tap the field, type, send, and confirm no zoom and no check/pinch cleanup
 
 ## Approval inbox, bot gallery, local Library, template share and more routines — 2026-11-29 (harness + live + emulation + physical iPhone verified)
 - [x] Approval inbox rows and Allow once / Deny, Edit / Copy / Publish / Cancel controls fit 320–430 px and reach the original chat card (emulated)

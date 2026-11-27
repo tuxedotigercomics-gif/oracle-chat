@@ -3,6 +3,16 @@
 Record every change here before you make it, so there is always a clear trail
 between the frozen baseline and whatever is currently in the working file.
 
+## 2026-11-30 — Physical iPhone Safari pass confirmed (documentation closeout)
+
+Status: **verified**. The owner opened the canonical build on a physical iPhone
+in Safari and confirmed the fix: tapping the message field no longer zooms the
+page, and sending closes the keyboard without the check/pinch cleanup. No app
+file changed; the app SHA stays
+`7f610c0fd4d76befb9f23ed93b3ee71c7d3b3f0a2f55a726dc29a5442ce5d17b`. This closes
+the physical box for build `2026-11-30` only. Older physical-device boxes remain
+open until each flow is separately confirmed.
+
 ## 2026-11-30 — Stop iPhone composer zoom and keyboard reset (published and verified)
 
 Status: **published and verified** (planned before edits). The owner reported that tapping the message
@@ -38,8 +48,8 @@ focus zoom, no post-send refocus and no horizontal overflow. Owner and guest
 pages had zero console errors; the backup host only showed its known static-host
 `/api/cloud-state` 404/405 and the bridge host only showed its known missing
 manifest asset, with no app error. Baseline, rollback, README, workspace snapshot
-and manifest were re-frozen only after those checks passed. Physical iPhone
-confirmation for this new build remains open.
+and manifest were re-frozen only after those checks passed. The physical iPhone
+confirmation was later reported fixed and closed separately.
 
 ## 2026-11-29 — Physical iPhone Safari pass confirmed (documentation closeout)
 
