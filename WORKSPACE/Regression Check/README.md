@@ -95,9 +95,9 @@ catalog, device-local bot desks and copyable routine templates. The config-gated
 free Pages callback at `oracle-pages/functions/api/instagram-oauth/callback.js`
 from `2026-11-27c` is unchanged and stays honestly “Not configured” until the
 owner supplies the Meta App ID, server-side app secret, redirect URI and scopes
-as Pages secrets. No client secret exists in the app, chat, console, cloud state,
-bridge or prompts, and the physical iPhone Safari confirmation remains a separate
-open checklist.
+as Pages secrets. No client secret exists in the app, chat, console, cloud state
+or prompts. The physical iPhone Safari pass for build `2026-11-29` is confirmed;
+older physical-device boxes remain separately open.
 
 The original offline mockup baseline and its SHA-256 are preserved unchanged
 for layout comparison and historical rollback via `restore.command`.

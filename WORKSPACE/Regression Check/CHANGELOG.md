@@ -3,6 +3,16 @@
 Record every change here before you make it, so there is always a clear trail
 between the frozen baseline and whatever is currently in the working file.
 
+## 2026-11-29 — Physical iPhone Safari pass confirmed (documentation closeout)
+
+Status: **verified**. The owner opened the canonical build on a physical iPhone
+in Safari and reported that everything looked good. The pass covered the owner
+view, guest share, backup host, approval inbox, starter bot gallery, Library,
+bot template import and copied routine steps. No app file changed; the app SHA
+stays `2e3fd5470804d6f1427de0959d05dc1ec36b193edf01c94002792f85b952f985`. This
+closes the physical box for build `2026-11-29` only. Older physical-device boxes
+remain open until each flow is separately confirmed.
+
 ## 2026-11-29 — Approval inbox, bot gallery, local Library, template share and more routines (published and verified)
 
 Status: **published and verified** (planned before edits). After re-reading the
@@ -56,9 +66,10 @@ and the frozen mockup at
 Published in Pages commit `2b11d59`; zero console errors on owner, guest, backup
 and bridge-host pages. Emulated 320/360/390/430 px checks confirmed no horizontal
 overflow and reachable approval inbox, starter gallery, Library, template
-share/import and routine controls on owner and guest sessions; the physical
-iPhone Safari pass remains a separate open checklist. Baseline, rollback, README,
-workspace snapshot and manifest were re-frozen only after those checks passed.
+share/import and routine controls on owner and guest sessions. The physical
+iPhone Safari pass was later confirmed by the owner and closed separately;
+older physical-device boxes remain open. Baseline, rollback, README, workspace
+snapshot and manifest were re-frozen only after those checks passed.
 
 ## 2026-11-28 — Chief-of-staff routing, connector catalog/bot desks and routine templates (published and verified)
 

@@ -11,14 +11,14 @@ Rollback: `restore-live.command`
 > The desktop/host checklist lives in `MAIN-BROWSER-REGRESSION.md`.
 > Voice-call fixes are marked **VOICE FIX 2026-11-19** below.
 
-## Approval inbox, bot gallery, local Library, template share and more routines — 2026-11-29 (harness + live + 320–430 px emulation verified; physical pass open)
+## Approval inbox, bot gallery, local Library, template share and more routines — 2026-11-29 (harness + live + emulation + physical iPhone verified)
 - [x] Approval inbox rows and Allow once / Deny, Edit / Copy / Publish / Cancel controls fit 320–430 px and reach the original chat card (emulated)
 - [x] Starter bot gallery, local Library and template share/import stay readable at 320–430 px for owner, guest and phone sessions (emulated)
 - [x] Shared bot-template links and files carry only name/job/description/persona/hero; no token, account, chat history or cloud state (emulated)
 - [x] Weekly digest and interval routine steps expose copy controls and keep the truthful foreground-only wording (emulated)
 - [x] Existing model, voice, router, catalog, bot desks, Memory/Projects and approval cards remain reachable and unchanged (emulated)
-- [x] Build `2026-11-29` served by the unchanged worker on both sites with zero console errors (harness + live + emulation; physical iPhone pass open)
-- [ ] Physical iPhone pass at 320 / 360 / 390 / 430 px in Safari, including approvals, bot gallery, Library, template import and copied routine steps
+- [x] Build `2026-11-29` served by the unchanged worker on both sites with zero console errors (harness + live + emulation + physical iPhone)
+- [x] Physical iPhone pass in Safari, including approvals, bot gallery, Library, template import, guest share, backup host and copied routine steps
 
 ## Chief-of-staff routing, connector catalog/bot desks and routine templates — 2026-11-28 (harness + live + 320–430 px emulation verified; physical pass open)
 - [x] Routing handoff cards fit 320–430 px and are reachable from the phone composer for guests and phone users (emulated)
