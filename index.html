@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#4a9861" />
-<meta name="oracle-build" content="2026-11-30" />
+<meta name="oracle-build" content="2026-12-01" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Oracle" />
@@ -76,6 +76,9 @@
   .call-bar.thinking{background:var(--warn-soft);color:var(--warn)}
   .call-bar.speaking{background:var(--info-soft);color:var(--info)}
   .call-bar button{margin-left:auto;border:0;background:var(--danger);color:var(--danger-contrast);border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer}
+  .dictation-bar{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--info-soft);border:1px solid var(--info);border-radius:10px;font-size:12px;color:var(--info);font-weight:650;margin-bottom:8px;flex-wrap:wrap}
+  .dictation-bar button{margin-left:auto;border:0;background:transparent;color:inherit;border-radius:8px;padding:4px 9px;font-size:11px;font-weight:700;cursor:pointer;text-decoration:underline}
+  .row.msg-jump .bubble{outline:2px solid var(--accent);box-shadow:0 0 0 4px var(--accent-soft),var(--shadow)}
   .progress-track{height:5px;background:var(--surface-3);border-radius:999px;overflow:hidden;margin-top:7px;box-shadow:inset 0 0 0 1px var(--border)}
   .progress-fill{height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .25s ease;animation:progress-pulse 1.2s ease-in-out infinite alternate}
   @keyframes progress-pulse{from{opacity:.72}to{opacity:1}}
@@ -90,6 +93,7 @@
   .drop-chips{display:flex;flex-wrap:wrap;gap:5px;padding:5px 10px 9px}
   .drop-chip{background:var(--surface);border:1px dashed var(--border-strong);border-radius:999px;padding:4px 10px;font-size:11px;color:var(--muted);cursor:pointer}
   .drop-chip:hover{border-color:var(--accent);color:var(--text)}
+  .drop-chip.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-2)}
   .drop-chip.drag-over{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-2)}
   .folder-head.drag-over{outline:2px dashed var(--accent);background:var(--accent-soft)}
   .conv-wrap.dragging{opacity:.45}
@@ -195,6 +199,7 @@
   .quick-actions{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 7px}
   .quick-btn{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:999px;padding:5px 10px;font-size:11.5px;line-height:1.2;cursor:pointer;white-space:nowrap}
   .quick-btn:hover{border-color:var(--accent);color:var(--accent)}
+  .quick-actions.context-actions .quick-btn{border-color:var(--accent-soft);background:var(--accent-soft);color:var(--accent-2)}
   .attach-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
   .chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface-3);border-radius:8px;padding:5px 9px;font-size:12px}
   .chip button{background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;line-height:1;padding:0}
@@ -810,6 +815,10 @@ let plusOpen=false, modelOpen=false, profileOpen=false, moreOpen=false, modal=nu
 let cameraStream=null, cameraShot=null;
 let files=[], credSelected=[], vaultKeys=[], status={}, memoryData={memories:[],notes:[]};
 let voiceReplies=localStorage.getItem('oracle.voiceReplies')==='1', listening=false, recognition=null;
+// Voice-first composer: dictation fills a visible preview; only an explicit
+// Send tap submits it. Nothing listens after the card closes or the app sleeps.
+let dictationBase='', dictationText='', dictationReady=false;
+let libraryQuery='', libraryFilter='all', libraryTag='';
 let callActive=false, callState='idle', finalTranscript='', speechGen=0, prevVoiceReplies=false;
 let callFatal=false, callNoSpeech=0;
 // Call lifecycle guards: a generation token invalidates late callbacks, a Set
@@ -908,21 +917,41 @@ try{
     id:String(x.id).slice(0,80),kind:String(x.kind||'brief').slice(0,20),
     title:String(x.title||'Saved item').slice(0,80),text:String(x.text||'').slice(0,4000),
     imageUrl:String(x.imageUrl||'').slice(0,300),imageId:String(x.imageId||'').slice(0,80),
-    imagePrompt:String(x.imagePrompt||'').slice(0,160),created:Number(x.created)||Date.now()
+    imagePrompt:String(x.imagePrompt||'').slice(0,160),created:Number(x.created)||Date.now(),
+    tags:Array.isArray(x.tags)?x.tags.filter(t=>typeof t==='string').slice(0,8).map(t=>t.trim().slice(0,24)).filter(Boolean):[],
+    favorite:x.favorite===true
   })):[];
 }catch(e){}
 function saveLibrary(){try{localStorage.setItem(LIBRARY_KEY,JSON.stringify(libraryItems.slice(0,60)))}catch(e){}}
 function libAdd(item){
   const raw=item||{},text=String(raw.text||'').replace(/\s+/g,' ').trim().slice(0,4000);
   if(!memorySafe(text))return null;
+  const tags=(Array.isArray(raw.tags)?raw.tags:String(raw.tags||'').split(','))
+    .map(t=>String(t).trim().slice(0,24)).filter(Boolean);
   const out={id:'lib-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
     kind:String(raw.kind||'brief').slice(0,20),title:String(raw.title||'Saved item').slice(0,80),
     text,imageUrl:String(raw.imageUrl||'').slice(0,300),imageId:String(raw.imageId||'').slice(0,80),
-    imagePrompt:String(raw.imagePrompt||'').slice(0,160),created:Date.now()};
+    imagePrompt:String(raw.imagePrompt||'').slice(0,160),created:Date.now(),
+    tags:[...new Set(tags)].slice(0,8),favorite:raw.favorite===true};
   if(!out.text&&!out.imageId)return null;
   libraryItems.unshift(out);libraryItems=libraryItems.slice(0,60);saveLibrary();return out;
 }
 function libRemove(id){libraryItems=libraryItems.filter(x=>x.id!==id);saveLibrary()}
+function libToggleFavorite(id){
+  const it=libraryItems.find(x=>x.id===id);
+  if(!it)return;
+  it.favorite=!it.favorite;saveLibrary();
+}
+function libraryTags(){return [...new Set(libraryItems.flatMap(it=>Array.isArray(it.tags)?it.tags:[]))].sort().slice(0,16)}
+function libraryFiltered(q='',filter='all',tag=''){
+  const needle=String(q||'').toLowerCase().trim();
+  return libraryItems.filter(it=>{
+    if(filter==='favorites'&&!it.favorite)return false;
+    if(tag&&!(Array.isArray(it.tags)&&it.tags.includes(tag)))return false;
+    if(!needle)return true;
+    return (it.title+' '+it.text+' '+it.kind+' '+(Array.isArray(it.tags)?it.tags.join(' '):'')).toLowerCase().includes(needle);
+  }).slice(0,60);
+}
 function libraryItemFromMessage(m){
   if(!m||m.connector||m.tool)return null;
   const text=String(m.draft?m.draft.text:(m.text||'')).slice(0,4000);
@@ -1191,6 +1220,51 @@ function pendingApprovals(){
   return out.slice(0,40);
 }
 function approvalCount(){return pendingApprovals().length}
+// Context chips are plain phrases drawn from the current chat. They never add
+// hidden connector syntax and never send by themselves until the person taps.
+function lastBotMessageIndex(c){
+  const msgs=c&&Array.isArray(c.messages)?c.messages:[];
+  for(let i=msgs.length-1;i>=0;i--){
+    const m=msgs[i];
+    if(m&&m.from==='bot'&&!m.connector&&!m.tool&&(m.text||m.draft||m.imageId))return i;
+  }
+  return -1;
+}
+function smartChips(c){
+  const chat=c||active();
+  const msgs=chat&&Array.isArray(chat.messages)?chat.messages:[];
+  const idx=lastBotMessageIndex(chat);
+  const last=idx>=0?msgs[idx]:null;
+  const out=[];
+  if(msgs.length>1){
+    out.push({kind:'send',label:'Summarize this chat',phrase:'Summarize this chat in five short bullets'});
+    out.push({kind:'send',label:'Make a checklist',phrase:'Turn my last question into a simple checklist'});
+    if(last&&String(last.text||last.draft?.text||'').length>140)
+      out.push({kind:'send',label:'Explain simpler',phrase:'Explain your last answer like I am new to this'});
+  }
+  if(idx>=0)out.push({kind:'save',label:'Save last answer',idx});
+  if(approvalCount())out.push({kind:'approvals',label:'Review approvals ('+approvalCount()+')'});
+  return out.slice(0,6);
+}
+// Search runs over the local chat array only. There is no index upload and no
+// cloud-backed query: results are redacted the same way approval previews are.
+function chatSearchResults(q){
+  const needle=String(q||'').toLowerCase().trim();
+  if(!needle)return [];
+  const out=[];
+  convs.forEach(c=>{
+    if(!c)return;
+    if(String(c.name||'').toLowerCase().includes(needle))
+      out.push({chatId:c.id,chatName:c.name||'Chat',idx:-1,label:c.name||'Chat',sub:'Chat name',snippet:approvalPreview(c.preview||'')});
+    (Array.isArray(c.messages)?c.messages:[]).forEach((m,i)=>{
+      const text=String(m&&m.draft?m.draft.text:(m&&m.text?m.text:''));
+      if(text.toLowerCase().includes(needle))
+        out.push({chatId:c.id,chatName:c.name||'Chat',idx:i,label:c.name||'Chat',
+          sub:(m&&m.from==='user'?'You':'Oracle')+' · message '+(i+1),snippet:approvalPreview(text)});
+    });
+  });
+  return out.slice(0,40);
+}
 async function runConnectorIntent(raw,c,intent){
   let reply='';
   if(intent.kind==='monitor'){
@@ -2639,13 +2713,27 @@ function toggleListen(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){showToast('Voice typing is not supported in this browser');return}
   if(listening&&recognition){try{recognition.stop()}catch(e){};return}
+  dictationBase=String(draft||'');dictationText='';dictationReady=false;
   try{
     const r=trackRecognition(new SR());recognition=r;
     r.lang='en-US';r.continuous=false;r.interimResults=true;
     r.onstart=()=>{listening=true;render()};
-    r.onresult=e=>{let t='';for(let i=0;i<e.results.length;i++)t+=e.results[i][0].transcript;draft=t.trim();render()};
+    // No auto-send: results only fill the visible preview field. The person can
+    // edit the exact words, discard them, or tap Send explicitly.
+    r.onresult=e=>{
+      let t='';for(let i=0;i<e.results.length;i++)t+=e.results[i][0].transcript;
+      dictationText=t.trim();
+      draft=dictationBase?(dictationBase+' '+dictationText):dictationText;
+      const inp=document.getElementById('draft');if(inp)inp.value=draft;
+      const send=document.getElementById('send');if(send)send.disabled=!draft.trim()&&!files.length;
+    };
     r.onerror=e=>showToast('Voice error: '+e.error);
-    r.onend=()=>{liveRecognitions.delete(r);if(recognition===r)recognition=null;listening=false;render()};
+    r.onend=()=>{
+      liveRecognitions.delete(r);if(recognition===r)recognition=null;
+      listening=false;dictationReady=!!dictationText;
+      render();
+      showToast(dictationReady?'Words ready — check them, then tap Send':'No words captured');
+    };
     r.start();
   }catch(err){showToast('Could not start voice typing: '+err.message)}
 }
@@ -2785,7 +2873,7 @@ function render(){
         <div style="margin-top:14px">${vaultKeys.length?vaultKeys.map(k=>`<div class="vault-row"><span>${esc(k)}</span><span><code>••••••••</code> <button class="btn danger" data-del="${esc(k)}" style="padding:4px 8px;font-size:11px">Remove</button></span></div>`).join(''):'<p style="color:var(--muted);font-size:13px">No saved credentials yet.</p>'}</div>
       </div></div>`;
   } else {
-    const msgs=c.messages.map((m,i)=>`<div class="row ${m.from}"><div class="bubble ${m.from}">${esc(m.text)}${m.retryable&&i===c.messages.length-1?`<button class="bubble-retry" data-retry-msg="${i}">Retry with short history</button>`:''}${!m.connector&&!m.tool&&(m.text||m.draft||m.sources||m.imageId)?`<button class="bubble-save" data-lib-save="${i}">Save to Library</button>`:''}${m.imageId?`<div class="img-msg"><img class="chat-image" data-img-id="${esc(m.imageId)}" alt="${esc(m.imagePrompt||'Generated image')}" /><div class="img-actions"><button class="btn" data-img-copy="${esc(m.imageId)}">Copy</button><button class="btn" data-img-download="${esc(m.imageId)}">Download</button></div></div>`:''}${m.note?`<div class="meta">${esc(m.note)}</div>`:''}${m.sources&&m.sources.length?`<div class="source-list">${m.sources.map((s,i)=>`<details class="source-card"><summary><span class="source-num">[${i+1}]</span><span class="source-title">${esc(s.title)}</span><span class="source-meta">${esc(s.domain||'')}${s.date?' · '+esc(s.date):''}</span></summary><div class="source-body"><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">Open source ↗</a>${s.snippet?`<p>${esc(s.snippet)}</p>`:''}${s.query?`<p class="source-why">Why this source? Found by Deep Search via “${esc(s.query)}”. A public page from the free news proxy — not an account login or saved secret.</p>`:''}</div></details>`).join('')}</div>`:''}${m.connector?`<div class="connector-card ${m.connectorState||''}">
+    const msgs=c.messages.map((m,i)=>`<div class="row ${m.from}" data-msg-idx="${i}"><div class="bubble ${m.from}">${esc(m.text)}${m.retryable&&i===c.messages.length-1?`<button class="bubble-retry" data-retry-msg="${i}">Retry with short history</button>`:''}${!m.connector&&!m.tool&&(m.text||m.draft||m.sources||m.imageId)?`<button class="bubble-save" data-lib-save="${i}">Save to Library</button>`:''}${m.imageId?`<div class="img-msg"><img class="chat-image" data-img-id="${esc(m.imageId)}" alt="${esc(m.imagePrompt||'Generated image')}" /><div class="img-actions"><button class="btn" data-img-copy="${esc(m.imageId)}">Copy</button><button class="btn" data-img-download="${esc(m.imageId)}">Download</button></div></div>`:''}${m.note?`<div class="meta">${esc(m.note)}</div>`:''}${m.sources&&m.sources.length?`<div class="source-list">${m.sources.map((s,i)=>`<details class="source-card"><summary><span class="source-num">[${i+1}]</span><span class="source-title">${esc(s.title)}</span><span class="source-meta">${esc(s.domain||'')}${s.date?' · '+esc(s.date):''}</span></summary><div class="source-body"><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">Open source ↗</a>${s.snippet?`<p>${esc(s.snippet)}</p>`:''}${s.query?`<p class="source-why">Why this source? Found by Deep Search via “${esc(s.query)}”. A public page from the free news proxy — not an account login or saved secret.</p>`:''}</div></details>`).join('')}</div>`:''}${m.connector?`<div class="connector-card ${m.connectorState||''}">
          <div class="tool-title">${icon('spark',14)} ${esc(m.connector.name)} · ${esc(m.connector.action)}</div>
          <pre class="tool-preview">${esc(connectorPreview(m.connector))}</pre>
          ${m.connectorState==='pending'?`<div class="risk-chips"><span class="risk-chip">uses your own connector</span><span class="risk-chip">leaves this app</span></div><div class="tool-actions"><button class="btn primary" data-conn-approve="${i}">Allow once</button><button class="btn danger" data-conn-deny="${i}">Deny</button></div>`:''}
@@ -2870,6 +2958,7 @@ function render(){
           <button class="btn primary" id="retrySend" style="padding:4px 10px;font-size:12px;margin-left:6px">Try again</button></div>`:''}
       </div></div>
       <div class="composer-wrap">
+        ${(()=>{const chips=smartChips(c);return chips.length?`<div class="quick-actions context-actions">${chips.map((chip,i)=>`<button type="button" class="quick-btn" data-smart="${i}">${chip.kind==='approvals'?icon('lock',13):chip.kind==='save'?icon('file',13):icon('spark',13)} ${esc(chip.label)}</button>`).join('')}</div>`:''})()}
         ${(firstRun||c.messages.length<=1||c.id==='socials'||String(c.name).trim()==='Socials Bot'||connectorList().length)?`<div class="quick-actions">
           <button type="button" class="quick-btn" data-quick="check">${icon('search',13)} Check Instagram</button>
           <button type="button" class="quick-btn" data-quick="draft">${icon('spark',13)} Draft a post</button>
@@ -2883,6 +2972,7 @@ function render(){
         <div class="call-bar thinking" id="deviceBar" style="${deviceStatus?'':'display:none'}"><span class="call-dot"></span><span id="deviceBarText">${esc(deviceStatus)}</span></div>
         <div class="progress-track" id="deviceProgress" role="progressbar" aria-label="Model download progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(deviceProgress)}" style="${deviceProgressActive?'':'display:none'}"><div class="progress-fill" style="width:${deviceProgress}%"></div></div>
         ${callActive?`<div class="call-bar ${callState}"><span class="call-dot"></span><span>${callState==='listening'?'Listening — talk now…':callState==='thinking'?'Thinking…':'Speaking…'}</span><button id="endCall">End call</button></div>`:''}
+        ${(listening||dictationReady)?`<div class="dictation-bar" id="dictationBar" aria-live="polite"><span class="call-dot"></span><span>${listening?'Listening — tap the mic when you are done':'Words ready below — edit if needed, then tap Send. Nothing sends by itself.'}</span>${dictationReady?`<button type="button" id="dictationDiscard">Discard words</button>`:''}</div>`:''}
         ${(files.length||credSelected.length)?`<div class="attach-chips">
           ${files.map((f,i)=>`<span class="chip">📎 ${esc(f)} <button data-rmf="${i}">×</button></span>`).join('')}
           ${credSelected.map((k,i)=>`<span class="chip">🔒 ${esc(k)} <button data-rmc="${i}">×</button></span>`).join('')}
@@ -2891,7 +2981,7 @@ function render(){
           <button type="button" class="composer-plus ${plusOpen?'open':''}" id="plusBtn" title="Add">${icon('plus')}</button>
           ${staticMode||guestMode?'':`<button type="button" class="composer-plus" id="seeThis" title="See this — ask the local model about the webcam view">${icon('camera')}</button>`}
           ${staticMode&&!guestMode?`<button type="button" class="composer-plus" id="imageBtn" title="Make an image on this device">${icon('spark')}</button>`:''}
-          <button type="button" class="composer-plus ${listening?'listening':''}" id="micBtn" title="Speak instead of type">${icon('mic')}</button>
+          <button type="button" class="composer-plus ${listening?'listening':''}" id="micBtn" title="${listening?'Stop listening':'Dictate — preview words, then Send'}">${icon('mic')}</button>
           <input id="draft" value="${esc(draft)}" placeholder="Message ${esc(c.name)}" autocomplete="off" enterkeyhint="send" />
           <button type="submit" class="composer-send" id="send" ${draft.trim()||files.length?'':'disabled'}>${icon('arrow')}</button>
           ${plusOpen?`<div class="dropdown plus">
@@ -2937,6 +3027,7 @@ function render(){
         <button class="menu-item" id="openAbout">${icon('info',18)}<span><strong>About / Update status</strong><span class="mi-sub">Build, model and service worker</span></span></button>
         <button class="menu-item" id="toggleTheme">${icon('theme',18)}<span><strong>Appearance: ${themeLabel()}</strong><span class="mi-sub">System, light or dark — tap to change</span></span></button>
         <button class="menu-item" id="openCommandPalette">${icon('search',18)}<span><strong>Command palette</strong><span class="mi-sub">Jump to any chat or routine</span></span></button>
+        <button class="menu-item" id="openChatSearch">${icon('search',18)}<span><strong>Search all chats</strong><span class="mi-sub">Find a chat or a message, then jump to it</span></span></button>
         <button class="menu-item" id="openBotRoster">${icon('spark',18)}<span><strong>Bot roster</strong><span class="mi-sub">Names, jobs and the primary bot</span></span></button>
         ${guestMode?'':`<button class="menu-item" id="openTeams">${icon('spark',18)}<span><strong>Teams &amp; Triggers</strong><span class="mi-sub">Owner bot roles, chains and rules</span></span></button>`}
         <div class="menu-sep"></div>
@@ -3050,6 +3141,7 @@ function bind(){
   document.getElementById('openAbout')?.addEventListener('click',()=>{profileOpen=false;openAbout()});
   document.getElementById('toggleTheme')?.addEventListener('click',()=>cycleTheme());
   document.getElementById('openCommandPalette')?.addEventListener('click',()=>{profileOpen=false;openCommandPalette()});
+  document.getElementById('openChatSearch')?.addEventListener('click',()=>{profileOpen=false;openChatSearch()});
   document.getElementById('openBotRoster')?.addEventListener('click',()=>{profileOpen=false;openBotRoster()});
   document.getElementById('openTeams')?.addEventListener('click',()=>{profileOpen=false;openTeams()});
   document.getElementById('memoryBack')?.addEventListener('click',()=>{view='chat';render()});
@@ -3138,10 +3230,10 @@ function bind(){
   document.querySelectorAll('[data-rmf]').forEach(b=>b.onclick=()=>{files.splice(+b.dataset.rmf,1);render()});
   document.querySelectorAll('[data-rmc]').forEach(b=>b.onclick=()=>{credSelected.splice(+b.dataset.rmc,1);render()});
   document.querySelectorAll('[data-lib-save]').forEach(b=>b.onclick=()=>saveMessageToLibrary(+b.dataset.libSave));
-  document.querySelectorAll('[data-tool-approve]').forEach(b=>b.onclick=()=>toolAction(+b.dataset.toolApprove,'once'));
+  document.querySelectorAll('[data-tool-approve]').forEach(b=>b.onclick=()=>approvalCoach('tool',activeId,+b.dataset.toolApprove));
   document.querySelectorAll('[data-tool-always]').forEach(b=>b.onclick=()=>toolAction(+b.dataset.toolAlways,'always'));
   document.querySelectorAll('[data-tool-deny]').forEach(b=>b.onclick=()=>toolAction(+b.dataset.toolDeny,'deny'));
-  document.querySelectorAll('[data-conn-approve]').forEach(b=>b.onclick=()=>connectorAction(+b.dataset.connApprove,'once'));
+  document.querySelectorAll('[data-conn-approve]').forEach(b=>b.onclick=()=>approvalCoach('connector',activeId,+b.dataset.connApprove));
   document.querySelectorAll('[data-conn-deny]').forEach(b=>b.onclick=()=>connectorAction(+b.dataset.connDeny,'deny'));
   document.querySelectorAll('[data-draft-edit]').forEach(b=>b.onclick=()=>editDraft(+b.dataset.draftEdit));
   document.querySelectorAll('[data-draft-copy]').forEach(b=>b.onclick=()=>copyDraft(+b.dataset.draftCopy));
@@ -3206,6 +3298,18 @@ function bind(){
       route:'Which bot can help me research this topic?'};
     draft=phrases[kind]||'';
     sendMessage({preventDefault(){}});
+  });
+  document.querySelectorAll('[data-smart]').forEach(b=>b.onclick=()=>{
+    const chip=smartChips(active())[+b.dataset.smart];if(!chip)return;
+    if(chip.kind==='approvals'){openApprovalInbox();return}
+    if(chip.kind==='save'){saveMessageToLibrary(chip.idx);return}
+    draft=chip.phrase;
+    render();
+    sendMessage({preventDefault(){}});
+  });
+  document.getElementById('dictationDiscard')?.addEventListener('click',()=>{
+    draft=dictationBase;dictationText='';dictationReady=false;
+    render();showToast('Dictated words discarded');
   });
   document.querySelectorAll('[data-open-bot-desk]').forEach(b=>b.onclick=()=>openBotDesk(activeId));
   document.querySelectorAll('[data-open-templates]').forEach(b=>b.onclick=openRoutineTemplates);
@@ -3812,14 +3916,46 @@ function focusApproval(chatId,idx,action){
   activeId=chatId;activeFolder=c.folder||activeFolder;view='chat';mobileView='chat';
   modal=null;saveState();render();
   if(!action)return;
-  if(action==='conn-allow')connectorAction(idx,'once');
+  if(action==='conn-allow')approvalCoach('connector',chatId,idx);
   else if(action==='conn-deny')connectorAction(idx,'deny');
-  else if(action==='tool-allow')toolAction(idx,'once');
+  else if(action==='tool-allow')approvalCoach('tool',chatId,idx);
   else if(action==='tool-deny')toolAction(idx,'deny');
   else if(action==='draft-edit')editDraft(idx);
   else if(action==='draft-copy')copyDraft(idx);
   else if(action==='draft-publish')publishDraft(idx);
   else if(action==='draft-cancel')cancelDraft(idx);
+}
+// Plain-language coach shown before every one-time Allow. It states what the
+// single approval will do, what it will not do, and which local chat asked.
+// There is deliberately no always-allow button here.
+function approvalCoach(kind,chatId,idx){
+  const c=convs.find(x=>x.id===chatId)||active();
+  const m=c&&Array.isArray(c.messages)?c.messages[idx]:null;
+  if(!m){showToast('That card is no longer available');return}
+  const isConnector=kind==='connector';
+  const target=isConnector?(m.connector?.name||'your connector'):(m.toolSummary||'this host action');
+  const verb=isConnector?String(m.connector?.action||'check'):'run';
+  const will=isConnector
+    ? 'Send this one '+verb+' request to '+target+' and show the result back here.'
+    : 'Run this one host action ('+target+') and show the result back here.';
+  const wont=isConnector
+    ? 'It will not save permission, read another account, post anything else, or run again later.'
+    : 'It will not save permission, run again later, or act on any other file.';
+  const note=isConnector
+    ? 'Your connector token stays encrypted on this device. The model only ever sees the connector name.'
+    : 'Only the preview above is sent to your Mac for this one approval.';
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Before you Allow once</h3>
+    <p>From <strong>${esc(c.name||'this chat')}</strong> · message ${idx+1}. Take a second to check what one tap does.</p>
+    <div class="vault-row" style="align-items:flex-start;gap:8px"><span><strong>Will</strong><br><small>${esc(will)}</small></span></div>
+    <div class="vault-row" style="align-items:flex-start;gap:8px"><span><strong>Will not</strong><br><small>${esc(wont)}</small></span></div>
+    <p class="wizard-note" style="margin-top:10px">${esc(note)}</p>
+    <div class="modal-actions"><button class="btn" id="coachCancel">Keep waiting</button><button class="btn primary" id="coachAllow">Allow once</button></div></div></div>`;
+  render();
+  document.getElementById('coachCancel')?.addEventListener('click',()=>{modal=null;render()});
+  document.getElementById('coachAllow')?.addEventListener('click',()=>{
+    modal=null;render();
+    if(isConnector)connectorAction(idx,'once');else toolAction(idx,'once');
+  });
 }
 function openStarterBotGallery(){
   const rows=STARTER_BOTS.map(t=>`<div class="vault-row"><span><strong>${esc(t.name)}</strong><br><small>${esc(t.job)} · ${esc(t.desc)}</small></span><button class="btn primary" data-starter-add="${esc(t.id)}">Add bot</button></div>`).join('');
@@ -3837,29 +3973,66 @@ function saveMessageToLibrary(idx){
   render();showToast('Saved to Library: '+item.title);
 }
 function openLibrary(){
-  const rows=libraryItems.map(it=>`<div class="vault-row" style="align-items:flex-start;gap:9px;flex-wrap:wrap"><span style="flex:1;min-width:170px"><strong>${esc(it.title)}</strong><br><small style="color:var(--accent-2)">${esc(it.kind)} · ${esc(it.imagePrompt||'text')}</small><br><small>${esc(it.text.slice(0,180))}</small></span><span style="display:flex;flex-wrap:wrap;gap:5px"><button class="btn tiny" data-lib-use="${esc(it.id)}">Use in this chat</button><button class="btn tiny" data-lib-copy="${esc(it.id)}">Copy</button><button class="btn danger tiny" data-lib-del="${esc(it.id)}">Remove</button></span></div>`).join('');
+  const allTags=libraryTags();
+  const rowsHtml=()=>libraryFiltered(libraryQuery,libraryFilter,libraryTag).map(it=>`<div class="vault-row" style="align-items:flex-start;gap:9px;flex-wrap:wrap"><span style="flex:1;min-width:170px"><strong>${it.favorite?'★ ':''}${esc(it.title)}</strong><br><small style="color:var(--accent-2)">${esc(it.kind)}${(it.tags||[]).length?' · '+it.tags.map(t=>'#'+esc(t)).join(' '):''}</small><br><small>${esc(it.text.slice(0,180))}</small></span><span style="display:flex;flex-wrap:wrap;gap:5px"><button class="btn tiny" data-lib-preview="${esc(it.id)}">Preview</button><button class="btn tiny" data-lib-fav="${esc(it.id)}">${it.favorite?'Unstar':'Star'}</button><button class="btn tiny" data-lib-copy="${esc(it.id)}">Copy</button><button class="btn danger tiny" data-lib-del="${esc(it.id)}">Remove</button></span></div>`).join('');
   modal=`<div class="modal-backdrop" id="mb"><div class="modal" style="max-width:640px"><h3>My Library</h3>
-    <p>Save useful drafts, briefs, source cards and images from any chat, then reuse them in any bot. This library stays in this browser session; it is never synced or silently added to a model prompt.</p>
+    <p>Save useful drafts, briefs, source cards and images from any chat, then search, tag and favorite them. Preview before insert: nothing is added to a prompt unless you explicitly choose it. This library stays on this device and is never synced.</p>
     <form id="libForm"><label>Title<input id="libTitle" maxlength="80" placeholder="e.g. Comic launch brief" /></label>
     <label>Text<textarea id="libText" rows="3" placeholder="No tokens, passwords or secrets"></textarea></label>
+    <label>Tags<input id="libTags" placeholder="comics, launch (optional)" /></label>
     <div class="tool-actions"><button class="btn primary" type="submit">Save item</button></div></form>
-    <h4 style="margin:16px 0 6px">Saved items</h4>
-    ${rows||'<p style="color:var(--muted);font-size:13px">Nothing saved yet. Use “Save to Library” under a message, or add a note above.</p>'}
+    <label style="margin-top:16px">Search library<input id="libSearch" value="${esc(libraryQuery)}" placeholder="Search titles, text and tags…" autocomplete="off" /></label>
+    <div class="drop-chips">
+      <button class="drop-chip ${libraryFilter==='all'?'active':''}" data-lib-filter="all">All</button>
+      <button class="drop-chip ${libraryFilter==='favorites'?'active':''}" data-lib-filter="favorites">★ Favorites</button>
+      ${allTags.map(t=>`<button class="drop-chip ${libraryTag===t?'active':''}" data-lib-tag="${esc(t)}">#${esc(t)}</button>`).join('')}
+    </div>
+    <h4 style="margin:12px 0 6px">Saved items</h4>
+    <div id="libResults">${rowsHtml()||'<p style="color:var(--muted);font-size:13px">Nothing matches yet. Use “Save to Library” under a message, or add a note above.</p>'}</div>
     <div class="modal-actions"><button class="btn primary" id="mc">Done</button></div></div></div>`;
   render();
+  const bindRows=root=>{
+    root.querySelectorAll('[data-lib-preview]').forEach(b=>b.onclick=()=>openLibraryPreview(b.dataset.libPreview));
+    root.querySelectorAll('[data-lib-fav]').forEach(b=>b.onclick=()=>{libToggleFavorite(b.dataset.libFav);paint()});
+    root.querySelectorAll('[data-lib-copy]').forEach(b=>b.onclick=async()=>{
+      const it=libraryItems.find(x=>x.id===b.dataset.libCopy);if(!it)return;
+      try{await navigator.clipboard.writeText(libraryUseText(it));showToast('Library item copied')}
+      catch(e){showToast('Copy is unavailable here')}
+    });
+    root.querySelectorAll('[data-lib-del]').forEach(b=>b.onclick=()=>{libRemove(b.dataset.libDel);paint();showToast('Library item removed')});
+  };
+  const paint=()=>{
+    const host=document.getElementById('libResults');if(!host)return;
+    host.innerHTML=rowsHtml()||'<p style="color:var(--muted);font-size:13px">Nothing matches yet. Use “Save to Library” under a message, or add a note above.</p>';
+    bindRows(host);
+  };
   document.getElementById('libForm')?.addEventListener('submit',e=>{
     e.preventDefault();
-    const item=libAdd({kind:'brief',title:document.getElementById('libTitle')?.value||'Saved item',text:document.getElementById('libText')?.value||''});
+    const item=libAdd({kind:'brief',title:document.getElementById('libTitle')?.value||'Saved item',
+      text:document.getElementById('libText')?.value||'',
+      tags:document.getElementById('libTags')?.value||''});
     if(!item){showToast('Nothing safe to save — secrets are refused');return}
     openLibrary();showToast('Saved to this device');
   });
-  document.querySelectorAll('[data-lib-use]').forEach(b=>b.onclick=()=>libraryUseItem(b.dataset.libUse));
-  document.querySelectorAll('[data-lib-copy]').forEach(b=>b.onclick=async()=>{
-    const it=libraryItems.find(x=>x.id===b.dataset.libCopy);if(!it)return;
+  document.getElementById('libSearch')?.addEventListener('input',e=>{libraryQuery=e.target.value;paint()});
+  document.querySelectorAll('[data-lib-filter]').forEach(b=>b.onclick=()=>{libraryFilter=b.dataset.libFilter;openLibrary()});
+  document.querySelectorAll('[data-lib-tag]').forEach(b=>b.onclick=()=>{libraryTag=libraryTag===b.dataset.libTag?'':b.dataset.libTag;openLibrary()});
+  bindRows(document.getElementById('libResults')||document);
+}
+function openLibraryPreview(id){
+  const it=libraryItems.find(x=>x.id===id);if(!it)return;
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Preview library item</h3>
+    <p>${esc(it.title)} · ${esc(it.kind)}${(it.tags||[]).length?' · '+it.tags.map(t=>'#'+esc(t)).join(' '):''}</p>
+    <pre class="tool-preview" style="max-height:240px">${esc(libraryUseText(it))}</pre>
+    <p class="wizard-note">Insert puts these words in the message box. Nothing is sent and no model sees them until you tap Send.</p>
+    <div class="modal-actions"><button class="btn" id="libPreviewBack">Back</button><button class="btn" id="libPreviewCopy">Copy</button><button class="btn primary" id="libPreviewInsert">Insert in this chat</button></div></div></div>`;
+  render();
+  document.getElementById('libPreviewBack')?.addEventListener('click',()=>openLibrary());
+  document.getElementById('libPreviewCopy')?.addEventListener('click',async()=>{
     try{await navigator.clipboard.writeText(libraryUseText(it));showToast('Library item copied')}
     catch(e){showToast('Copy is unavailable here')}
   });
-  document.querySelectorAll('[data-lib-del]').forEach(b=>b.onclick=()=>{libRemove(b.dataset.libDel);openLibrary();showToast('Library item removed')});
+  document.getElementById('libPreviewInsert')?.addEventListener('click',()=>libraryUseItem(id));
 }
 function libraryUseItem(id){
   const it=libraryItems.find(x=>x.id===id);if(!it)return;
@@ -4303,6 +4476,7 @@ function commandItems(){
     items.push({label:'Web Routines',sub:'host-only automations',art:icon('spark',16),run:openRoutines});
     items.push({label:'Always-allow rules',sub:'host approvals · '+toolRules.length,art:icon('lock',16),run:openToolRules});
   }
+  items.push({label:'Search all chats',sub:'find a message on this device',art:icon('search',16),run:openChatSearch});
   items.push({label:'Change display name',sub:'command',art:icon('edit',16),run:openNameModal});
   return items;
 }
@@ -4322,6 +4496,37 @@ function openCommandPalette(){
     found=items.filter(x=>(x.label+' '+x.sub).toLowerCase().includes(q)).slice(0,12);
     results.innerHTML=found.length?found.map((x,i)=>`<button class="cmd-result" data-cmd="${i}">${x.art}<span class="cmd-body"><strong>${esc(x.label)}</strong><small>${esc(x.sub)}</small></span></button>`).join(''):'<div class="status" style="text-align:left">No matches.</div>';
     results.querySelectorAll('[data-cmd]').forEach(b=>b.onclick=()=>choose(+b.dataset.cmd));
+  };
+  input.oninput=paint;
+  input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();choose(0)}else if(e.key==='Escape'){e.preventDefault();modal=null;render()}};
+  paint();
+  try{input.focus({preventScroll:true})}catch(e){input.focus()}
+}
+function focusChatMessage(chatId,idx){
+  const c=convs.find(x=>x.id===chatId);if(!c)return;
+  activeId=chatId;activeFolder=c.folder||activeFolder;
+  view='chat';mobileView='chat';modal=null;saveState();render();
+  if(idx<0)return;
+  const row=document.querySelector('[data-msg-idx="'+idx+'"]');
+  if(!row)return;
+  try{row.scrollIntoView({block:'center',behavior:'smooth'})}catch(e){row.scrollIntoView()}
+  row.classList.add('msg-jump');
+  setTimeout(()=>row.classList.remove('msg-jump'),1800);
+}
+function openChatSearch(){
+  let found=[];
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal cmd-modal"><h3>Search all chats</h3>
+    <input id="chatSearchInput" placeholder="Search chat names and message text…" autocomplete="off" />
+    <div class="cmd-results" id="chatSearchResults"></div>
+    <p style="margin:10px 0 0;font-size:11px">Only chats on this device are searched. Enter opens the first match · Esc closes.</p></div></div>`;
+  render();
+  const input=document.getElementById('chatSearchInput'),results=document.getElementById('chatSearchResults');
+  if(!input||!results)return;
+  const choose=i=>{const r=found[i];if(!r)return;focusChatMessage(r.chatId,r.idx)};
+  const paint=()=>{
+    found=chatSearchResults(input.value||'');
+    results.innerHTML=found.length?found.map((r,i)=>`<button class="cmd-result" data-chat-hit="${i}">${icon('chat',16)}<span class="cmd-body"><strong>${esc(r.label)} · ${esc(r.sub)}</strong><small>${esc(r.chatName)} — ${esc(r.snippet||'Open chat')}</small></span></button>`).join(''):'<div class="status" style="text-align:left">Type to search this device’s chats.</div>';
+    results.querySelectorAll('[data-chat-hit]').forEach(b=>b.onclick=()=>choose(+b.dataset.chatHit));
   };
   input.oninput=paint;
   input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();choose(0)}else if(e.key==='Escape'){e.preventDefault();modal=null;render()}};
@@ -4751,7 +4956,8 @@ async function sendMessage(e){
   // check/pinch cleanup after sending.
   const focusedField=document.activeElement;
   if(focusedField&&typeof focusedField.blur==='function'){try{focusedField.blur()}catch(e){}}
-  draft='';files=[];waiting=true;if(callActive)setCallState('thinking');render();
+  draft='';files=[];dictationBase='';dictationText='';dictationReady=false;
+  waiting=true;if(callActive)setCallState('thinking');render();
   // No post-send refocus on any device: one click/tap reopens the field if needed,
   // while the phone keyboard closes cleanly and the page stays fitted.
   if(intent){await runConnectorIntent(text,c,intent);return}
