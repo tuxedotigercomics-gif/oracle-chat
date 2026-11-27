@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#4a9861" />
-<meta name="oracle-build" content="2026-11-28" />
+<meta name="oracle-build" content="2026-11-29" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Oracle" />
@@ -159,6 +159,8 @@
   .bubble.bot{background:var(--hero,var(--accent));color:#fff;border-bottom-right-radius:5px}
   .bubble-retry{display:inline-block;margin-top:8px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.55);color:#fff;border-radius:10px;padding:4px 9px;font-size:11.5px;cursor:pointer}
   .bubble-retry:hover{background:rgba(255,255,255,.26)}
+  .bubble-save{display:inline-block;margin:8px 0 0 6px;background:transparent;border:1px solid currentColor;color:inherit;border-radius:10px;padding:4px 9px;font-size:11px;cursor:pointer;opacity:.75}
+  .bubble-save:hover{opacity:1}
   .chat-image{display:block;max-width:100%;max-height:360px;border-radius:12px;border:1px solid var(--border);margin:8px 0}
   .img-actions{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 2px}
   .img-actions .btn{padding:4px 9px;font-size:11.5px}
@@ -406,6 +408,51 @@ const BOT_TEMPLATES=[
   {id:'coach',name:'Coach Bot',job:'Accountability coach',desc:'Turn goals into one concrete next step and follow up.',persona:'coach',hero:'captainamerica'},
   {id:'computer',name:'Computer Bot',job:'Mac bridge operator',desc:'Run approved shell, browser and connector work on the owner Mac.',persona:'concise',hero:'ironman'}
 ];
+// One-tap starter bots inspired by the useful jobs in the Grok Bot video.
+// They are only local rooms: no account, connector, token or shared login is
+// attached until the person adds their own connector later.
+const STARTER_BOTS=[
+  {id:'moderator',name:'Community Bot',job:'Community moderator',desc:'Welcome members, draft fair moderation replies and suggest clear community rules. Account actions need your own approved connector.',persona:'formal',hero:'captainamerica'},
+  {id:'newsletter',name:'Newsletter Bot',job:'Website and newsletter planner',desc:'Turn your notes into a website update or newsletter draft. Sending needs your own approved connector.',persona:'concise',hero:'ironman'},
+  {id:'seo',name:'SEO Bot',job:'SEO and AEO assistant',desc:'Find plain-language keywords and questions, then draft search-friendly outlines from public sources.',persona:'formal',hero:'vision'},
+  {id:'slack',name:'Slack Reply Bot',job:'Team reply drafter',desc:'Draft clear, kind replies for your own team channel. Posting needs your own approved connector.',persona:'playful',hero:'deadpool'},
+  {id:'youtube',name:'YouTube Bot',job:'YouTube engagement assistant',desc:'Draft titles, comment replies and audience questions for your channel. Posting needs your own approved connector.',persona:'playful',hero:'spiderman'}
+];
+function starterBotTemplate(id){return STARTER_BOTS.find(t=>t.id===id)||null}
+// A shared template carries only these five safe fields. No chat history,
+// connector, account, token, cloud state or device secret is included.
+function botTemplatePayload(c){
+  const t=c||{};
+  return {type:'oracle-bot-template',v:1,
+    name:String(t.name||'Shared Bot').replace(/[<>]/g,'').trim().slice(0,50)||'Shared Bot',
+    job:String(botJob(t)).replace(/[<>]/g,'').trim().slice(0,60)||'General assistant',
+    desc:String(t.desc||'').replace(/[<>]/g,'').trim().slice(0,300),
+    persona:String(t.persona||'oracle'),hero:String(t.hero||'ironman')};
+}
+function normalizeBotTemplate(raw){
+  if(!raw||typeof raw!=='object'||String(raw.type||'')!=='oracle-bot-template')return null;
+  const pick=(v,n)=>String(v==null?'':v).replace(/[\u0000-\u001f<>]/g,'').trim().slice(0,n);
+  const allowed=['oracle','concise','tutor','formal','playful','kids','coach'];
+  const persona=allowed.indexOf(String(raw.persona))>=0?String(raw.persona):'oracle';
+  const hero=/^[a-z0-9-]{1,40}$/.test(String(raw.hero||''))?String(raw.hero).slice(0,40):'ironman';
+  return {type:'oracle-bot-template',v:1,name:pick(raw.name,50)||'Shared Bot',
+    job:pick(raw.job,60)||'General assistant',desc:pick(raw.desc,300),persona,hero};
+}
+function createStarterBot(id){
+  const t=starterBotTemplate(id);if(!t)return null;
+  return createImportedBot({...t,type:'oracle-bot-template',v:1});
+}
+function createImportedBot(t){
+  const item=normalizeBotTemplate(t);if(!item)return null;
+  const id='bot-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+  const folder=(folders&&folders[0]&&folders[0].id)||activeFolder||'general';
+  const c={id,name:item.name,preview:botOpener(item.name,item.job,item.desc).slice(0,48),hero:item.hero,folder,
+    job:item.job,desc:item.desc,prefs:'',persona:item.persona,primary:false,
+    messages:[{from:'bot',text:botOpener(item.name,item.job,item.desc),note:'Local bot · no connector attached'}]};
+  convs.push(c);activeId=id;activeFolder=folder;view='chat';mobileView='chat';
+  modal=null;saveState();render();showToast(item.name+' ready — add your own connector only if you want one');
+  return c;
+}
 function botRoleKind(name,job,desc){
   const s=[name,job,desc].join(' ').toLowerCase();
   if(/oracle|how to use|technical|bug|ui fix|app help/.test(s))return 'oracle';
@@ -413,6 +460,10 @@ function botRoleKind(name,job,desc){
   if(/tutor|teach|lesson|study|explain|homework/.test(s))return 'tutor';
   if(/coach|fitness|habit|goal|accountab|trainer/.test(s))return 'coach';
   if(/research|news|source|lookup|competitive|scout/.test(s))return 'research';
+  if(/seo|aeo|search visibility|keyword|newsletter/.test(s))return 'seo';
+  if(/community|moderator|discord|forum/.test(s))return 'community';
+  if(/slack|reply drafter|team chat/.test(s))return 'slack';
+  if(/youtube|engagement|comments/.test(s))return 'youtube';
   if(/computer|bridge|shell|browser|automation|routine|connector/.test(s))return 'computer';
   return 'general';
 }
@@ -461,6 +512,11 @@ function botOpener(name,job,desc){
     tutor:['What are you learning right now?','How much do you already know?','Would you like short steps or full explanations?'],
     coach:['What goal are you working toward?','What has blocked you before?','How often do you want a check-in?'],
     research:['What question should I answer?','Which sources do you trust most?','How current does the information need to be?'],
+    seo:['What are you trying to be found for?','Which words would your readers actually search?','Do you want an outline or a draft?'],
+    newsletter:['What is this issue about?','Who is it for?','Do you want a short summary or a full draft?'],
+    community:['Which community are you welcoming?','What rules should members follow?','Do you want a greeting, a reply or a rule draft?'],
+    slack:['Which team channel is this for?','What is the tone: brief, friendly or formal?','What exact message should I answer?'],
+    youtube:['What is your video or channel about?','Which viewer question came up?','Do you want a title, reply or audience question?'],
     computer:['What should I run on your Mac?','Which approved tools or connectors should I use?','When should I ask before acting?'],
     general:['What are you working on?','What should I know about your goal?','How would you like me to help?']
   }[botRoleKind(n,j,d)];
@@ -595,6 +651,8 @@ const hashParams=new URLSearchParams((location.hash||'').replace(/^#/,''));
 const queryParams=new URLSearchParams(location.search);
 let hashShare=null;
 if(hashParams.get('s')){try{hashShare=JSON.parse(b64dec(hashParams.get('s')))}catch(e){}}
+let sharedBotTemplate=null;
+if(hashParams.get('bot')){try{sharedBotTemplate=normalizeBotTemplate(JSON.parse(b64dec(decodeURIComponent(hashParams.get('bot')))))}catch(e){}}
 const shareToken=queryParams.get('share')||(hashShare&&hashShare.id)||hashParams.get('s')||'';
 const guestMode=!!shareToken;
 const stateKey=guestMode?'oracle.guest.'+shareToken:'oracle.state';
@@ -656,7 +714,7 @@ async function cloudLoadState(){
 function saveState(){localStorage.setItem(stateKey,JSON.stringify({convs,folders,activeId}));cloudSaveState()}
 const ORACLE_BOT_ID='oracle-bot';
 function oracleBotGuide(){
-  return `Hi — I'm Oracle Bot, your built-in guide and technical assistant.\n\nHow to use Oracle:\n• Pick a bot in the left list, or make a new one with the + button.\n• Use the model pill to switch between Mac models, private on-device models, or automatic free cloud.\n• Use folders to group chats, the microphone/call buttons to talk, and the ⋯ menu to rename, move, hand off or teach a task.\n• In Profile you will find My Connectors, your vault, routines, Teams & Triggers, help, and update status. Guests only see their own private copy.\n• Just say “connect my Instagram”, “check my Instagram” or “draft a post” — no special command words to remember. Quick buttons under the message box do the same thing.\n• Draft cards can be edited, copied, published with Allow once, or cancelled. For “monitor” or “schedule”, I give you copyable iOS Shortcut/webhook steps instead of pretending to run in the background.\n• Projects and My Memory stay on your device; memory is only used in prompts when you turn recall on.\n\nAsk me to explain the app, plan a change, draft a bug fix, or review the UI. I can plan and draft social posts, but I cannot log into Instagram or manage an account until you add your own connector and approve a specific action. I cannot drive the phone browser for you or keep monitoring in the background; actions run only while the app is open in the foreground. On the owner Mac I can also propose and run changes with an approval card. On a phone or guest link I can guide and draft, but I never get host files, tools or vault secrets.\n• New: just say “who can help me learn this?” or “ask Socials Bot to plan a post” and I hand it to the right specialist with a plain summary. Each bot has a local desk showing its own connector, memory/project state, routines and last approval.\n• Profile → Connector catalog lists only your own setup paths; no borrowed login and no token broker. Profile → Routine templates gives copyable iPhone Shortcut/webhook steps for a daily brief, mention check or draft post — they run only while the app is open in the foreground.`;
+  return `Hi — I'm Oracle Bot, your built-in guide and technical assistant.\n\nHow to use Oracle:\n• Pick a bot in the left list, or make a new one with the + button.\n• Use the model pill to switch between Mac models, private on-device models, or automatic free cloud.\n• Use folders to group chats, the microphone/call buttons to talk, and the ⋯ menu to rename, move, hand off or teach a task.\n• In Profile you will find My Connectors, your vault, routines, Teams & Triggers, help, and update status. Guests only see their own private copy.\n• Just say “connect my Instagram”, “check my Instagram” or “draft a post” — no special command words to remember. Quick buttons under the message box do the same thing.\n• Draft cards can be edited, copied, published with Allow once, or cancelled. For “monitor” or “schedule”, I give you copyable iOS Shortcut/webhook steps instead of pretending to run in the background.\n• Projects and My Memory stay on your device; memory is only used in prompts when you turn recall on.\n\nAsk me to explain the app, plan a change, draft a bug fix, or review the UI. I can plan and draft social posts, but I cannot log into Instagram or manage an account until you add your own connector and approve a specific action. I cannot drive the phone browser for you or keep monitoring in the background; actions run only while the app is open in the foreground. On the owner Mac I can also propose and run changes with an approval card. On a phone or guest link I can guide and draft, but I never get host files, tools or vault secrets.\n• New: just say “who can help me learn this?” or “ask Socials Bot to plan a post” and I hand it to the right specialist with a plain summary. Each bot has a local desk showing its own connector, memory/project state, routines and last approval.\n• Profile → Approval inbox gathers every waiting Allow once / Deny and draft decision in one local list; nothing is auto-approved. Starter bot gallery makes one-tap local helpers for community, newsletter, SEO, Slack replies and YouTube engagement — no account is attached until you add your own connector.\n• Save a useful reply, draft, source card or image with “Save to Library” under the message. Your Library is device-local, works across your bots, and is only added to the composer when you choose it. Bot roster can share a template link/file containing only the bot's name, job, description, tone and avatar; the recipient imports a fresh local copy.\n• Profile → Connector catalog lists only your own setup paths; no borrowed login and no token broker. Profile → Routine templates gives copyable iPhone Shortcut/webhook steps for daily brief, weekly digest, interval reminder, mention check or draft post — they run only while the app is open in the foreground.`;
 }
 function oracleBotConversation(){
   const folder=folders[0]?.id||'general';
@@ -836,6 +894,49 @@ try{
 function saveLocalMemory(){try{localStorage.setItem(LOCAL_MEMORY_KEY,JSON.stringify({on:memoryOn,items:localMemory.slice(0,80)}))}catch(e){}}
 function saveProjects(){try{localStorage.setItem(PROJECT_KEY,JSON.stringify(projects.slice(0,40)))}catch(e){}}
 function finishFirstRun(){firstRun=false;try{localStorage.setItem(FIRST_RUN_KEY,'0')}catch(e){}}
+// Device-local Library: useful drafts, briefs, source cards and images can be
+// saved from any chat and reused in any bot. It is never cloud state and never
+// enters a model prompt unless the person chooses an item in the composer.
+const LIBRARY_KEY='oracle.library.'+vaultId;
+let libraryItems=[];
+try{
+  const li=JSON.parse(localStorage.getItem(LIBRARY_KEY)||'[]');
+  libraryItems=Array.isArray(li)?li.filter(x=>x&&x.id&&memorySafe(x.text||'')).slice(0,60).map(x=>({
+    id:String(x.id).slice(0,80),kind:String(x.kind||'brief').slice(0,20),
+    title:String(x.title||'Saved item').slice(0,80),text:String(x.text||'').slice(0,4000),
+    imageUrl:String(x.imageUrl||'').slice(0,300),imageId:String(x.imageId||'').slice(0,80),
+    imagePrompt:String(x.imagePrompt||'').slice(0,160),created:Number(x.created)||Date.now()
+  })):[];
+}catch(e){}
+function saveLibrary(){try{localStorage.setItem(LIBRARY_KEY,JSON.stringify(libraryItems.slice(0,60)))}catch(e){}}
+function libAdd(item){
+  const raw=item||{},text=String(raw.text||'').replace(/\s+/g,' ').trim().slice(0,4000);
+  if(!memorySafe(text))return null;
+  const out={id:'lib-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
+    kind:String(raw.kind||'brief').slice(0,20),title:String(raw.title||'Saved item').slice(0,80),
+    text,imageUrl:String(raw.imageUrl||'').slice(0,300),imageId:String(raw.imageId||'').slice(0,80),
+    imagePrompt:String(raw.imagePrompt||'').slice(0,160),created:Date.now()};
+  if(!out.text&&!out.imageId)return null;
+  libraryItems.unshift(out);libraryItems=libraryItems.slice(0,60);saveLibrary();return out;
+}
+function libRemove(id){libraryItems=libraryItems.filter(x=>x.id!==id);saveLibrary()}
+function libraryItemFromMessage(m){
+  if(!m||m.connector||m.tool)return null;
+  const text=String(m.draft?m.draft.text:(m.text||'')).slice(0,4000);
+  const sources=Array.isArray(m.sources)?m.sources.slice(0,12).map(s=>
+    '['+String(s.title||'source').slice(0,90)+'] '+String(s.url||'').slice(0,300)+(s.date?' · '+String(s.date).slice(0,30):'')).join('\n'):'';
+  if(!text&&!sources&&!m.imageId)return null;
+  const kind=m.draft?'draft':m.imageId?'image':sources?'source':'brief';
+  const title=String(m.note||(m.draft?'Draft':kind)).replace(/\s+/g,' ').trim().slice(0,80)||kind;
+  return libAdd({kind,title,text:sources?(text+'\n\nSources:\n'+sources).slice(0,4000):text,
+    imageUrl:m.draft&&m.draft.imageUrl?m.draft.imageUrl:'',imageId:m.imageId||'',imagePrompt:m.imagePrompt||''});
+}
+function libraryUseText(item){
+  if(!item)return '';
+  if(item.text)return item.text;
+  if(item.imageUrl)return item.imageUrl;
+  return '[Saved image: '+String(item.imagePrompt||item.title||'image').slice(0,160)+']';
+}
 function memorySafe(s){return !/token|secret|password|passphrase|bearer|api[_-]?key|igqv/i.test(String(s))}
 function memoryPromptText(c){
   if(c&&c.id){const d=deskLoad()[c.id];if(d&&d.memory===false)return ''}
@@ -1007,12 +1108,19 @@ const ROUTINE_TEMPLATES=[
   {id:'mention',name:'Mention check',steps:['Add Get Contents of URL → GET → your own HTTPS endpoint.','Add Find Text or Filter Files for mentions, tags or comments.','Add Show Alert or Send Message with anything new.','Optional: add a second Get Contents of URL → POST → your own webhook to save a copy.'],
     json:'{"source":"Oracle","action":"check","target":"instagram"}'},
   {id:'draft',name:'Draft post',steps:['Add Ask for Input or a text action for the post topic.','Add Get Contents of URL → POST → your own webhook with that topic.','Add Show Alert with the draft returned by your webhook.','Copy the draft into your own account only after you are happy with it.'],
-    json:'{"source":"Oracle","action":"draft","target":"instagram"}'}
+    json:'{"source":"Oracle","action":"draft","target":"instagram"}'},
+  {id:'weekly',name:'Weekly digest',steps:['Add a user-owned reminder that opens Oracle; this app cannot wake itself.','Add Get Contents of URL → GET → your own HTTPS endpoint while the app is open.','Add Summarize or a note step to collect the week into a short digest.','Add Show Alert or Send Message with the result.'],
+    json:'{"source":"Oracle","action":"brief","period":"weekly","target":"instagram"}'},
+  {id:'interval',name:'Interval reminder',steps:['Open Oracle and run this shortcut while the app is on screen.','Add Wait 5 minutes only while the shortcut is running; closing Oracle stops it.','Add Show Alert or Send Message with your short check-in.','Optional: add Get Contents of URL → POST → your own webhook to record it.'],
+    json:'{"source":"Oracle","action":"check","interval":"5m","target":"instagram"}'}
 ];
 function routineTemplate(id){return ROUTINE_TEMPLATES.find(t=>t.id===id)||ROUTINE_TEMPLATES[1]}
 function routineTemplateIntent(text){
   const s=String(text||'').toLowerCase();
   if(/daily|morning|each day/.test(s)&&/brief|digest|summary|routine|shortcut/.test(s))return 'daily';
+  if(/weekly|each week|every week|once a week/.test(s)&&/digest|brief|summary|routine|shortcut/.test(s))return 'weekly';
+  if(/every\s+(\d+|one|two|three|five|ten)\s+minutes|interval|repeat|say hi/.test(s)
+     &&/routine|shortcut|remind|check|minutes/.test(s))return 'interval';
   if(/mention|tag|comment|\bdm\b/.test(s)&&/check|watch|routine|shortcut/.test(s))return 'mention';
   if(/draft|prepare/.test(s)&&/post|caption/.test(s)&&/routine|shortcut|automation/.test(s))return 'draft';
   return '';
@@ -1049,6 +1157,37 @@ function connectorIntent(text,files){
   return null;
 }
 function connectorLabel(type){return type==='webhook'?'Webhook':type==='instagram'?'Instagram':'connector'}
+// One local list of decisions waiting across every chat. It contains no token,
+// endpoint secret, cloud state or borrowed account — only plain labels and a
+// short redacted preview of what each card already shows in its own chat.
+function approvalPreview(s){
+  const v=String(s==null?'':s);
+  if(!memorySafe(v))return '[hidden — looks like a secret]';
+  return v.replace(/[<>]/g,'').replace(/\s+/g,' ').trim().slice(0,90);
+}
+function pendingApprovals(){
+  const out=[];
+  convs.forEach(c=>{
+    (c&&Array.isArray(c.messages)?c.messages:[]).forEach((m,i)=>{
+      if(!m)return;
+      if(m.connector&&m.connectorState==='pending'){
+        out.push({chatId:c.id,chatName:c.name||'Chat',idx:i,kind:'connector',
+          label:'Connector · '+String(m.connector.action||'check')+' · '+String(m.connector.name||'connector'),
+          preview:approvalPreview(m.connector.text||connectorLabel(m.connector.type)+' check')});
+      }else if(m.tool&&m.toolState==='pending'){
+        out.push({chatId:c.id,chatName:c.name||'Chat',idx:i,kind:'tool',
+          label:'Host tool · '+String(m.toolSummary||'action'),
+          preview:approvalPreview(m.tool.preview||'')});
+      }else if(m.draft&&m.draftState==='pending'){
+        out.push({chatId:c.id,chatName:c.name||'Chat',idx:i,kind:'draft',
+          label:'Draft · '+connectorLabel(m.draft.type),
+          preview:approvalPreview(m.draft.text||'')});
+      }
+    });
+  });
+  return out.slice(0,40);
+}
+function approvalCount(){return pendingApprovals().length}
 async function runConnectorIntent(raw,c,intent){
   let reply='';
   if(intent.kind==='monitor'){
@@ -2643,7 +2782,7 @@ function render(){
         <div style="margin-top:14px">${vaultKeys.length?vaultKeys.map(k=>`<div class="vault-row"><span>${esc(k)}</span><span><code>••••••••</code> <button class="btn danger" data-del="${esc(k)}" style="padding:4px 8px;font-size:11px">Remove</button></span></div>`).join(''):'<p style="color:var(--muted);font-size:13px">No saved credentials yet.</p>'}</div>
       </div></div>`;
   } else {
-    const msgs=c.messages.map((m,i)=>`<div class="row ${m.from}"><div class="bubble ${m.from}">${esc(m.text)}${m.retryable&&i===c.messages.length-1?`<button class="bubble-retry" data-retry-msg="${i}">Retry with short history</button>`:''}${m.imageId?`<div class="img-msg"><img class="chat-image" data-img-id="${esc(m.imageId)}" alt="${esc(m.imagePrompt||'Generated image')}" /><div class="img-actions"><button class="btn" data-img-copy="${esc(m.imageId)}">Copy</button><button class="btn" data-img-download="${esc(m.imageId)}">Download</button></div></div>`:''}${m.note?`<div class="meta">${esc(m.note)}</div>`:''}${m.sources&&m.sources.length?`<div class="source-list">${m.sources.map((s,i)=>`<details class="source-card"><summary><span class="source-num">[${i+1}]</span><span class="source-title">${esc(s.title)}</span><span class="source-meta">${esc(s.domain||'')}${s.date?' · '+esc(s.date):''}</span></summary><div class="source-body"><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">Open source ↗</a>${s.snippet?`<p>${esc(s.snippet)}</p>`:''}${s.query?`<p class="source-why">Why this source? Found by Deep Search via “${esc(s.query)}”. A public page from the free news proxy — not an account login or saved secret.</p>`:''}</div></details>`).join('')}</div>`:''}${m.connector?`<div class="connector-card ${m.connectorState||''}">
+    const msgs=c.messages.map((m,i)=>`<div class="row ${m.from}"><div class="bubble ${m.from}">${esc(m.text)}${m.retryable&&i===c.messages.length-1?`<button class="bubble-retry" data-retry-msg="${i}">Retry with short history</button>`:''}${!m.connector&&!m.tool&&(m.text||m.draft||m.sources||m.imageId)?`<button class="bubble-save" data-lib-save="${i}">Save to Library</button>`:''}${m.imageId?`<div class="img-msg"><img class="chat-image" data-img-id="${esc(m.imageId)}" alt="${esc(m.imagePrompt||'Generated image')}" /><div class="img-actions"><button class="btn" data-img-copy="${esc(m.imageId)}">Copy</button><button class="btn" data-img-download="${esc(m.imageId)}">Download</button></div></div>`:''}${m.note?`<div class="meta">${esc(m.note)}</div>`:''}${m.sources&&m.sources.length?`<div class="source-list">${m.sources.map((s,i)=>`<details class="source-card"><summary><span class="source-num">[${i+1}]</span><span class="source-title">${esc(s.title)}</span><span class="source-meta">${esc(s.domain||'')}${s.date?' · '+esc(s.date):''}</span></summary><div class="source-body"><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">Open source ↗</a>${s.snippet?`<p>${esc(s.snippet)}</p>`:''}${s.query?`<p class="source-why">Why this source? Found by Deep Search via “${esc(s.query)}”. A public page from the free news proxy — not an account login or saved secret.</p>`:''}</div></details>`).join('')}</div>`:''}${m.connector?`<div class="connector-card ${m.connectorState||''}">
          <div class="tool-title">${icon('spark',14)} ${esc(m.connector.name)} · ${esc(m.connector.action)}</div>
          <pre class="tool-preview">${esc(connectorPreview(m.connector))}</pre>
          ${m.connectorState==='pending'?`<div class="risk-chips"><span class="risk-chip">uses your own connector</span><span class="risk-chip">leaves this app</span></div><div class="tool-actions"><button class="btn primary" data-conn-approve="${i}">Allow once</button><button class="btn danger" data-conn-deny="${i}">Deny</button></div>`:''}
@@ -2701,7 +2840,7 @@ function render(){
             <button class="menu-item" id="moreNewFolder">${icon('file',18)}<span><strong>New folder</strong><span class="mi-sub">Group chats together</span></span></button>
             <button class="menu-item" id="morePersonality">${icon('spark',18)}<span><strong>Personality: ${esc(personalityLabel(c))}</strong><span class="mi-sub">${esc(botPersona(c).sub)} — tap to change this bot's tone</span></span></button>
             <button class="menu-item" id="moreBotDesk">${icon('spark',18)}<span><strong>Bot desk</strong><span class="mi-sub">Connector, memory, project, routines, last approval</span></span></button>
-            <button class="menu-item" id="moreRoutineTemplates">${icon('info',18)}<span><strong>Routine templates</strong><span class="mi-sub">Copyable Shortcut/webhook steps</span></span></button>
+            <button class="menu-item" id="moreRoutineTemplates">${icon('info',18)}<span><strong>Routine templates</strong><span class="mi-sub">Daily, weekly and interval Shortcut steps</span></span></button>
             <button class="menu-item" id="moreDeepSearch">${icon('search',18)}<span><strong>Deep search: ${c.deep?'On':'Off'}</strong><span class="mi-sub">${c.deep?'Multi-query dated source cards':'One quick search with link list'}</span></span></button>
             ${guestMode?'':`<button class="menu-item" data-cm="teach" data-id="${c.id}">${icon('spark',18)}<span><strong>Teach this task</strong><span class="mi-sub">${staticMode?'Draft a device routine':'Save an owner-only skill'}</span></span></button>`}
             ${staticMode?'':`<button class="menu-item" id="moreToolMode">${icon('spark',18)}<span><strong>Tools: ${toolMode==='auto'?'Auto':'Ask first'}</strong><span class="mi-sub">${toolMode==='auto'?'Local model can act — click to require approvals':'Click to allow automatic basic tools'}</span></span></button>
@@ -2736,6 +2875,7 @@ function render(){
           <button type="button" class="quick-btn" data-quick="route">${icon('spark',13)} Find a bot</button>
           <button type="button" class="quick-btn" data-open-bot-desk>${icon('spark',13)} Bot desk</button>
           <button type="button" class="quick-btn" data-open-templates>${icon('info',13)} Routine templates</button>
+          ${approvalCount()?`<button type="button" class="quick-btn" data-open-approvals>${icon('lock',13)} Approvals (${approvalCount()})</button>`:''}
         </div>`:''}
         <div class="call-bar thinking" id="deviceBar" style="${deviceStatus?'':'display:none'}"><span class="call-dot"></span><span id="deviceBarText">${esc(deviceStatus)}</span></div>
         <div class="progress-track" id="deviceProgress" role="progressbar" aria-label="Model download progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(deviceProgress)}" style="${deviceProgressActive?'':'display:none'}"><div class="progress-fill" style="width:${deviceProgress}%"></div></div>
@@ -2785,7 +2925,11 @@ function render(){
         <div class="menu-sep"></div>`}
         <button class="menu-item" id="openConnectors">${icon('lock',18)}<span><strong>My Connectors</strong><span class="mi-sub">Your own accounts — tokens stay on this device</span></span></button>
         <button class="menu-item" id="openConnectorCatalog">${icon('spark',18)}<span><strong>Connector catalog</strong><span class="mi-sub">Plain setup paths — no borrowed logins</span></span></button>
-        <button class="menu-item" id="openRoutineTemplates">${icon('info',18)}<span><strong>Routine templates</strong><span class="mi-sub">Daily brief, mention check and draft post steps</span></span></button>
+        <button class="menu-item" id="openApprovals">${icon('lock',18)}<span><strong>Approval inbox${approvalCount()?' · '+approvalCount():''}</strong><span class="mi-sub">Every Allow once / Deny and draft decision in one place</span></span></button>
+        <button class="menu-item" id="openStarterGallery">${icon('spark',18)}<span><strong>Starter bot gallery</strong><span class="mi-sub">One-tap local helpers — no connector attached</span></span></button>
+        <button class="menu-item" id="openLibrary">${icon('file',18)}<span><strong>My Library</strong><span class="mi-sub">Saved drafts, briefs, source cards and images</span></span></button>
+        <button class="menu-item" id="importBotTemplate">${icon('share',18)}<span><strong>Import bot template</strong><span class="mi-sub">Paste a link or choose a .json file</span></span></button>
+        <button class="menu-item" id="openRoutineTemplates">${icon('info',18)}<span><strong>Routine templates</strong><span class="mi-sub">Daily, weekly, interval, mention and draft steps</span></span></button>
         <button class="menu-item" id="installApp">${icon('plus',18)}<span><strong>Install this web app</strong><span class="mi-sub">${installPrompt?'Add Oracle to your device':'Add to Home Screen / Install'}</span></span></button>
         <button class="menu-item" id="openAbout">${icon('info',18)}<span><strong>About / Update status</strong><span class="mi-sub">Build, model and service worker</span></span></button>
         <button class="menu-item" id="toggleTheme">${icon('theme',18)}<span><strong>Appearance: ${themeLabel()}</strong><span class="mi-sub">System, light or dark — tap to change</span></span></button>
@@ -2893,6 +3037,11 @@ function bind(){
   document.getElementById('openWebSearch')?.addEventListener('click',()=>{profileOpen=false;openWebSearchSettings()});
   document.getElementById('openConnectors')?.addEventListener('click',()=>{profileOpen=false;openConnectors()});
   document.getElementById('openConnectorCatalog')?.addEventListener('click',()=>{profileOpen=false;openConnectorCatalog()});
+  document.getElementById('openApprovals')?.addEventListener('click',()=>{profileOpen=false;openApprovalInbox()});
+  document.getElementById('openStarterGallery')?.addEventListener('click',()=>{profileOpen=false;openStarterBotGallery()});
+  document.getElementById('openLibrary')?.addEventListener('click',()=>{profileOpen=false;openLibrary()});
+  document.getElementById('importBotTemplate')?.addEventListener('click',()=>{profileOpen=false;openBotImportModal()});
+  document.querySelectorAll('[data-open-approvals]').forEach(b=>b.onclick=()=>{plusOpen=modelOpen=profileOpen=moreOpen=false;openApprovalInbox()});
   document.getElementById('openRoutineTemplates')?.addEventListener('click',()=>{profileOpen=false;openRoutineTemplates()});
   document.getElementById('installApp')?.addEventListener('click',()=>{profileOpen=false;openInstallApp()});
   document.getElementById('openAbout')?.addEventListener('click',()=>{profileOpen=false;openAbout()});
@@ -2985,6 +3134,7 @@ function bind(){
   document.getElementById('backdrop')?.addEventListener('click',()=>{plusOpen=modelOpen=profileOpen=moreOpen=false;render()});
   document.querySelectorAll('[data-rmf]').forEach(b=>b.onclick=()=>{files.splice(+b.dataset.rmf,1);render()});
   document.querySelectorAll('[data-rmc]').forEach(b=>b.onclick=()=>{credSelected.splice(+b.dataset.rmc,1);render()});
+  document.querySelectorAll('[data-lib-save]').forEach(b=>b.onclick=()=>saveMessageToLibrary(+b.dataset.libSave));
   document.querySelectorAll('[data-tool-approve]').forEach(b=>b.onclick=()=>toolAction(+b.dataset.toolApprove,'once'));
   document.querySelectorAll('[data-tool-always]').forEach(b=>b.onclick=()=>toolAction(+b.dataset.toolAlways,'always'));
   document.querySelectorAll('[data-tool-deny]').forEach(b=>b.onclick=()=>toolAction(+b.dataset.toolDeny,'deny'));
@@ -3628,6 +3778,141 @@ function openToolRules(){
   render();
   document.querySelectorAll('[data-tr-del]').forEach(b=>b.onclick=()=>{toolRules.splice(+b.dataset.trDel,1);saveToolRules();openToolRules()});
 }
+function openApprovalInbox(){
+  const rows=pendingApprovals();
+  const actionHtml=a=>{
+    if(a.kind==='draft')return `<button class="btn tiny" data-ap-edit="${rows.indexOf(a)}">Edit</button> <button class="btn tiny" data-ap-copy="${rows.indexOf(a)}">Copy</button> <button class="btn primary tiny" data-ap-publish="${rows.indexOf(a)}">Publish</button> <button class="btn danger tiny" data-ap-cancel="${rows.indexOf(a)}">Cancel</button>`;
+    return `<button class="btn primary tiny" data-ap-allow="${rows.indexOf(a)}">Allow once</button> <button class="btn danger tiny" data-ap-deny="${rows.indexOf(a)}">Deny</button>`;
+  };
+  const list=rows.map(a=>`<div class="vault-row" style="align-items:flex-start;gap:10px;flex-wrap:wrap"><span style="flex:1;min-width:170px"><strong>${esc(a.label)}</strong><br/><small style="color:var(--muted)">${esc(a.chatName)} · message ${a.idx+1}</small><br/><small>${esc(a.preview||'No text to show')}</small></span><span style="display:flex;flex-wrap:wrap;gap:5px">${actionHtml(a)} <button class="btn tiny" data-ap-open="${rows.indexOf(a)}">Open card</button></span></div>`).join('');
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal" style="max-width:680px"><h3>Approval inbox</h3>
+    <p>Every decision waiting across your local chats, in one place. Connector and host tool rows offer only Allow once / Deny; drafts still need Publish then Allow once. No token, borrowed account or always-allow lives here.</p>
+    ${list||'<div class="status" style="text-align:left">Nothing waiting. Your bots will add cards here when they need a decision.</div>'}
+    <div class="modal-actions"><button class="btn primary" id="mc">Done</button></div></div></div>`;
+  render();
+  document.querySelectorAll('[data-ap-open]').forEach(b=>b.onclick=()=>{const a=rows[+b.dataset.apOpen];if(a)focusApproval(a.chatId,a.idx)});
+  document.querySelectorAll('[data-ap-allow]').forEach(b=>b.onclick=()=>{
+    const a=rows[+b.dataset.apAllow];if(!a)return;
+    focusApproval(a.chatId,a.idx,a.kind==='connector'?'conn-allow':'tool-allow');
+  });
+  document.querySelectorAll('[data-ap-deny]').forEach(b=>b.onclick=()=>{
+    const a=rows[+b.dataset.apDeny];if(!a)return;
+    focusApproval(a.chatId,a.idx,a.kind==='connector'?'conn-deny':'tool-deny');
+  });
+  document.querySelectorAll('[data-ap-edit]').forEach(b=>b.onclick=()=>{const a=rows[+b.dataset.apEdit];if(a)focusApproval(a.chatId,a.idx,'draft-edit')});
+  document.querySelectorAll('[data-ap-copy]').forEach(b=>b.onclick=()=>{const a=rows[+b.dataset.apCopy];if(a)focusApproval(a.chatId,a.idx,'draft-copy')});
+  document.querySelectorAll('[data-ap-publish]').forEach(b=>b.onclick=()=>{const a=rows[+b.dataset.apPublish];if(a)focusApproval(a.chatId,a.idx,'draft-publish')});
+  document.querySelectorAll('[data-ap-cancel]').forEach(b=>b.onclick=()=>{const a=rows[+b.dataset.apCancel];if(a)focusApproval(a.chatId,a.idx,'draft-cancel')});
+}
+function focusApproval(chatId,idx,action){
+  const c=convs.find(x=>x.id===chatId);if(!c)return;
+  activeId=chatId;activeFolder=c.folder||activeFolder;view='chat';mobileView='chat';
+  modal=null;saveState();render();
+  if(!action)return;
+  if(action==='conn-allow')connectorAction(idx,'once');
+  else if(action==='conn-deny')connectorAction(idx,'deny');
+  else if(action==='tool-allow')toolAction(idx,'once');
+  else if(action==='tool-deny')toolAction(idx,'deny');
+  else if(action==='draft-edit')editDraft(idx);
+  else if(action==='draft-copy')copyDraft(idx);
+  else if(action==='draft-publish')publishDraft(idx);
+  else if(action==='draft-cancel')cancelDraft(idx);
+}
+function openStarterBotGallery(){
+  const rows=STARTER_BOTS.map(t=>`<div class="vault-row"><span><strong>${esc(t.name)}</strong><br><small>${esc(t.job)} · ${esc(t.desc)}</small></span><button class="btn primary" data-starter-add="${esc(t.id)}">Add bot</button></div>`).join('');
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal" style="max-width:620px"><h3>Starter bot gallery</h3>
+    <p>One tap makes a local bot with its own opener, tone and avatar. Nothing is connected to an account until you add your own connector in that bot's desk.</p>
+    ${rows}
+    <p class="wizard-note">No borrowed login, token broker, cloud sync or hidden prompt. These are just ready-made local teammates you can edit or delete.</p>
+    <div class="modal-actions"><button class="btn primary" id="mc">Done</button></div></div></div>`;
+  render();
+  document.querySelectorAll('[data-starter-add]').forEach(b=>b.onclick=()=>createStarterBot(b.dataset.starterAdd));
+}
+function saveMessageToLibrary(idx){
+  const c=active(),item=libraryItemFromMessage(c&&c.messages&&c.messages[idx]);
+  if(!item){showToast('Nothing safe to save from that message');return}
+  render();showToast('Saved to Library: '+item.title);
+}
+function openLibrary(){
+  const rows=libraryItems.map(it=>`<div class="vault-row" style="align-items:flex-start;gap:9px;flex-wrap:wrap"><span style="flex:1;min-width:170px"><strong>${esc(it.title)}</strong><br><small style="color:var(--accent-2)">${esc(it.kind)} · ${esc(it.imagePrompt||'text')}</small><br><small>${esc(it.text.slice(0,180))}</small></span><span style="display:flex;flex-wrap:wrap;gap:5px"><button class="btn tiny" data-lib-use="${esc(it.id)}">Use in this chat</button><button class="btn tiny" data-lib-copy="${esc(it.id)}">Copy</button><button class="btn danger tiny" data-lib-del="${esc(it.id)}">Remove</button></span></div>`).join('');
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal" style="max-width:640px"><h3>My Library</h3>
+    <p>Save useful drafts, briefs, source cards and images from any chat, then reuse them in any bot. This library stays in this browser session; it is never synced or silently added to a model prompt.</p>
+    <form id="libForm"><label>Title<input id="libTitle" maxlength="80" placeholder="e.g. Comic launch brief" /></label>
+    <label>Text<textarea id="libText" rows="3" placeholder="No tokens, passwords or secrets"></textarea></label>
+    <div class="tool-actions"><button class="btn primary" type="submit">Save item</button></div></form>
+    <h4 style="margin:16px 0 6px">Saved items</h4>
+    ${rows||'<p style="color:var(--muted);font-size:13px">Nothing saved yet. Use “Save to Library” under a message, or add a note above.</p>'}
+    <div class="modal-actions"><button class="btn primary" id="mc">Done</button></div></div></div>`;
+  render();
+  document.getElementById('libForm')?.addEventListener('submit',e=>{
+    e.preventDefault();
+    const item=libAdd({kind:'brief',title:document.getElementById('libTitle')?.value||'Saved item',text:document.getElementById('libText')?.value||''});
+    if(!item){showToast('Nothing safe to save — secrets are refused');return}
+    openLibrary();showToast('Saved to this device');
+  });
+  document.querySelectorAll('[data-lib-use]').forEach(b=>b.onclick=()=>libraryUseItem(b.dataset.libUse));
+  document.querySelectorAll('[data-lib-copy]').forEach(b=>b.onclick=async()=>{
+    const it=libraryItems.find(x=>x.id===b.dataset.libCopy);if(!it)return;
+    try{await navigator.clipboard.writeText(libraryUseText(it));showToast('Library item copied')}
+    catch(e){showToast('Copy is unavailable here')}
+  });
+  document.querySelectorAll('[data-lib-del]').forEach(b=>b.onclick=()=>{libRemove(b.dataset.libDel);openLibrary();showToast('Library item removed')});
+}
+function libraryUseItem(id){
+  const it=libraryItems.find(x=>x.id===id);if(!it)return;
+  const text=libraryUseText(it);
+  draft=String(draft?draft+' ':'')+text;
+  modal=null;render();
+  const el=document.getElementById('draft');if(el){try{el.focus({preventScroll:true})}catch(e){}}
+  showToast('Added to '+active().name+' — nothing was sent');
+}
+function openBotTemplateShare(id){
+  const c=convs.find(x=>x.id===id)||active();if(!c)return;
+  const json=JSON.stringify(botTemplatePayload(c),null,2);
+  const link=PAGES_BASE+'#bot='+encodeURIComponent(b64enc(json));
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Share “${esc(c.name)}” as a template</h3>
+    <p>The link or file carries only the bot's name, job, description, tone and avatar. Your chats, connector, token, cloud state and account are not included. The recipient gets a fresh local copy.</p>
+    <input id="botTemplateLink" value="${esc(link)}" readonly onfocus="this.select()" onclick="this.select()"/>
+    <textarea id="botTemplateJson" class="share-text" readonly>${esc(json)}</textarea>
+    <div class="modal-actions"><button class="btn" id="mc">Close</button><button class="btn" id="botTemplateCopy">Copy link</button><button class="btn primary" id="botTemplateDownload">Download .json</button></div></div></div>`;
+  render();
+  document.getElementById('botTemplateCopy')?.addEventListener('click',async()=>{
+    const t=document.getElementById('botTemplateLink');t.select();
+    try{await navigator.clipboard.writeText(t.value)}catch(e){document.execCommand('copy')}
+    showToast('Bot template link copied');
+  });
+  document.getElementById('botTemplateDownload')?.addEventListener('click',()=>{
+    const t=document.getElementById('botTemplateJson'),blob=new Blob([t.value],{type:'application/json'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download=String(botTemplatePayload(c).name).replace(/[^a-z0-9_-]+/gi,'-')+'-template.json';
+    document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(a.href);showToast('Bot template downloaded');
+  });
+}
+function openBotImportModal(preset){
+  const initial=typeof preset==='string'?preset:(preset?JSON.stringify(preset,null,2):'');
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal"><h3>Import a bot template</h3>
+    <p>Paste a shared link or JSON, or choose a .json file. Only the five plain template fields are accepted; anything else is discarded.</p>
+    <textarea id="botImportText" class="share-text" placeholder="https://oracle-chat.pages.dev/#bot=… or { … }">${esc(initial)}</textarea>
+    <input type="file" id="botImportFile" accept=".json,application/json" style="font-size:12px;margin-top:10px"/>
+    <div class="modal-actions"><button class="btn" id="mc">Cancel</button><button class="btn primary" id="botImportGo">Import bot</button></div></div></div>`;
+  render();
+  document.getElementById('botImportFile')?.addEventListener('change',async e=>{
+    const f=e.target.files&&e.target.files[0];if(!f)return;
+    try{const t=document.getElementById('botImportText');if(t)t.value=await f.text();showToast('Template file loaded — check it, then Import')}
+    catch(err){showToast('Could not read that file')}
+  });
+  document.getElementById('botImportGo')?.addEventListener('click',()=>{
+    const value=String(document.getElementById('botImportText')?.value||'').trim();
+    let raw=null;
+    try{
+      const m=value.match(/#bot=([^&\s]+)/);
+      raw=m?JSON.parse(b64dec(decodeURIComponent(m[1]))):JSON.parse(value);
+    }catch(e){}
+    const t=normalizeBotTemplate(raw);
+    if(!t){showToast('That is not an Oracle bot template');return}
+    createImportedBot(t);
+  });
+}
 function openWebSearchSettings(){
   if(!staticMode||guestMode)return;
   const on=webSearchOn(),city=webSearchCity();
@@ -3923,11 +4208,11 @@ function openPersonalityPicker(){
 function openBotRoster(){
   const rows=convs.map(x=>`<div class="vault-row" style="justify-content:flex-start;gap:9px;flex-wrap:wrap">
     ${heroAvatar(x.hero)}<span style="flex:1;min-width:150px"><strong>${esc(x.name)}</strong>${x.primary?'<span class="primary-badge">PRIMARY</span>':''}<br/><small style="color:var(--accent-2);font-weight:600">${esc(botJob(x))} · ${esc(personalityLabel(x))}${x.desc?' · '+esc(String(x.desc).slice(0,60)):''}</small></span>
-    <button class="btn tiny" data-bot-open="${esc(x.id)}">Open</button><button class="btn tiny" data-bot-desk="${esc(x.id)}">Desk</button><button class="btn tiny" data-bot-edit="${esc(x.id)}">Edit</button></div>`).join('');
+    <button class="btn tiny" data-bot-open="${esc(x.id)}">Open</button><button class="btn tiny" data-bot-desk="${esc(x.id)}">Desk</button><button class="btn tiny" data-bot-share="${esc(x.id)}">Share template</button><button class="btn tiny" data-bot-edit="${esc(x.id)}">Edit</button></div>`).join('');
   modal=`<div class="modal-backdrop" id="mb"><div class="modal" style="max-width:620px"><h3>Bot roster</h3>
     <p>Each chat is one local bot with a name, job and avatar. The primary bot is the one that opens first. Nothing here is synced or shared.</p>
     ${rows}
-    <div class="modal-actions"><button class="btn" id="botNew">New bot</button><button class="btn primary" id="mc">Done</button></div></div></div>`;
+    <div class="modal-actions"><button class="btn" id="botNew">New bot</button><button class="btn" id="botGallery">Starter gallery</button><button class="btn primary" id="mc">Done</button></div></div></div>`;
   render();
   document.querySelectorAll('[data-bot-open]').forEach(b=>b.onclick=()=>{
     activeId=b.dataset.botOpen;const c=convs.find(x=>x.id===activeId);if(c)activeFolder=c.folder;
@@ -3935,7 +4220,9 @@ function openBotRoster(){
   });
   document.querySelectorAll('[data-bot-edit]').forEach(b=>b.onclick=()=>openBotEditModal(b.dataset.botEdit));
   document.querySelectorAll('[data-bot-desk]').forEach(b=>b.onclick=()=>openBotDesk(b.dataset.botDesk));
+  document.querySelectorAll('[data-bot-share]').forEach(b=>b.onclick=()=>openBotTemplateShare(b.dataset.botShare));
   document.getElementById('botNew')?.addEventListener('click',()=>openRoomModal(activeFolder));
+  document.getElementById('botGallery')?.addEventListener('click',()=>openStarterBotGallery());
 }
 function openBotEditModal(id){
   const c=convs.find(x=>x.id===id);if(!c)return;
@@ -3973,7 +4260,12 @@ function commandItems(){
     activeFolder=f.id;f.open=true;view='chat';saveState();render();
   }}));
   items.push({label:'New bot / chat room',sub:'command',art:icon('plus',16),run:()=>openRoomModal(activeFolder)});
+  items.push({label:'Starter bot gallery',sub:'one-tap local helpers · no connector attached',art:icon('spark',16),run:openStarterBotGallery});
   items.push({label:'Bot roster',sub:'command · names and jobs',art:icon('spark',16),run:openBotRoster});
+  items.push({label:'Share this bot template',sub:'link/file · name, job, description, tone, avatar only',art:icon('share',16),run:()=>openBotTemplateShare(activeId)});
+  items.push({label:'Import bot template',sub:'paste a link or choose a .json file',art:icon('share',16),run:()=>openBotImportModal()});
+  items.push({label:'Approval inbox'+(approvalCount()?' · '+approvalCount():''),sub:'all pending Allow once / Deny and draft decisions',art:icon('lock',16),run:openApprovalInbox});
+  items.push({label:'My Library',sub:'saved drafts, briefs, source cards and images',art:icon('file',16),run:()=>{modal=null;render();openLibrary()}});
   if(!guestMode)items.push({label:'Teams & Triggers',sub:'owner command · bot roles and rules',art:icon('spark',16),run:openTeams});
   items.push({label:'Personality: '+personalityLabel(active()),sub:'command · choose this bot\'s tone',art:icon('spark',16),run:openPersonalityPicker});
   items.push({label:'Install this web app',sub:'command · Add to Home Screen',art:icon('plus',16),run:openInstallApp});
@@ -3986,7 +4278,7 @@ function commandItems(){
   items.push({label:'My Connectors',sub:'your own accounts · device-local tokens',art:icon('lock',16),run:openConnectors});
   items.push({label:'Connector catalog',sub:'plain setup paths · no borrowed logins',art:icon('spark',16),run:openConnectorCatalog});
   items.push({label:'Bot desk',sub:'connector, memory, project, routines, last approval',art:icon('spark',16),run:()=>openBotDesk(activeId)});
-  items.push({label:'Routine templates',sub:'daily brief, mention check and draft post steps',art:icon('info',16),run:openRoutineTemplates});
+  items.push({label:'Routine templates',sub:'daily, weekly, interval, mention and draft steps',art:icon('info',16),run:openRoutineTemplates});
   items.push({label:'Projects',sub:'group chats on this device',art:icon('file',16),run:()=>{view='projects';mobileView='chat';render()}});
   items.push({label:'My Memory',sub:'facts saved on this device',art:icon('spark',16),run:()=>{view='memory';mobileView='chat';render()}});
   if(staticMode&&!guestMode)items.push({label:'Make an image',sub:imageUnsupported()?'not available on iPhone':'command · on-device image generation',art:icon('spark',16),run:openImageModal});
@@ -4553,6 +4845,7 @@ document.addEventListener('keydown',e=>{
   }
   await refresh();
   if(guestMode)openGuestWelcome(guestInfo||{});
+  else if(sharedBotTemplate)openBotImportModal(sharedBotTemplate);
 })();
 </script>
 </body>
