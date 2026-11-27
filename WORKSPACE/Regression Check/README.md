@@ -79,17 +79,20 @@ shasum -a 256 baseline/Oracle-Chat-Live.html      # active live UI
 If a hash differs from the one above, the baseline was modified — restore
 from your own backup before trusting it.
 
-## Active live baseline (re-frozen 2026-11-27, build 2026-11-30)
+## Active live baseline (re-frozen 2026-11-27, build 2026-12-01)
 
 The live UI is now the working app (served by `oracle_bridge.py`). It has its
 own known-good snapshot:
 
 - **File:** `baseline/Oracle-Chat-Live.html`
-- **SHA-256:** `7f610c0fd4d76befb9f23ed93b3ee71c7d3b3f0a2f55a726dc29a5442ce5d17b`
+- **SHA-256:** `62148db7142ddb5f61495507041d72e2522425d9ed9b3d6e49e2535aef8c0c22`
 - Roll back with `restore-live.command` (keeps a `.broken` backup).
 
-Build `2026-11-30` stops iPhone Safari zoom in the message field and removes the
-post-send refocus/keyboard reset. It keeps the `2026-11-29` approval inbox,
+Build `2026-12-01` adds smart context chips, local chat search with a jump to the
+exact message, a plain-language one-time approval coach, Library 2.0 with search,
+tags, favorites and preview-before-insert, and a voice-first composer that
+previews dictated words and sends only on an explicit tap. It keeps the
+`2026-11-30` no-zoom/no-refocus composer, the `2026-11-29` approval inbox,
 starter bot gallery, device-local Library, safe bot template share/import and
 weekly/interval routine templates, plus the `2026-11-28` chief-of-staff routing,
 plain connector catalog and device-local bot desks. The config-gated free Pages
@@ -98,7 +101,8 @@ callback at `oracle-pages/functions/api/instagram-oauth/callback.js` from
 supplies the Meta App ID, server-side app secret, redirect URI and scopes as Pages
 secrets. No client secret exists in the app, chat, console, cloud state or prompts.
 The physical iPhone Safari passes for builds `2026-11-29` and `2026-11-30` are
-confirmed; older device-only boxes remain separately open.
+confirmed; the physical pass for `2026-12-01` remains open, as do older
+device-only boxes.
 
 The original offline mockup baseline and its SHA-256 are preserved unchanged
 for layout comparison and historical rollback via `restore.command`.

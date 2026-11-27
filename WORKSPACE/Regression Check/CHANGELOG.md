@@ -3,6 +3,52 @@
 Record every change here before you make it, so there is always a clear trail
 between the frozen baseline and whatever is currently in the working file.
 
+## 2026-12-01 — Smart chips, chat search, approval coach, Library 2.0 and voice-first composer (published and verified)
+
+Status: **published and verified** (planned before edits). The owner approved all five next improvements.
+They stay device-local, plain-language and approval-first; no background work,
+always-allow, hidden token, borrowed account, paid worker or browser control is
+added.
+
+Intended change:
+
+1. Add context-aware quick chips that suggest summarize, simpler, checklist,
+   save-to-Library and approval actions from the current chat. They use natural
+   phrases only and never create hidden connector syntax.
+2. Add local chat search that finds chat names and message text, then jumps to
+   the exact message. It stays inside the device vault and cloud state excludes
+   the search index.
+3. Add an approval coach that says in plain words what one Allow will and will
+   not do before the decision. It never adds always-allow or exposes a token.
+4. Upgrade the Library with search, tags, favorites and a preview before insert.
+   Items stay device-local, guest-isolated and are never injected into prompts
+   unless the person chooses them.
+5. Add a voice-first composer: dictate, preview the exact words, edit if needed,
+   then tap Send. Nothing sends from voice alone and no background listening is
+   claimed.
+6. Bump the marker to `2026-12-01`, extend the harness, run local/live smoke and
+   SHA checks, then re-freeze only after verification. Physical iPhone
+   confirmation stays open.
+
+Shipped in build `2026-12-01`: local harness PASS and live harness PASS on both
+sites. App SHA `62148db7142ddb5f61495507041d72e2522425d9ed9b3d6e49e2535aef8c0c22`
+was verified byte-for-byte on the live source, published copy, canonical site and
+backup site. The bridge stayed unchanged at
+`eb86840cf681ef57881244d87bc2f0bad57c593fb0673118c356429600661e20`, the worker at
+`6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`, the
+config-gated callback at
+`2adb97b605d9ffe749d3b5d83934a8ebe6ff61ad34ae5eaff1aa6f345e271eda`, and the
+frozen mockup at
+`320603d7585d1192685c1bff83c66257e6119aacc9c3b5db6cbeb5e94d96c191`. Published in
+Pages commit `f07663b`. Emulated 320/360/390/430 px checks on owner, guest,
+backup and bridge-host pages confirmed 16px fields, `enterkeyhint="send"`, context
+chips, working local search/coach/Library controls, voice preview with no
+auto-send, no focus zoom, no post-send refocus and no horizontal overflow. Owner,
+guest and backup pages had zero console errors; the bridge host only showed its
+known missing manifest asset. Baseline, rollback, README, workspace snapshot and
+manifest were re-frozen only after those checks passed. Physical iPhone
+confirmation for this new build remains open.
+
 ## 2026-11-30 — Physical iPhone Safari pass confirmed (documentation closeout)
 
 Status: **verified**. The owner opened the canonical build on a physical iPhone

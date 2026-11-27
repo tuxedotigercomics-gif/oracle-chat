@@ -5,12 +5,17 @@ This folder is the source-of-truth snapshot of the original Mac workspace at
 new computer can continue the project from GitHub alone.
 
 Snapshot date: 2026-11-27  
-Snapshot state: build `2026-11-30` verified from the frozen `2026-11-29` baseline  
-Published build at snapshot: `2026-11-30` verified on canonical and backup  
-App SHA: `7f610c0fd4d76befb9f23ed93b3ee71c7d3b3f0a2f55a726dc29a5442ce5d17b`  
+Snapshot state: build `2026-12-01` re-frozen after local/live harness and host/emulation checks  
+Published build at snapshot: `2026-12-01` verified on canonical and backup (Pages commit `f07663b`)  
+App SHA: `62148db7142ddb5f61495507041d72e2522425d9ed9b3d6e49e2535aef8c0c22`  
 OAuth callback SHA: `2adb97b605d9ffe749d3b5d83934a8ebe6ff61ad34ae5eaff1aa6f345e271eda`  
 Service-worker SHA: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`  
-Bridge SHA: `eb86840cf681ef57881244d87bc2f0bad57c593fb0673118c356429600661e20`
+Bridge SHA: `eb86840cf681ef57881244d87bc2f0bad57c593fb0673118c356429600661e20`  
+
+The physical iPhone pass for `2026-12-01` is still open; the confirmed device
+passes remain `2026-11-29` and `2026-11-30`. Smart chips, local chat search, the
+one-time approval coach, Library 2.0 and voice-first preview are all device-local
+and approval-first.
 
 ## Included
 

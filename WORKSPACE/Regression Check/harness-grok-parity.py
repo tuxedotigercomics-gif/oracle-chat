@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-"""Harness for build 2026-11-30 (approval inbox, starter bot gallery, local
-Library, bot template share/import, weekly/interval routines, plus the
-2026-11-28 chief-of-staff and device-local base).
+"""Harness for build 2026-12-01 (smart chips, local chat search, approval coach,
+Library 2.0, voice-first composer, plus the 2026-11-30/29/28 device-local base).
 
 Local mode checks source invariants and runs the pure JS helpers through the
 macOS JavaScriptCore engine (osascript -l JavaScript). There is no Node on this
@@ -46,7 +45,7 @@ def expect(cond, label):
 
 
 def source_checks(html, cloud, bridge, gdelt, oauth):
-    expect('content="2026-11-30"' in html, "build marker is 2026-11-30")
+    expect('content="2026-12-01"' in html, "build marker is 2026-12-01")
     expect("Socials Bot" in html and "Which platforms are you posting to?" in html,
            "Socials Bot template asks platform/audience/goal questions")
     expect("botOpener(name,job,desc)" in html, "room creation uses the local opener generator")
@@ -177,7 +176,7 @@ def source_checks(html, cloud, bridge, gdelt, oauth):
            and 'data-starter-add=' in html and "no connector attached" in html,
            "starter bot gallery creates one-tap local bots with no account attached")
     expect("const LIBRARY_KEY='oracle.library.'+vaultId" in html and 'data-lib-save=' in html
-           and "function libraryUseText(" in html and "silently added to a model prompt" in html
+           and "function libraryUseText(" in html and "nothing is added to a prompt unless you explicitly choose it" in html
            and "oracle.library." not in cloud,
            "device-local Library saves and reuses items without cloud state or prompt injection")
     expect("type:'oracle-bot-template'" in html and "function normalizeBotTemplate(raw)" in html
@@ -195,6 +194,27 @@ def source_checks(html, cloud, bridge, gdelt, oauth):
            "phone text fields stay at 16px so Safari does not zoom")
     expect("focusedField.blur()" in html and "No post-send refocus on any device" in html,
            "sending blurs before rerender and never refocuses")
+    expect("function smartChips(c)" in html and 'data-smart="' in html
+           and "Summarize this chat in five short bullets" in html
+           and "hidden connector syntax" in html,
+           "context chips suggest plain phrases from the current chat")
+    expect("function chatSearchResults(q)" in html and 'data-chat-hit=' in html
+           and "function focusChatMessage(" in html and 'id="openChatSearch"' in html
+           and "There is no index upload and no" in html,
+           "chat search is local and jumps to the exact message")
+    expect("function approvalCoach(kind,chatId,idx)" in html
+           and "Before you Allow once" in html and "<strong>Will not</strong>" in html
+           and "no always-allow button here" in html
+           and "data-conn-approve]').forEach(b=>b.onclick=()=>approvalCoach(" in html,
+           "approval coach explains one Allow with no always-allow")
+    expect("function libraryFiltered(" in html and 'data-lib-preview=' in html
+           and 'data-lib-fav=' in html and 'id="libSearch"' in html
+           and "Preview before insert" in html,
+           "Library 2.0 adds search, tags, favorites and preview-before-insert")
+    expect("Voice-first composer:" in html and "No auto-send" in html
+           and 'id="dictationDiscard"' in html and "then tap Send" in html
+           and "r.onresult=e=>{" in html and "sendMessage" not in html.split("r.onresult=e=>{")[1].split("r.onerror=")[0],
+           "voice dictation previews words with edit/discard and no auto-send")
     expect("oracle.desks." not in cloud and "oracle.connectors." not in cloud,
            "bot desks and connectors stay out of cloud backup")
     expect('data-conn-test=' in html and "function renderConnectorWizard()" in html
@@ -258,6 +278,7 @@ var convs=[{id:'a',name:'Alpha Bot',job:'Research assistant',desc:'',hero:'visio
            {id:'b',name:'Beta Bot',job:'Social media planner',desc:'',hero:'deadpool',folder:'f',persona:'playful',messages:[]}];
 var folders=[{id:'f',name:'Chats',open:true}];
 var activeFolder='f',view='chat',mobileView='chat',modal=null;
+function active(){return convs[0]}
 function showToast(s){}
 function render(){}
 function saveState(){}
@@ -403,6 +424,30 @@ var routineMoreOk=rtWeekly==='weekly'&&rtInterval==='interval'&&
   weeklySteps.indexOf('Weekly digest')>=0&&intervalSteps.indexOf('Interval reminder')>=0&&
   weeklySteps.indexOf('cannot run in the background')>=0&&
   intervalSteps.indexOf('closing Oracle stops it')>=0;
+var smartChat={name:'Alpha Bot',messages:[{from:'user',text:'Plan a launch'},{from:'bot',text:'A very long answer '.repeat(12)}]};
+var smart=smartChips(smartChat);
+var smartOk=smart.some(function(x){return x.phrase==='Summarize this chat in five short bullets'})&&
+  smart.some(function(x){return x.phrase==='Explain your last answer like I am new to this'})&&
+  smart.some(function(x){return x.phrase==='Turn my last question into a simple checklist'})&&
+  smart.some(function(x){return x.kind==='save'})&&
+  smart.every(function(x){return x.kind!=='connector'});
+var searchIdx=convs[0].messages.length;
+convs[0].messages.push({from:'bot',text:'Idaho Falls comic launch plan'});
+var nameHits=chatSearchResults('alpha bot');
+var msgHits=chatSearchResults('idaho falls comic');
+var searchOk=nameHits.length>0&&nameHits[0].idx===-1&&
+  msgHits.some(function(r){return r.chatId==='a'&&r.idx===searchIdx})&&
+  chatSearchResults('SECRET123').length===0&&
+  chatSearchResults('').length===0;
+var tagged=libAdd({title:'Launch notes',text:'Comic plan',tags:'comics, launch',favorite:true});
+var libSearch=libraryFiltered('launch','all','');
+var libFav=libraryFiltered('','favorites','');
+var libTag=libraryFiltered('','all','comics');
+var lib20Ok=!!tagged&&tagged.favorite===true&&
+  tagged.tags.indexOf('comics')>=0&&tagged.tags.indexOf('launch')>=0&&
+  libSearch.some(function(x){return x.id===tagged.id})&&
+  libFav.some(function(x){return x.id===tagged.id})&&
+  libTag.some(function(x){return x.id===tagged.id});
 JSON.stringify({social:social,identity:identity,q:q,xq:xq,off:off,
   needsApproval:needsApproval,ruleFormOk:ruleFormOk,blockedBeforeApproval:blockedBeforeApproval,ran:ran,order:order,
   pausedBlocked:pausedBlocked,rulePausedBlocked:rulePausedBlocked,scheduled:scheduled,
@@ -411,7 +456,7 @@ JSON.stringify({social:social,identity:identity,q:q,xq:xq,off:off,
   intentOk:intentOk,migrationOk:migrationOk,draftText:draftText,stepsOk:stepsOk,
   routeOk:routeOk,deskOk:deskOk,deskLocal:deskLocal,routineOk:routineOk,
   starterOk:starterOk,importOk:importOk,libOk:libOk,pendOk:pendOk,
-  routineMoreOk:routineMoreOk,
+  routineMoreOk:routineMoreOk,smartOk:smartOk,searchOk:searchOk,lib20Ok:lib20Ok,
   oauthOk:oauthOk,memoryOk:memoryOk,firstOk:firstOk,projectOk:projectOk,
   noLocalInCloud:noLocalInCloud});
 '''
@@ -476,10 +521,14 @@ def live_checks():
 
     status, headers, body = get(CANONICAL)
     h = {k.lower(): v for k, v in headers.items()}
-    expect(status == 200 and 'content="2026-11-30"' in body,
-           "canonical serves build 2026-11-30")
+    expect(status == 200 and 'content="2026-12-01"' in body,
+           "canonical serves build 2026-12-01")
     expect('enterkeyhint="send"' in body and "font-size:16px !important" in body,
            "canonical serves the no-zoom composer fix")
+    expect("function smartChips(c)" in body and "function chatSearchResults(q)" in body
+           and "function approvalCoach(" in body and "function libraryFiltered(" in body
+           and "No auto-send" in body,
+           "canonical serves all five approved upgrades")
     expect(h.get("cross-origin-opener-policy") == "same-origin" and
            h.get("cross-origin-embedder-policy") == "require-corp",
            "canonical still sends COOP/COEP")
@@ -487,8 +536,8 @@ def live_checks():
     expect(hashlib.sha256(raw(CANONICAL)).hexdigest() == sha(APP),
            "canonical app bytes match the local build")
     status, headers, body = get(BACKUP)
-    expect(status == 200 and 'content="2026-11-30"' in body,
-           "backup serves build 2026-11-30")
+    expect(status == 200 and 'content="2026-12-01"' in body,
+           "backup serves build 2026-12-01")
     expect(hashlib.sha256(raw(BACKUP)).hexdigest() == sha(APP),
            "backup app bytes match the local build")
     expect(headers.get("Cross-Origin-Opener-Policy") is None,
@@ -564,6 +613,9 @@ def main():
     expect(out["libOk"], "local Library saves safe items, refuses secrets and stays out of cloud state")
     expect(out["pendOk"], "approval inbox aggregates one-time decisions and redacts secret-looking previews")
     expect(out["routineMoreOk"], "weekly and interval routines stay honest about the foreground limit")
+    expect(out["smartOk"], "smart chips offer plain current-chat suggestions and save/approval shortcuts")
+    expect(out["searchOk"], "local chat search finds names and exact messages without secret hits")
+    expect(out["lib20Ok"], "Library 2.0 tags, favorites and search work on saved items")
     expect(out["oauthOk"], "OAuth-ready config accepts public App ID and HTTPS callback only")
     expect(out["memoryOk"], "device memory is opt-in and refuses secret-looking facts")
     expect(out["firstOk"], "first-run quick actions are marked complete on this device")

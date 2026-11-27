@@ -4,11 +4,21 @@ Run this on **Chrome, Edge or Safari on the Mac**, against the bridge-served app
 (`Oracle-Chat-Live.html` via `oracle_bridge.py`) and against
 `https://oracle-chat.pages.dev/`.
 
-Baseline SHA (live UI): `7f610c0fd4d76befb9f23ed93b3ee71c7d3b3f0a2f55a726dc29a5442ce5d17b`
+Baseline SHA (live UI): `62148db7142ddb5f61495507041d72e2522425d9ed9b3d6e49e2535aef8c0c22`
 Rollback: `restore-live.command`
 
 > The phone-only checklist lives in `PHONE-BROWSER-REGRESSION.md`.
 > Voice-call fixes are marked **VOICE FIX 2026-11-19** below.
+
+## Smart chips, chat search, approval coach, Library 2.0 and voice-first composer — 2026-12-01 (harness + live + host smoke verified)
+- [x] Context chips suggest summarize/simpler/checklist/save/approvals from the current chat using plain phrases only
+- [x] Chat search finds names and message text locally and jumps to the exact message without cloud sync
+- [x] Approval coach states what one Allow will and will not do; no always-allow, token or endpoint appears
+- [x] Library 2.0 adds search, tags, favorites and preview-before-insert while staying device-local and opt-in
+- [x] Voice-first composer previews dictated words, allows edit/discard, and sends only on an explicit tap
+- [x] Existing approvals, router, connector catalog, bot desks, routines and no-zoom composer remain unchanged
+- [x] Local/live harness and owner/guest/backup/host smoke pass with unchanged worker/bridge/offline SHAs
+- [x] Build `2026-12-01` published with matching SHAs, then baseline/restore/README re-frozen only after verification
 
 ## iPhone composer zoom and keyboard reset — 2026-11-30 (harness + live + host smoke verified)
 - [x] Chat input and modal text fields use at least 16px at 320–430 px so Safari does not zoom on focus

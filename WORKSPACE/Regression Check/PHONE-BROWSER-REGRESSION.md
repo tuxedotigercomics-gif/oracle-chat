@@ -4,12 +4,22 @@ Run this at **320 / 360 / 390 / 430 px** on the real iPhone in Safari, and in
 an emulated iPhone viewport against `https://oracle-chat.pages.dev/`.
 The backup host is `https://tuxedotigercomics-gif.github.io/oracle-chat/`.
 
-Baseline SHA (live UI): `7f610c0fd4d76befb9f23ed93b3ee71c7d3b3f0a2f55a726dc29a5442ce5d17b`
+Baseline SHA (live UI): `62148db7142ddb5f61495507041d72e2522425d9ed9b3d6e49e2535aef8c0c22`
 Service-worker SHA: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`
 Rollback: `restore-live.command`
 
 > The desktop/host checklist lives in `MAIN-BROWSER-REGRESSION.md`.
 > Voice-call fixes are marked **VOICE FIX 2026-11-19** below.
+
+## Smart chips, chat search, approval coach, Library 2.0 and voice-first composer — 2026-12-01 (harness + live + emulation verified; physical pass open)
+- [x] Context chips, search, approval coach and Library controls stay readable at 320–430 px (emulated)
+- [x] Chat search jumping to a message keeps the no-zoom composer and fitted layout (emulated)
+- [x] Approval coach wording is plain and one-time only, with no token or always-allow (emulated)
+- [x] Library search/tags/favorites/preview work without cloud state or hidden prompt injection (emulated)
+- [x] Voice-first composer shows the exact words, edit/discard controls, and no auto-send (emulated)
+- [x] Existing approvals, bots, Library, template share, routines and backup host remain reachable (emulated)
+- [x] Harness, live harness and 320–430 px emulation pass; physical iPhone pass open
+- [ ] Physical iPhone pass: chips, chat search, approval coach, Library 2.0 and voice preview/send
 
 ## iPhone composer zoom and keyboard reset — 2026-11-30 (harness + live + emulation + physical iPhone verified)
 - [x] Composer and modal text fields stay 16px at 320–430 px with no Safari focus zoom (emulated)
