@@ -4,10 +4,10 @@ This folder is the source-of-truth snapshot of the original Mac workspace at
 `/Users/macbookair/Documents/Default Project`. It exists so another model or a
 new computer can continue the project from GitHub alone.
 
-Snapshot date: 2026-11-26  
-Snapshot state: build `2026-11-27c` verified from the frozen `2026-11-27b` baseline  
-Published build at snapshot: `2026-11-27c` verified on canonical and backup  
-App SHA: `800f07cdc3bd76f2dbbc7b99fe92ce626f7e8de83879be4236515c1c5f5698f1`  
+Snapshot date: 2026-11-27  
+Snapshot state: build `2026-11-28` verified from the frozen `2026-11-27c` baseline  
+Published build at snapshot: `2026-11-28` verified on canonical and backup  
+App SHA: `6cde3091390818902b0383f411f1d8566914f4f6cb9afe769708ea206844acb8`  
 OAuth callback SHA: `2adb97b605d9ffe749d3b5d83934a8ebe6ff61ad34ae5eaff1aa6f345e271eda`  
 Service-worker SHA: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`  
 Bridge SHA: `eb86840cf681ef57881244d87bc2f0bad57c593fb0673118c356429600661e20`

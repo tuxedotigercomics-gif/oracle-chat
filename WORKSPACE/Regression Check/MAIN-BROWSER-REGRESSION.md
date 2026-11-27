@@ -4,11 +4,20 @@ Run this on **Chrome, Edge or Safari on the Mac**, against the bridge-served app
 (`Oracle-Chat-Live.html` via `oracle_bridge.py`) and against
 `https://oracle-chat.pages.dev/`.
 
-Baseline SHA (live UI): `800f07cdc3bd76f2dbbc7b99fe92ce626f7e8de83879be4236515c1c5f5698f1`
+Baseline SHA (live UI): `6cde3091390818902b0383f411f1d8566914f4f6cb9afe769708ea206844acb8`
 Rollback: `restore-live.command`
 
 > The phone-only checklist lives in `PHONE-BROWSER-REGRESSION.md`.
 > Voice-call fixes are marked **VOICE FIX 2026-11-19** below.
+
+## Chief-of-staff routing, connector catalog/bot desks and routine templates — 2026-11-28 (harness + live + host smoke verified)
+- [x] Plain requests are routed from Oracle Bot to the right specialist with a readable handoff card on owner, guest and host
+- [x] Connector catalog lists only own-account setup paths and never offers an owner token or borrowed login
+- [x] Bot desk cards show local connector, memory/project, routine and last-approval status without exposing secrets
+- [x] Daily brief, mention check and draft-post templates copy usable Shortcut/webhook steps and state the foreground limit
+- [x] Allow once / Deny approval cards, deep search, source cards, teams, guest gates and bridge rules remain unchanged
+- [x] Harness passes locally and live on both sites; service worker SHA unchanged; zero console errors on owner, guest, backup and host pages
+- [x] Build `2026-11-28` published with matching SHAs, then baseline/restore/README re-frozen only after verification
 
 ## OAuth-ready setup, draft cards, automation handoff and Memory/Projects — 2026-11-27c (harness + live + host smoke verified)
 - [x] Connect with Instagram is OAuth-ready with a configurable public App ID and HTTPS callback; config-gated callback deployed and unconfigured builds fall back honestly to own-token setup

@@ -3,6 +3,49 @@
 Record every change here before you make it, so there is always a clear trail
 between the frozen baseline and whatever is currently in the working file.
 
+## 2026-11-28 — Chief-of-staff routing, connector catalog/bot desks and routine templates (published and verified)
+
+Status: **published and verified** (planned before edits). The owner watched the
+Grok Bot reverse-engineering video and approved all three recommended upgrades.
+This build borrows the useful ideas — one routing bot, one desk per specialist,
+and ready-made routine handoffs — without copying the paid/always-on parts of that
+stack.
+
+Intended change:
+
+1. Add **chief-of-staff routing**: plain requests in one chat are handed to the
+   right specialist bot with a short, readable handoff card. No extra login, no
+   context switching, and no change to custom chat names or user messages.
+2. Add a plain-English **connector catalog** and local **bot desk** cards. Each
+   desk shows the bot's assigned connector, memory/project state, routine count
+   and last approval. Tokens stay encrypted device-local; the model still sees
+   only connector names, and approval remains Allow once / Deny only.
+3. Add **routine template handoff** cards for daily briefs, mention checks and
+   draft posts. They produce copyable iOS Shortcut/webhook steps and plainly say
+   they need the app open in the foreground; no background claim.
+4. Keep every existing connector, guest/owner gate, deep search, source card,
+   team, voice, image, approval and bridge rule unchanged. Bump the marker to
+   `2026-11-28`, extend the harness for the new paths, run local/live harnesses
+   and browser smoke, verify both app SHAs and the unchanged worker, then
+   re-freeze only after verification. Physical iPhone confirmation stays a
+   separate open checklist. No Orgo computer, Composio token broker, xAI key,
+   browser control or hidden token is added.
+
+Shipped in build `2026-11-28`: local harness PASS and live harness PASS on both
+sites. App SHA `6cde3091390818902b0383f411f1d8566914f4f6cb9afe769708ea206844acb8`
+was verified byte-for-byte on the live source, Pages copy, canonical site and
+backup site. The bridge stayed unchanged at
+`eb86840cf681ef57881244d87bc2f0bad57c593fb0673118c356429600661e20`, the worker at
+`6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`, the config-gated
+callback at `2adb97b605d9ffe749d3b5d83934a8ebe6ff61ad34ae5eaff1aa6f345e271eda`,
+and the frozen mockup at `320603d7585d1192685c1bff83c66257e6119aacc9c3b5db6cbeb5e94d96c191`.
+Published in Pages commit `2429f93`; zero console errors on owner, guest, backup
+and bridge-host pages. Emulated 320/360/390/430 px checks confirmed no horizontal
+overflow and reachable routing, catalog, desk and routine-template controls;
+the physical iPhone Safari pass remains a separate open checklist. Baseline,
+rollback, README, workspace snapshot and manifest were re-frozen only after those
+checks passed.
+
 ## 2026-11-27c — OAuth-ready setup, draft cards, automation handoff, first-run actions and Memory/Projects (published and verified)
 
 Status: **published and verified** (planned before edits on 2026-11-26). The owner

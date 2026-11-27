@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Harness for build 2026-11-27c (OAuth-ready setup, draft cards, automation handoff,
-first-run actions and device-local Memory/Projects).
+"""Harness for build 2026-11-28 (chief-of-staff routing, connector catalog and bot
+desks, routine templates, plus the 2026-11-27c device-local base).
 
 Local mode checks source invariants and runs the pure JS helpers through the
 macOS JavaScriptCore engine (osascript -l JavaScript). There is no Node on this
@@ -45,7 +45,7 @@ def expect(cond, label):
 
 
 def source_checks(html, cloud, bridge, gdelt, oauth):
-    expect('content="2026-11-27c"' in html, "build marker is 2026-11-27c")
+    expect('content="2026-11-28"' in html, "build marker is 2026-11-28")
     expect("Socials Bot" in html and "Which platforms are you posting to?" in html,
            "Socials Bot template asks platform/audience/goal questions")
     expect("botOpener(name,job,desc)" in html, "room creation uses the local opener generator")
@@ -142,7 +142,7 @@ def source_checks(html, cloud, bridge, gdelt, oauth):
            and "const PROJECT_KEY='oracle.projects.'+vaultId" in html
            and "const FIRST_RUN_KEY='oracle.firstrun.'+vaultId" in html,
            "Memory, Projects and first-run state are device-local and guest-isolated")
-    expect("function memoryPromptText()" in html and "memoryOn=false" in html
+    expect("function memoryPromptText(c)" in html and "memoryOn=false" in html
            and "function memorySafe(" in html and "localMemory.filter(memorySafe)" in html,
            "memory enters prompts only when enabled and refuses secret-looking notes")
     expect("chats:[active().id]" in html and "function assignProject(" in html
@@ -155,6 +155,21 @@ def source_checks(html, cloud, bridge, gdelt, oauth):
     expect('data-auto-copy=' in html and 'data-auto-check=' in html
            and 'data-auto-routines=' in html and "function automationSteps(" in html,
            "automation handoff card offers user-owned Shortcut/webhook steps")
+    expect("function routeSpecialist(text,c,explicitOnly)" in html
+           and "function deliverHandoff(text,c,route)" in html
+           and 'data-handoff-open=' in html and "Chief of staff · handoff" in html,
+           "chief-of-staff routing creates plain handoff cards")
+    expect("const CONNECTOR_CATALOG=[" in html and "function openConnectorCatalog()" in html
+           and 'data-catalog-choice=' in html and "no borrowed logins" in html,
+           "connector catalog stays own-accounts only")
+    expect("const DESK_KEY='oracle.desks.'+vaultId" in html and "function openBotDesk(id)" in html
+           and 'data-bot-desk=' in html and "lastApproval" in html,
+           "bot desks are device-local and show status without secrets")
+    expect("const ROUTINE_TEMPLATES=[" in html and "function routineTemplateIntent(text)" in html
+           and 'data-template-copy=' in html and "cannot keep running in the background" in html,
+           "routine templates give copyable foreground-only handoffs")
+    expect("oracle.desks." not in cloud and "oracle.connectors." not in cloud,
+           "bot desks and connectors stay out of cloud backup")
     expect('data-conn-test=' in html and "function renderConnectorWizard()" in html
            and "connectorWizard.step=1" in html and "connectorWizard={step:2" in html,
            "connector setup wizard includes guided steps and Test connection")
@@ -279,6 +294,24 @@ var intentOk=ciCheck&&ciCheck.kind==='check'&&ciConnect&&ciConnect.kind==='conne
 var draftText=draftTextFrom('Draft a social post about my comic');
 var steps=automationSteps('instagram');
 var stepsOk=steps.indexOf('iOS Shortcuts')>=0&&steps.indexOf('your own HTTPS endpoint')>=0;
+var routeA=routeSpecialist('Which bot can help me research this topic?',null,false);
+var routeB=routeSpecialist('Ask Socials Bot to plan a post',null,true);
+var routeC=routeSpecialist('Who can help me learn algebra?',null,false);
+var routeOk=!!routeA&&routeA.id==='a'&&!!routeB&&routeB.id==='b'&&
+  !!routeC&&routeC.id==='tutor'&&routeC.summary.indexOf('learn algebra')>=0;
+var deskA=deskAssign('a','x',true);
+var deskSaved=!!deskA&&!!deskLoad().a&&deskLoad().a.connectorId==='x'&&deskLoad().a.memory===true;
+var deskSummary=botDeskSummary(convs[0],2,5);
+var deskOk=deskSaved&&deskSummary.connector==='My IG'&&deskSummary.routines===2&&
+  deskSummary.routineTotal===5&&deskSummary.lastApproval==='None yet';
+var deskLocal=JSON.stringify({key:'k',state:{convs:convs}}).indexOf('oracle.desks.')<0;
+var rtDaily=routineTemplateIntent('Set up a daily brief routine');
+var rtMention=routineTemplateIntent('Check mentions with a shortcut');
+var rtDraft=routineTemplateIntent('Make a draft post routine');
+var rtSteps=automationSteps('instagram','daily');
+var routineOk=rtDaily==='daily'&&rtMention==='mention'&&rtDraft==='draft'&&
+  rtSteps.indexOf('Daily brief')>=0&&rtSteps.indexOf('your own HTTPS endpoint')>=0&&
+  rtSteps.indexOf('background')>=0;
 var oauthBefore=oauthReady();
 var oauthSaved=saveInstagramOAuth('12345','https://oracle-chat.pages.dev/api/instagram-oauth/callback');
 var oauthCfg=oauthConfig();
@@ -314,6 +347,7 @@ JSON.stringify({social:social,identity:identity,q:q,xq:xq,off:off,
   once:once,noTeamInCloud:noTeamInCloud,deepOk:deepOk,mergeOk:mergeOk,
   parseOk:parseOk,noConnector:noConnector,noConnectorInCloud:noConnectorInCloud,
   intentOk:intentOk,migrationOk:migrationOk,draftText:draftText,stepsOk:stepsOk,
+  routeOk:routeOk,deskOk:deskOk,deskLocal:deskLocal,routineOk:routineOk,
   oauthOk:oauthOk,memoryOk:memoryOk,firstOk:firstOk,projectOk:projectOk,
   noLocalInCloud:noLocalInCloud});
 '''
@@ -378,8 +412,8 @@ def live_checks():
 
     status, headers, body = get(CANONICAL)
     h = {k.lower(): v for k, v in headers.items()}
-    expect(status == 200 and 'content="2026-11-27c"' in body,
-           "canonical serves build 2026-11-27c")
+    expect(status == 200 and 'content="2026-11-28"' in body,
+           "canonical serves build 2026-11-28")
     expect(h.get("cross-origin-opener-policy") == "same-origin" and
            h.get("cross-origin-embedder-policy") == "require-corp",
            "canonical still sends COOP/COEP")
@@ -387,8 +421,8 @@ def live_checks():
     expect(hashlib.sha256(raw(CANONICAL)).hexdigest() == sha(APP),
            "canonical app bytes match the local build")
     status, headers, body = get(BACKUP)
-    expect(status == 200 and 'content="2026-11-27c"' in body,
-           "backup serves build 2026-11-27c")
+    expect(status == 200 and 'content="2026-11-28"' in body,
+           "backup serves build 2026-11-28")
     expect(hashlib.sha256(raw(BACKUP)).hexdigest() == sha(APP),
            "backup app bytes match the local build")
     expect(headers.get("Cross-Origin-Opener-Policy") is None,
@@ -455,6 +489,10 @@ def main():
     expect(out["intentOk"], "plain phrases map to check, connect, draft, publish and monitor intents")
     expect("my comic" in out["draftText"], "draft cards derive the topic from natural language")
     expect(out["stepsOk"], "automation handoff gives copyable iOS Shortcut/webhook steps")
+    expect(out["routeOk"], "chief-of-staff routing picks named and role-matched specialists")
+    expect(out["deskOk"] and out["deskLocal"],
+           "bot desks expose only local connector/status metadata")
+    expect(out["routineOk"], "daily brief, mention check and draft post templates stay foreground-only")
     expect(out["oauthOk"], "OAuth-ready config accepts public App ID and HTTPS callback only")
     expect(out["memoryOk"], "device memory is opt-in and refuses secret-looking facts")
     expect(out["firstOk"], "first-run quick actions are marked complete on this device")

@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#4a9861" />
-<meta name="oracle-build" content="2026-11-27c" />
+<meta name="oracle-build" content="2026-11-28" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Oracle" />
@@ -184,8 +184,8 @@
   .connector-card{background:rgba(0,0,0,.16);border:1px solid rgba(255,255,255,.45);border-radius:12px;padding:9px;margin-top:8px;width:100%;white-space:normal;font-size:11.5px}
   .connector-card.done{border-color:rgba(255,255,255,.8)}
   .connector-card.error{border-style:dashed}
-  .draft-card,.automation-card{background:rgba(0,0,0,.13);border:1px solid rgba(255,255,255,.38);border-radius:12px;padding:9px;margin-top:8px;width:100%;white-space:normal;font-size:11.5px}
-  .draft-card pre,.automation-card pre{max-height:170px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+  .draft-card,.automation-card,.handoff-card{background:rgba(0,0,0,.13);border:1px solid rgba(255,255,255,.38);border-radius:12px;padding:9px;margin-top:8px;width:100%;white-space:normal;font-size:11.5px}
+  .draft-card pre,.automation-card pre,.handoff-card pre{max-height:170px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
   .wizard-note{font-size:12px;color:var(--muted);line-height:1.5}
   .guide-steps{margin:6px 0 0;padding-left:18px;font-size:11.5px;line-height:1.5}
   .status{font-size:12.5px;color:var(--muted);font-style:italic;align-self:flex-start;padding-left:2px}
@@ -416,6 +416,41 @@ function botRoleKind(name,job,desc){
   if(/computer|bridge|shell|browser|automation|routine|connector/.test(s))return 'computer';
   return 'general';
 }
+// Chief-of-staff routing. It reads only the user's plain words and local bot
+// descriptions — no account, cloud state, hidden command or model call.
+const ROUTE_RULES=[
+  {id:'socials',name:'Socials Bot',role:'social',test:/social|instagram|post|caption|reel|audience|platform/i,reason:'planning and drafting posts'},
+  {id:'research',name:'Research Bot',role:'research',test:/research|look up|find sources|compare claims|fact.?check|summari[sz]e|news/i,reason:'finding sources and summarising'},
+  {id:'tutor',name:'Tutor Bot',role:'tutor',test:/teach|tutor|explain|lesson|study|homework|learn/i,reason:'teaching one step at a time'},
+  {id:'coach',name:'Coach Bot',role:'coach',test:/coach|habit|accountab|motivat|check.?in|my goal/i,reason:'turning a goal into one next step'},
+  {id:'computer',name:'Computer Bot',role:'computer',test:/mac|shell|terminal|script|computer|bridge|browser action/i,reason:'approved owner-Mac work'}
+];
+function routeSummary(raw){
+  const s=String(raw||'')
+    .replace(/^\s*(?:please\s+)?(?:can you\s+)?(?:could you\s+)?(?:route\s+(?:this\s+)?(?:to\s+)?|hand\s+(?:this\s+)?off\s+to\s+|delegate\s+(?:this\s+)?to\s+|ask\s+(?:the\s+)?[\w\s]+?\s+to\s+|send\s+(?:this\s+)?to\s+|which\s+bot\s+can\s+|who\s+can\s+)/i,'')
+    .replace(/[.!?]+$/,'').replace(/\s+/g,' ').trim();
+  return (s||String(raw||'')).slice(0,110);
+}
+function routeSpecialist(text,c,explicitOnly){
+  const raw=String(text||'').trim(),s=raw.toLowerCase();
+  if(!raw)return null;
+  const explicit=/(?:route|hand(?: this)? off|delegate|ask\s+\w+\s+bot|which bot|who can|send this to)/i.test(s);
+  const fromOracle=!!c&&(/oracle/i.test(String(c.name||''))||String(c.id)==='oracle-bot'||botRoleKind(String(c.name||''),botJob(c),String(c.desc||''))==='oracle');
+  if(explicitOnly?!explicit:!explicit&&!fromOracle)return null;
+  const currentId=c&&c.id;
+  const named=convs.find(x=>x&&x.id!==currentId&&String(x.name||'').trim()&&s.indexOf(String(x.name||'').trim().toLowerCase())>=0);
+  const rule=ROUTE_RULES.find(r=>r.test.test(s));
+  let picked=null;
+  if(named){
+    picked={id:named.id,name:named.name,role:botRoleKind(String(named.name||''),botJob(named),String(named.desc||'')),reason:'you named '+named.name};
+  }else if(rule){
+    const existing=convs.find(x=>x&&x.id!==currentId&&botRoleKind(String(x.name||''),botJob(x),String(x.desc||''))===rule.role);
+    const template=BOT_TEMPLATES.find(t=>t.id===rule.id);
+    picked={id:existing?existing.id:rule.id,name:existing?existing.name:(template?template.name:rule.name),reason:rule.reason};
+  }
+  if(!picked||picked.id===currentId)return null;
+  return {id:picked.id,name:picked.name,role:picked.role,reason:picked.reason,prompt:raw,summary:routeSummary(raw)};
+}
 function botOpener(name,job,desc){
   const n=String(name||'Assistant').trim()||'Assistant';
   const j=String(job||'General assistant').trim();
@@ -621,7 +656,7 @@ async function cloudLoadState(){
 function saveState(){localStorage.setItem(stateKey,JSON.stringify({convs,folders,activeId}));cloudSaveState()}
 const ORACLE_BOT_ID='oracle-bot';
 function oracleBotGuide(){
-  return `Hi — I'm Oracle Bot, your built-in guide and technical assistant.\n\nHow to use Oracle:\n• Pick a bot in the left list, or make a new one with the + button.\n• Use the model pill to switch between Mac models, private on-device models, or automatic free cloud.\n• Use folders to group chats, the microphone/call buttons to talk, and the ⋯ menu to rename, move, hand off or teach a task.\n• In Profile you will find My Connectors, your vault, routines, Teams & Triggers, help, and update status. Guests only see their own private copy.\n• Just say “connect my Instagram”, “check my Instagram” or “draft a post” — no special command words to remember. Quick buttons under the message box do the same thing.\n• Draft cards can be edited, copied, published with Allow once, or cancelled. For “monitor” or “schedule”, I give you copyable iOS Shortcut/webhook steps instead of pretending to run in the background.\n• Projects and My Memory stay on your device; memory is only used in prompts when you turn recall on.\n\nAsk me to explain the app, plan a change, draft a bug fix, or review the UI. I can plan and draft social posts, but I cannot log into Instagram or manage an account until you add your own connector and approve a specific action. I cannot drive the phone browser for you or keep monitoring in the background; actions run only while the app is open in the foreground. On the owner Mac I can also propose and run changes with an approval card. On a phone or guest link I can guide and draft, but I never get host files, tools or vault secrets.`;
+  return `Hi — I'm Oracle Bot, your built-in guide and technical assistant.\n\nHow to use Oracle:\n• Pick a bot in the left list, or make a new one with the + button.\n• Use the model pill to switch between Mac models, private on-device models, or automatic free cloud.\n• Use folders to group chats, the microphone/call buttons to talk, and the ⋯ menu to rename, move, hand off or teach a task.\n• In Profile you will find My Connectors, your vault, routines, Teams & Triggers, help, and update status. Guests only see their own private copy.\n• Just say “connect my Instagram”, “check my Instagram” or “draft a post” — no special command words to remember. Quick buttons under the message box do the same thing.\n• Draft cards can be edited, copied, published with Allow once, or cancelled. For “monitor” or “schedule”, I give you copyable iOS Shortcut/webhook steps instead of pretending to run in the background.\n• Projects and My Memory stay on your device; memory is only used in prompts when you turn recall on.\n\nAsk me to explain the app, plan a change, draft a bug fix, or review the UI. I can plan and draft social posts, but I cannot log into Instagram or manage an account until you add your own connector and approve a specific action. I cannot drive the phone browser for you or keep monitoring in the background; actions run only while the app is open in the foreground. On the owner Mac I can also propose and run changes with an approval card. On a phone or guest link I can guide and draft, but I never get host files, tools or vault secrets.\n• New: just say “who can help me learn this?” or “ask Socials Bot to plan a post” and I hand it to the right specialist with a plain summary. Each bot has a local desk showing its own connector, memory/project state, routines and last approval.\n• Profile → Connector catalog lists only your own setup paths; no borrowed login and no token broker. Profile → Routine templates gives copyable iPhone Shortcut/webhook steps for a daily brief, mention check or draft post — they run only while the app is open in the foreground.`;
 }
 function oracleBotConversation(){
   const folder=folders[0]?.id||'general';
@@ -802,7 +837,8 @@ function saveLocalMemory(){try{localStorage.setItem(LOCAL_MEMORY_KEY,JSON.string
 function saveProjects(){try{localStorage.setItem(PROJECT_KEY,JSON.stringify(projects.slice(0,40)))}catch(e){}}
 function finishFirstRun(){firstRun=false;try{localStorage.setItem(FIRST_RUN_KEY,'0')}catch(e){}}
 function memorySafe(s){return !/token|secret|password|passphrase|bearer|api[_-]?key|igqv/i.test(String(s))}
-function memoryPromptText(){
+function memoryPromptText(c){
+  if(c&&c.id){const d=deskLoad()[c.id];if(d&&d.memory===false)return ''}
   const items=localMemory.filter(memorySafe).slice(0,20);
   if(!memoryOn||!items.length)return '';
   return 'User memory saved on this device — use it only when relevant, never print it back verbatim: '+items.join(' | ');
@@ -825,6 +861,44 @@ function connLoad(){try{const o=JSON.parse(localStorage.getItem(CONNECTOR_KEY)||
 function connSave(all){try{localStorage.setItem(CONNECTOR_KEY,JSON.stringify(all))}catch(e){}}
 function connectorList(){return Object.values(connLoad()).filter(x=>x&&x.id&&x.name).slice(0,20)}
 function connectorNames(){return connectorList().map(x=>x.name)}
+// A bot desk is a local workbench, not cloud state. It stores only a connector
+// id and a per-chat memory preference — never a credential, token or account id.
+const DESK_KEY='oracle.desks.'+vaultId;
+function deskLoad(){
+  try{
+    const o=JSON.parse(localStorage.getItem(DESK_KEY)||'{}');
+    if(!o||typeof o!=='object'||Array.isArray(o))return {};
+    const out={};
+    Object.keys(o).slice(0,100).forEach(id=>{
+      if(!id||!o[id]||typeof o[id]!=='object')return;
+      out[id]={connectorId:String(o[id].connectorId||'').slice(0,60),memory:o[id].memory!==false};
+    });
+    return out;
+  }catch(e){return {}}
+}
+function deskSave(all){try{localStorage.setItem(DESK_KEY,JSON.stringify(all))}catch(e){}}
+function deskAssign(chatId,connectorId,useMemory){
+  const id=String(chatId||'').slice(0,80);if(!id)return null;
+  const all=deskLoad(),meta=connLoad()[String(connectorId||'')];
+  all[id]={connectorId:meta?String(connectorId).slice(0,60):'',memory:useMemory!==false};
+  deskSave(all);return all[id];
+}
+function deskLastApproval(c){
+  const msgs=(c&&Array.isArray(c.messages))?c.messages:[];
+  for(let i=msgs.length-1;i>=0;i--){
+    const m=msgs[i];if(!m)continue;
+    const approved=m.connectorState==='approved'||m.connectorState==='done'||m.toolState==='approved'
+      ||m.toolState==='done'||m.toolDecision==='once'||m.toolDecision==='auto'||m.draftState==='published';
+    if(approved)return String(m.note||m.toolSummary||'Approved action').slice(0,60);
+  }
+  return 'None yet';
+}
+function botDeskSummary(c,routineCount,totalRoutines){
+  const id=c&&c.id,d=deskLoad()[id]||{},conn=connLoad()[d.connectorId],project=projectForChat(id);
+  return {connector:conn?conn.name:'Not assigned',memory:memoryOn&&d.memory!==false,
+    project:project?project.name:'None',routines:Math.max(0,Math.min(99,Number(routineCount)||0)),
+    routineTotal:Math.max(0,Math.min(999,Number(totalRoutines)||0)),lastApproval:deskLastApproval(c)};
+}
 // OAuth-ready but never secret-bearing: only a public App ID and HTTPS callback
 // live here. The app secret belongs in the free Pages Function's encrypted env.
 function oauthConfig(){
@@ -925,15 +999,32 @@ function draftTextFrom(raw){
   return topic?('A quick update: '+topic+'. Here is a short look at what I am working on — tell me what you want to see next.'):
     'A short social post draft. Add your topic and I will refine it.';
 }
-function automationSteps(type){
-  return 'iOS Shortcuts (runs while your phone is awake):\n'
-    +'1. Open Shortcuts → + → name it “Oracle '+connectorLabel(type)+' check”.\n'
-    +'2. Add Get Contents of URL → GET → your own HTTPS endpoint.\n'
-    +'3. Add Show Alert or Send Message with the result.\n'
-    +'4. For posting, add a second Get Contents of URL → POST → your own webhook.\n'
-    +'5. Keep the token in your own Shortcut/webhook, not in Oracle chat.\n\n'
+// Ready-made routine handoffs. They are steps the person copies into their own
+// iPhone Shortcut or webhook; this web app never claims background execution.
+const ROUTINE_TEMPLATES=[
+  {id:'daily',name:'Daily brief',steps:['Add Get Contents of URL → GET → your own HTTPS endpoint.','Add Summarize or a note step to make a short brief.','Add Show Alert or Send Message with the result.','Optional: add a second Get Contents of URL → POST → your own webhook to file the brief.'],
+    json:'{"source":"Oracle","action":"brief","target":"instagram"}'},
+  {id:'mention',name:'Mention check',steps:['Add Get Contents of URL → GET → your own HTTPS endpoint.','Add Find Text or Filter Files for mentions, tags or comments.','Add Show Alert or Send Message with anything new.','Optional: add a second Get Contents of URL → POST → your own webhook to save a copy.'],
+    json:'{"source":"Oracle","action":"check","target":"instagram"}'},
+  {id:'draft',name:'Draft post',steps:['Add Ask for Input or a text action for the post topic.','Add Get Contents of URL → POST → your own webhook with that topic.','Add Show Alert with the draft returned by your webhook.','Copy the draft into your own account only after you are happy with it.'],
+    json:'{"source":"Oracle","action":"draft","target":"instagram"}'}
+];
+function routineTemplate(id){return ROUTINE_TEMPLATES.find(t=>t.id===id)||ROUTINE_TEMPLATES[1]}
+function routineTemplateIntent(text){
+  const s=String(text||'').toLowerCase();
+  if(/daily|morning|each day/.test(s)&&/brief|digest|summary|routine|shortcut/.test(s))return 'daily';
+  if(/mention|tag|comment|\bdm\b/.test(s)&&/check|watch|routine|shortcut/.test(s))return 'mention';
+  if(/draft|prepare/.test(s)&&/post|caption/.test(s)&&/routine|shortcut|automation/.test(s))return 'draft';
+  return '';
+}
+function automationSteps(type,templateId){
+  const t=routineTemplate(templateId),target=connectorLabel(type).toLowerCase();
+  return 'iOS Shortcuts (runs only while your phone is awake — Oracle cannot run in the background):\n'
+    +'1. Open Shortcuts on your iPhone and tap +. Name it “Oracle '+t.name+'”.\n'
+    +t.steps.map((s,i)=>(i+2)+'. '+s).join('\n')+'\n\n'
     +'Webhook JSON to send from your own automation:\n'
-    +'{"source":"Oracle","action":"check","target":"'+connectorLabel(type).toLowerCase()+'"}';
+    +t.json.replace('"target":"instagram"','"target":"'+target+'"')+'\n\n'
+    +'Keep the token in your own Shortcut/webhook, not in Oracle chat.';
 }
 function connectorIntent(text,files){
   const raw=String(text||''),s=raw.toLowerCase().replace(/[’]/g,"'");
@@ -1060,6 +1151,32 @@ function openAutomationRoutines(idx){
   if(!m||!m.automation)return;
   m.automationState='done';saveState();render();openDeviceRoutines();
 }
+function openHandoffChat(idx){
+  const m=active().messages[idx];
+  if(!m||!m.handoff)return;
+  const t=convs.find(x=>x.id===m.handoff.id);
+  if(!t){showToast('That specialist chat was removed — ask again');return}
+  activeId=t.id;activeFolder=t.folder||activeFolder;view='chat';mobileView='chat';
+  draft=m.handoff.prompt||'';saveState();render();
+  document.getElementById('draft')?.focus({preventScroll:true});
+  showToast('Request ready in '+t.name);
+}
+async function copyRoutineCard(idx){
+  const m=active().messages[idx];
+  if(!m||!m.routine)return;
+  try{await navigator.clipboard.writeText(automationSteps(m.routine.type||'instagram',m.routine.id));showToast(routineTemplate(m.routine.id).name+' steps copied')}
+  catch(e){showToast('Copy is unavailable here — the steps are shown above')}
+}
+function openRoutineCardRoutines(idx){
+  const m=active().messages[idx];
+  if(!m||!m.routine)return;
+  m.routineState='done';saveState();render();openDeviceRoutines();
+}
+function dismissRoutineCard(idx){
+  const m=active().messages[idx];
+  if(!m||!m.routine)return;
+  m.routineState='done';saveState();render();
+}
 
 // ---- Host-only approval rules ----
 // "Always allow" is an explicit owner choice stored in this browser. It matches
@@ -1107,6 +1224,17 @@ function drLoad(){
   }catch(e){deviceRoutines={routines:{},allowHosts:[],lastRun:{},history:{}}}
 }
 function drSave(){try{localStorage.setItem(DR_KEY,JSON.stringify(deviceRoutines))}catch(e){}}
+function deskRoutineCount(c){
+  const d=deskLoad()[(c&&c.id)||'']||{},conn=connLoad()[d.connectorId];
+  const names=[c&&c.name,conn&&conn.name].filter(Boolean).map(x=>String(x).trim().toLowerCase()).filter(Boolean);
+  const all=Object.values(deviceRoutines.routines||{});
+  if(!names.length)return {assigned:0,total:all.length};
+  const assigned=all.filter(r=>{
+    const s=[r&&r.name,JSON.stringify((r&&r.steps)||[])].join(' ').toLowerCase();
+    return names.some(n=>s.indexOf(n)>=0);
+  }).length;
+  return {assigned,total:all.length};
+}
 function drAllowed(url){
   try{
     const u=new URL(String(url||''));
@@ -2535,6 +2663,17 @@ function render(){
           <ol class="guide-steps"><li>Open Shortcuts on your iPhone and tap +.</li><li>Add Get Contents of URL → GET → your own HTTPS endpoint.</li><li>Add Show Alert or Send Message with the result.</li><li>For posting, add a second Get Contents of URL → POST → your own webhook.</li><li>Keep the token in your own Shortcut/webhook, not in Oracle chat.</li></ol>
           <pre class="tool-preview">${esc(automationSteps(m.automation.type))}</pre>
           ${m.automationState==='pending'?`<div class="tool-actions"><button class="btn" data-auto-copy="${i}">Copy steps</button><button class="btn" data-auto-check="${i}">Check once now</button><button class="btn" data-auto-routines="${i}">My routines</button><button class="btn danger" data-auto-done="${i}">Done</button></div>`:''}
+        </div>`:''}${m.handoff?`<div class="handoff-card">
+          <div class="tool-title">${icon('spark',14)} Chief-of-staff · ${esc(m.handoff.name)}</div>
+          <p class="wizard-note">${esc(m.text)}</p>
+          <div class="meta">Why: ${esc(m.handoff.reason)} · Request: ${esc(m.handoff.summary)}</div>
+          <div class="tool-actions"><button class="btn" data-handoff-open="${i}">Open ${esc(m.handoff.name)}</button></div>
+        </div>`:''}${m.routine?`<div class="automation-card routine-card">
+          <div class="tool-title">${icon('spark',14)} Routine template · ${esc(routineTemplate(m.routine.id).name)}</div>
+          <p class="wizard-note">Runs only while your phone is awake and Oracle is open. No silent DM/email monitoring or scheduled posts after the app closes.</p>
+          <ol class="guide-steps">${routineTemplate(m.routine.id).steps.map(s=>`<li>${esc(s)}</li>`).join('')}</ol>
+          <pre class="tool-preview">${esc(automationSteps(m.routine.type||'instagram',m.routine.id))}</pre>
+          ${m.routineState==='pending'?`<div class="tool-actions"><button class="btn" data-template-copy="${i}">Copy steps</button><button class="btn" data-template-routines="${i}">My routines</button><button class="btn danger" data-template-done="${i}">Done</button></div>`:''}
         </div>`:''}${m.tool?`<div class="tool-card ${m.toolState||''}">
         <div class="tool-title">${icon('spark',14)} ${esc(m.toolSummary||'Tool action')}</div>
         ${m.toolState==='pending'?`<div class="risk-chips">${toolRisk(m.tool).map(x=>`<span class="risk-chip">${esc(x)}</span>`).join('')}</div>`:''}
@@ -2561,6 +2700,8 @@ function render(){
             <button class="menu-item" id="moreNewChat">${icon('plus',18)}<span><strong>New chat room</strong><span class="mi-sub">Name it and pick an agent</span></span></button>
             <button class="menu-item" id="moreNewFolder">${icon('file',18)}<span><strong>New folder</strong><span class="mi-sub">Group chats together</span></span></button>
             <button class="menu-item" id="morePersonality">${icon('spark',18)}<span><strong>Personality: ${esc(personalityLabel(c))}</strong><span class="mi-sub">${esc(botPersona(c).sub)} — tap to change this bot's tone</span></span></button>
+            <button class="menu-item" id="moreBotDesk">${icon('spark',18)}<span><strong>Bot desk</strong><span class="mi-sub">Connector, memory, project, routines, last approval</span></span></button>
+            <button class="menu-item" id="moreRoutineTemplates">${icon('info',18)}<span><strong>Routine templates</strong><span class="mi-sub">Copyable Shortcut/webhook steps</span></span></button>
             <button class="menu-item" id="moreDeepSearch">${icon('search',18)}<span><strong>Deep search: ${c.deep?'On':'Off'}</strong><span class="mi-sub">${c.deep?'Multi-query dated source cards':'One quick search with link list'}</span></span></button>
             ${guestMode?'':`<button class="menu-item" data-cm="teach" data-id="${c.id}">${icon('spark',18)}<span><strong>Teach this task</strong><span class="mi-sub">${staticMode?'Draft a device routine':'Save an owner-only skill'}</span></span></button>`}
             ${staticMode?'':`<button class="menu-item" id="moreToolMode">${icon('spark',18)}<span><strong>Tools: ${toolMode==='auto'?'Auto':'Ask first'}</strong><span class="mi-sub">${toolMode==='auto'?'Local model can act — click to require approvals':'Click to allow automatic basic tools'}</span></span></button>
@@ -2592,6 +2733,9 @@ function render(){
           <button type="button" class="quick-btn" data-quick="draft">${icon('spark',13)} Draft a post</button>
           <button type="button" class="quick-btn" data-quick="connect">${icon('lock',13)} Connect Instagram</button>
           <button type="button" class="quick-btn" data-quick="monitor">${icon('info',13)} Set up automation</button>
+          <button type="button" class="quick-btn" data-quick="route">${icon('spark',13)} Find a bot</button>
+          <button type="button" class="quick-btn" data-open-bot-desk>${icon('spark',13)} Bot desk</button>
+          <button type="button" class="quick-btn" data-open-templates>${icon('info',13)} Routine templates</button>
         </div>`:''}
         <div class="call-bar thinking" id="deviceBar" style="${deviceStatus?'':'display:none'}"><span class="call-dot"></span><span id="deviceBarText">${esc(deviceStatus)}</span></div>
         <div class="progress-track" id="deviceProgress" role="progressbar" aria-label="Model download progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(deviceProgress)}" style="${deviceProgressActive?'':'display:none'}"><div class="progress-fill" style="width:${deviceProgress}%"></div></div>
@@ -2640,6 +2784,8 @@ function render(){
         ${guestMode?'':`<button class="menu-item" id="openComputer">${icon('lock',18)}<span><strong>Computer (owner)</strong><span class="mi-sub">Connectors, forms &amp; routine pause</span></span></button>`}
         <div class="menu-sep"></div>`}
         <button class="menu-item" id="openConnectors">${icon('lock',18)}<span><strong>My Connectors</strong><span class="mi-sub">Your own accounts — tokens stay on this device</span></span></button>
+        <button class="menu-item" id="openConnectorCatalog">${icon('spark',18)}<span><strong>Connector catalog</strong><span class="mi-sub">Plain setup paths — no borrowed logins</span></span></button>
+        <button class="menu-item" id="openRoutineTemplates">${icon('info',18)}<span><strong>Routine templates</strong><span class="mi-sub">Daily brief, mention check and draft post steps</span></span></button>
         <button class="menu-item" id="installApp">${icon('plus',18)}<span><strong>Install this web app</strong><span class="mi-sub">${installPrompt?'Add Oracle to your device':'Add to Home Screen / Install'}</span></span></button>
         <button class="menu-item" id="openAbout">${icon('info',18)}<span><strong>About / Update status</strong><span class="mi-sub">Build, model and service worker</span></span></button>
         <button class="menu-item" id="toggleTheme">${icon('theme',18)}<span><strong>Appearance: ${themeLabel()}</strong><span class="mi-sub">System, light or dark — tap to change</span></span></button>
@@ -2692,6 +2838,8 @@ function bind(){
   document.getElementById('moreNewChat')?.addEventListener('click',()=>{moreOpen=false;openRoomModal(activeFolder)});
   document.getElementById('moreNewFolder')?.addEventListener('click',()=>{moreOpen=false;openFolderModal()});
   document.getElementById('morePersonality')?.addEventListener('click',()=>{moreOpen=false;openPersonalityPicker()});
+  document.getElementById('moreBotDesk')?.addEventListener('click',()=>{moreOpen=false;openBotDesk(activeId)});
+  document.getElementById('moreRoutineTemplates')?.addEventListener('click',()=>{moreOpen=false;openRoutineTemplates()});
   document.getElementById('moreDeepSearch')?.addEventListener('click',()=>{
     const chat=active();chat.deep=!chat.deep;moreOpen=false;saveState();render();
     showToast('Deep Search '+(chat.deep?'on':'off')+' for '+chat.name);
@@ -2744,6 +2892,8 @@ function bind(){
   document.getElementById('openDeviceRoutines')?.addEventListener('click',()=>{profileOpen=false;openDeviceRoutines()});
   document.getElementById('openWebSearch')?.addEventListener('click',()=>{profileOpen=false;openWebSearchSettings()});
   document.getElementById('openConnectors')?.addEventListener('click',()=>{profileOpen=false;openConnectors()});
+  document.getElementById('openConnectorCatalog')?.addEventListener('click',()=>{profileOpen=false;openConnectorCatalog()});
+  document.getElementById('openRoutineTemplates')?.addEventListener('click',()=>{profileOpen=false;openRoutineTemplates()});
   document.getElementById('installApp')?.addEventListener('click',()=>{profileOpen=false;openInstallApp()});
   document.getElementById('openAbout')?.addEventListener('click',()=>{profileOpen=false;openAbout()});
   document.getElementById('toggleTheme')?.addEventListener('click',()=>cycleTheme());
@@ -2848,6 +2998,10 @@ function bind(){
   document.querySelectorAll('[data-auto-check]').forEach(b=>b.onclick=()=>checkOnceFromAutomation(+b.dataset.autoCheck));
   document.querySelectorAll('[data-auto-routines]').forEach(b=>b.onclick=()=>openAutomationRoutines(+b.dataset.autoRoutines));
   document.querySelectorAll('[data-auto-done]').forEach(b=>b.onclick=()=>dismissAutomation(+b.dataset.autoDone));
+  document.querySelectorAll('[data-handoff-open]').forEach(b=>b.onclick=()=>openHandoffChat(+b.dataset.handoffOpen));
+  document.querySelectorAll('[data-template-copy]').forEach(b=>b.onclick=()=>copyRoutineCard(+b.dataset.templateCopy));
+  document.querySelectorAll('[data-template-routines]').forEach(b=>b.onclick=()=>openRoutineCardRoutines(+b.dataset.templateRoutines));
+  document.querySelectorAll('[data-template-done]').forEach(b=>b.onclick=()=>dismissRoutineCard(+b.dataset.templateDone));
   document.getElementById('retrySend')?.addEventListener('click',()=>{
     const c=active(),last=c.messages.at(-1);
     if(!last||last.from!=='user')return;
@@ -2895,10 +3049,13 @@ function bind(){
   document.querySelectorAll('[data-quick]').forEach(b=>b.onclick=()=>{
     const kind=b.dataset.quick;
     const phrases={check:'Check my Instagram',draft:'Draft a social post about my comic',
-      connect:'Connect my Instagram',monitor:'Monitor my Instagram DMs'};
+      connect:'Connect my Instagram',monitor:'Monitor my Instagram DMs',
+      route:'Which bot can help me research this topic?'};
     draft=phrases[kind]||'';
     sendMessage({preventDefault(){}});
   });
+  document.querySelectorAll('[data-open-bot-desk]').forEach(b=>b.onclick=()=>openBotDesk(activeId));
+  document.querySelectorAll('[data-open-templates]').forEach(b=>b.onclick=openRoutineTemplates);
 }
 
 function closeMenus(){plusOpen=modelOpen=profileOpen=moreOpen=false}
@@ -3145,7 +3302,7 @@ function openGuestWelcome(info){
     ${info?.sharedFolder?`<button class="menu-item" id="guestFolder">${icon('file',18)}<span><strong>Open the shared folder</strong><span class="mi-sub">“${esc(info.sharedFolder.name)}” — its chats only</span></span></button>`:''}
     <button class="menu-item" id="guestStart">${icon('plus',18)}<span><strong>Start my own session</strong><span class="mi-sub">A fresh blank chat workspace</span></span></button>
     <h4 style="margin:16px 0 6px">Quick start</h4>
-    <div class="tool-actions"><button class="btn" data-guest-quick="connect">Connect my Instagram</button><button class="btn" data-guest-quick="draft">Draft a post</button><button class="btn" data-guest-quick="monitor">Set up automation</button></div>
+    <div class="tool-actions"><button class="btn" data-guest-quick="connect">Connect my Instagram</button><button class="btn" data-guest-quick="draft">Draft a post</button><button class="btn" data-guest-quick="monitor">Set up automation</button><button class="btn" data-guest-quick="route">Find a bot</button><button class="btn" data-guest-quick="routine">Daily brief steps</button></div>
     <div class="modal-actions"><button class="btn primary" id="guestChooseDone">Continue</button></div></div></div>`;render();
 }
 async function makeFamilyFolderLink(folderId){
@@ -3170,7 +3327,8 @@ function guestChoose(kind){
 function guestQuick(kind){
   guestChoose('own');
   const phrases={connect:'Connect my Instagram',draft:'Draft a social post about my comic',
-    monitor:'Monitor my Instagram DMs'};
+    monitor:'Monitor my Instagram DMs',route:'Which bot can help me learn this topic?',
+    routine:'Set up a daily brief routine'};
   draft=phrases[kind]||'';
   sendMessage({preventDefault(){}});
 }
@@ -3488,6 +3646,12 @@ function openWebSearchSettings(){
   document.getElementById('wsDomains')?.addEventListener('change',e=>setSearchDomains(e.target.value));
   document.getElementById('wsDone')?.addEventListener('click',()=>{modal=null;render()});
 }
+const CONNECTOR_CATALOG=[
+  {type:'instagram',name:'Instagram',sub:'Your own Meta token or Connect button',
+    detail:'Check activity, draft posts and publish only after a plain Allow once card. A public image URL is needed to publish.'},
+  {type:'webhook',name:'Webhook',sub:'Your own HTTPS endpoint',
+    detail:'Check or send through automation you control. The URL and any token stay in your own setup, not in cloud state.'}
+];
 let connectorWizard={step:1,type:'instagram',name:''};
 function openConnectors(preset){
   connectorWizard={step:(preset&&preset.step)||1,type:(preset&&preset.type)||'instagram',
@@ -3580,6 +3744,51 @@ async function testConnector(id){
     const who=r.result&&r.result.username?(' as '+r.result.username):'';
     showToast('Connected'+who);
   }else showToast('Test failed: '+String(r.error||'unknown error').slice(0,120));
+}
+function openConnectorCatalog(){
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal" style="max-width:560px"><h3>Connector catalog</h3>
+    <p>Only your own accounts belong here. Owner, guest and phone users each add their own connector on their own device — nobody borrows the owner's login.</p>
+    ${CONNECTOR_CATALOG.map(x=>`<div class="vault-row"><span><strong>${esc(x.name)}</strong><br><small>${esc(x.sub)}</small><br><small>${esc(x.detail)}</small></span><button class="btn primary" data-catalog-choice="${esc(x.type)}">Set up</button></div>`).join('')}
+    <p class="wizard-note">No token broker, no cloud connector state and no hidden key. The model sees names only; every action still needs Allow once / Deny.</p>
+    <div class="modal-actions"><button class="btn" id="mc">Close</button></div></div></div>`;render();
+  document.querySelectorAll('[data-catalog-choice]').forEach(b=>b.onclick=()=>{
+    const type=b.dataset.catalogChoice;
+    openConnectors({step:2,type,name:'My '+connectorLabel(type)});
+  });
+}
+function openBotDesk(id){
+  const c=convs.find(x=>x.id===id)||active();if(!c)return;
+  const d=deskLoad()[c.id]||{},rows=connectorList(),count=deskRoutineCount(c),s=botDeskSummary(c,count.assigned,count.total);
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal" style="max-width:560px"><h3>${esc(c.name)} desk</h3>
+    <p class="wizard-note">A local workbench for this bot. It stores only a connector name and a memory preference on this device — no token, cloud state or borrowed login.</p>
+    <div class="about-grid">
+      <div class="about-row"><span>Connector</span><span>${esc(s.connector)}</span></div>
+      <div class="about-row"><span>Device memory</span><span>${s.memory?'On for this chat':'Off for this chat'}</span></div>
+      <div class="about-row"><span>Project</span><span>${esc(s.project)}</span></div>
+      <div class="about-row"><span>Routines</span><span>${s.routines} assigned · ${s.routineTotal} on device</span></div>
+      <div class="about-row"><span>Last approval</span><span>${esc(s.lastApproval)}</span></div>
+    </div>
+    <label>Use this bot's connector<select id="deskConnector"><option value="">Not assigned</option>${rows.map(r=>`<option value="${esc(r.id)}" ${d.connectorId===r.id?'selected':''}>${esc(r.name)}</option>`).join('')}</select></label>
+    <label class="check-row"><input type="checkbox" id="deskMemory" ${d.memory!==false?'checked':''}/><span>Let this bot recall device memory when global recall is on</span></label>
+    <p class="wizard-note">Routines in this desk are only a local view. A daily/interval routine runs only while this app is open; nothing is scheduled in the background.</p>
+    <div class="modal-actions"><button class="btn" id="mc">Close</button><button class="btn" id="deskConnectors">My Connectors</button><button class="btn primary" id="deskSave">Save desk</button></div></div></div>`;render();
+  document.getElementById('deskSave')?.addEventListener('click',()=>{
+    const sel=document.getElementById('deskConnector'),box=document.getElementById('deskMemory');
+    deskAssign(c.id,sel?sel.value:'',!!(box&&box.checked));modal=null;render();showToast('Desk saved on this device');
+  });
+  document.getElementById('deskConnectors')?.addEventListener('click',()=>openConnectors());
+}
+function openRoutineTemplates(){
+  modal=`<div class="modal-backdrop" id="mb"><div class="modal" style="max-width:620px"><h3>Routine templates</h3>
+    <p>Copy the steps into your own iPhone Shortcut or webhook. Oracle can help while the app is open; it cannot watch DMs/email or post after the tab closes.</p>
+    ${ROUTINE_TEMPLATES.map(t=>`<div class="vault-row"><span><strong>${esc(t.name)}</strong><br><small>${t.steps.map(s=>esc(s)).join(' · ')}</small></span><span><button class="btn" data-template-modal-copy="${esc(t.id)}">Copy</button> <button class="btn" data-template-modal-routines="${esc(t.id)}">My routines</button></span></div>`).join('')}
+    <p class="wizard-note">Every endpoint and token belongs to you. No account login, paid service, hidden key or background claim is included.</p>
+    <div class="modal-actions"><button class="btn" id="mc">Close</button></div></div></div>`;render();
+  document.querySelectorAll('[data-template-modal-copy]').forEach(b=>b.onclick=async()=>{
+    try{await navigator.clipboard.writeText(automationSteps('instagram',b.dataset.templateModalCopy));showToast(routineTemplate(b.dataset.templateModalCopy).name+' steps copied')}
+    catch(e){showToast('Copy is unavailable here')}
+  });
+  document.querySelectorAll('[data-template-modal-routines]').forEach(b=>b.onclick=()=>{modal=null;render();openDeviceRoutines()});
 }
 async function openAbout(){
   const build=document.querySelector('meta[name="oracle-build"]')?.content||'unknown';
@@ -3714,7 +3923,7 @@ function openPersonalityPicker(){
 function openBotRoster(){
   const rows=convs.map(x=>`<div class="vault-row" style="justify-content:flex-start;gap:9px;flex-wrap:wrap">
     ${heroAvatar(x.hero)}<span style="flex:1;min-width:150px"><strong>${esc(x.name)}</strong>${x.primary?'<span class="primary-badge">PRIMARY</span>':''}<br/><small style="color:var(--accent-2);font-weight:600">${esc(botJob(x))} · ${esc(personalityLabel(x))}${x.desc?' · '+esc(String(x.desc).slice(0,60)):''}</small></span>
-    <button class="btn tiny" data-bot-open="${esc(x.id)}">Open</button><button class="btn tiny" data-bot-edit="${esc(x.id)}">Edit</button></div>`).join('');
+    <button class="btn tiny" data-bot-open="${esc(x.id)}">Open</button><button class="btn tiny" data-bot-desk="${esc(x.id)}">Desk</button><button class="btn tiny" data-bot-edit="${esc(x.id)}">Edit</button></div>`).join('');
   modal=`<div class="modal-backdrop" id="mb"><div class="modal" style="max-width:620px"><h3>Bot roster</h3>
     <p>Each chat is one local bot with a name, job and avatar. The primary bot is the one that opens first. Nothing here is synced or shared.</p>
     ${rows}
@@ -3725,6 +3934,7 @@ function openBotRoster(){
     view='chat';mobileView='chat';modal=null;saveState();render();
   });
   document.querySelectorAll('[data-bot-edit]').forEach(b=>b.onclick=()=>openBotEditModal(b.dataset.botEdit));
+  document.querySelectorAll('[data-bot-desk]').forEach(b=>b.onclick=()=>openBotDesk(b.dataset.botDesk));
   document.getElementById('botNew')?.addEventListener('click',()=>openRoomModal(activeFolder));
 }
 function openBotEditModal(id){
@@ -3774,6 +3984,9 @@ function commandItems(){
     const chat=active();chat.deep=!chat.deep;saveState();render();showToast('Deep Search '+(chat.deep?'on':'off')+' for '+chat.name);
   }});
   items.push({label:'My Connectors',sub:'your own accounts · device-local tokens',art:icon('lock',16),run:openConnectors});
+  items.push({label:'Connector catalog',sub:'plain setup paths · no borrowed logins',art:icon('spark',16),run:openConnectorCatalog});
+  items.push({label:'Bot desk',sub:'connector, memory, project, routines, last approval',art:icon('spark',16),run:()=>openBotDesk(activeId)});
+  items.push({label:'Routine templates',sub:'daily brief, mention check and draft post steps',art:icon('info',16),run:openRoutineTemplates});
   items.push({label:'Projects',sub:'group chats on this device',art:icon('file',16),run:()=>{view='projects';mobileView='chat';render()}});
   items.push({label:'My Memory',sub:'facts saved on this device',art:icon('spark',16),run:()=>{view='memory';mobileView='chat';render()}});
   if(staticMode&&!guestMode)items.push({label:'Make an image',sub:imageUnsupported()?'not available on iPhone':'command · on-device image generation',art:icon('spark',16),run:openImageModal});
@@ -4190,11 +4403,49 @@ function pushBotAnswer(c,answer,note,sources){
   c.preview=(parsed.clean||'').slice(0,40);
   return !!parsed.request;
 }
+// The handoff stays visible in the original chat; the actual request continues
+// in the specialist chat, with the same plain words the person typed.
+let skipRouting=false;
+function ensureRouteTarget(route,c){
+  const currentId=c&&c.id;
+  let t=convs.find(x=>x&&x.id===route.id&&x.id!==currentId);
+  if(!t&&route.name)t=convs.find(x=>x&&x.id!==currentId&&String(x.name||'').trim().toLowerCase()===String(route.name).trim().toLowerCase());
+  if(!t&&route.role)t=convs.find(x=>x&&x.id!==currentId&&botRoleKind(String(x.name||''),botJob(x),String(x.desc||''))===route.role);
+  if(!t){
+    const tmpl=BOT_TEMPLATES.find(x=>x.id===route.id);
+    if(!tmpl)return null;
+    const folder=(c&&c.folder)||(folders[0]&&folders[0].id)||'general';
+    t={id:tmpl.id+'-'+Date.now().toString(36),name:tmpl.name,job:tmpl.job,desc:tmpl.desc,hero:tmpl.hero,
+      persona:tmpl.persona,folder,primary:false,
+      messages:[{from:'bot',text:botOpener(tmpl.name,tmpl.job,tmpl.desc),note:'Guide'}]};
+    convs.push(t);
+  }
+  return t;
+}
+async function deliverHandoff(text,c,route){
+  const target=ensureRouteTarget(route,c);
+  if(!target){
+    c.messages.push({from:'bot',text:'I could not find or create that specialist chat.',note:'Chief of staff'});
+    saveState();waiting=false;render();return;
+  }
+  c.messages.push({from:'bot',text:'I handed this to '+target.name+' — '+route.reason+'. I opened that chat and kept your words.',
+    note:'Chief of staff · handoff',
+    handoff:{id:target.id,name:target.name,reason:route.reason,prompt:route.prompt||text,
+      summary:route.summary||routeSummary(text)},handoffState:'sent'});
+  c.preview='Handed to '+target.name;
+  activeId=target.id;activeFolder=target.folder||activeFolder;view='chat';mobileView='chat';
+  draft=route.prompt||text;saveState();waiting=false;render();
+  skipRouting=true;
+  try{await sendMessage({preventDefault(){}})}finally{skipRouting=false}
+}
 async function sendMessage(e){
   e.preventDefault();
   const text=draft.trim();if(!text&&!files.length)return;
   const extra=(files.length?'\n[Attached files: '+files.join(', ')+']':'');
-  const intent=connectorIntent(text,files);
+  const explicitRoute=skipRouting?null:routeSpecialist(text,active(),true);
+  const intent=explicitRoute?null:connectorIntent(text,files);
+  const route=explicitRoute||(!intent&&!skipRouting?routeSpecialist(text,active(),false):null);
+  const template=(intent||route||skipRouting)?'':routineTemplateIntent(text);
   const c=active();
   c.messages.push({from:'user',text:text+extra});c.preview=(text||'file')+'…';
   // Save now — if a phone tab is killed while the model loads, the question
@@ -4205,13 +4456,20 @@ async function sendMessage(e){
   // instead of looking like the page jumped or reset.
   if(!callActive){const el=document.getElementById('draft');if(el){try{el.focus({preventScroll:true})}catch(e){}}}
   if(intent){await runConnectorIntent(text,c,intent);return}
+  if(route){await deliverHandoff(text,c,route);return}
+  if(template){
+    const t=routineTemplate(template);
+    c.messages.push({from:'bot',text:'Here is a ready-made '+t.name+' handoff. Copy the steps into your own iPhone Shortcut or webhook — this app cannot keep running in the background.',
+      note:'Routine template · foreground only',routine:{id:template,type:connectorTypeFrom(text)},routineState:'pending'});
+    c.preview='Routine template · '+t.name;saveState();waiting=false;render();return;
+  }
   let replyText='',delegated=false;
   const cm=customModels.find(m=>m.id===backend);
   const shortSend=nextSendShort;nextSendShort=false;
   try{
     const msgs=c.messages.map(m=>({from:m.from,text:m.text}));
     let sysText=[personalityPrompt(c),botIdentityPrompt(c)].filter(Boolean).join('\n\n'),sources=null;
-    const memText=memoryPromptText();
+    const memText=memoryPromptText(c);
     if(memText)sysText=(sysText?sysText+'\n\n':'')+memText;
     if(webSearchOn()){
       sources=await webSources(text,!!c.deep);

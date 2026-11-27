@@ -4,12 +4,20 @@ Run this at **320 / 360 / 390 / 430 px** on the real iPhone in Safari, and in
 an emulated iPhone viewport against `https://oracle-chat.pages.dev/`.
 The backup host is `https://tuxedotigercomics-gif.github.io/oracle-chat/`.
 
-Baseline SHA (live UI): `800f07cdc3bd76f2dbbc7b99fe92ce626f7e8de83879be4236515c1c5f5698f1`
+Baseline SHA (live UI): `6cde3091390818902b0383f411f1d8566914f4f6cb9afe769708ea206844acb8`
 Service-worker SHA: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`
 Rollback: `restore-live.command`
 
 > The desktop/host checklist lives in `MAIN-BROWSER-REGRESSION.md`.
 > Voice-call fixes are marked **VOICE FIX 2026-11-19** below.
+
+## Chief-of-staff routing, connector catalog/bot desks and routine templates — 2026-11-28 (harness + live + 320–430 px emulation verified; physical pass open)
+- [x] Routing handoff cards fit 320–430 px and are reachable from the phone composer for guests and phone users (emulated)
+- [x] Connector catalog and bot desks stay readable at 320–430 px without showing tokens or cloud state (emulated)
+- [x] Routine template steps expose copy controls and plainly state the foreground-only limit (emulated; real Safari clipboard pass open)
+- [x] Memory/Projects, quick actions, approval cards and existing model/voice controls remain reachable and unchanged
+- [x] Build `2026-11-28` served by the unchanged worker on both sites with zero console errors (harness + live + emulation; physical iPhone pass open)
+- [ ] Physical iPhone pass at 320 / 360 / 390 / 430 px in Safari, including voice input, real connector setup and copied routine steps
 
 ## OAuth-ready setup, draft cards, automation handoff and Memory/Projects — 2026-11-27c (harness + live + 320–430 px emulation verified; physical pass open)
 - [x] Connect with Instagram fallback/setup wizard is readable and usable at 320–430 px without exposing tokens (emulated iPhone pass)
