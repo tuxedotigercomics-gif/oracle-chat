@@ -4,11 +4,20 @@ Run this on **Chrome, Edge or Safari on the Mac**, against the bridge-served app
 (`Oracle-Chat-Live.html` via `oracle_bridge.py`) and against
 `https://oracle-chat.pages.dev/`.
 
-Baseline SHA (live UI): `62148db7142ddb5f61495507041d72e2522425d9ed9b3d6e49e2535aef8c0c22`
+Baseline SHA (live UI): `9e9b97365df05dc678af1c1c927c34a1f06d62e5b4cc5553d19cf42abfa92bf5`
 Rollback: `restore-live.command`
 
 > The phone-only checklist lives in `PHONE-BROWSER-REGRESSION.md`.
 > Voice-call fixes are marked **VOICE FIX 2026-11-19** below.
+
+## Profile menu sheet — 2026-12-02 (harness + live + host smoke verified)
+- [x] Desktop profile dropdown has a capped height, scrolls independently and keeps the header hidden
+- [x] Phone profile list becomes a fixed in-viewport sheet with Menu title, Close button and 16px local search
+- [x] “My Connectors” and every other row stay reachable by scrolling the menu body, with no chat-list rubber-banding
+- [x] Search narrows rows, shows an empty state, and Close/Esc dismiss the sheet
+- [x] Existing owner/guest gates, approvals, connectors, bots, routines and no-zoom composer remain unchanged
+- [x] Local/live harness and owner/guest/backup/host smoke pass with unchanged worker/bridge/offline SHAs
+- [x] Build `2026-12-02` published with matching SHAs, then baseline/restore/README re-frozen only after verification
 
 ## Smart chips, chat search, approval coach, Library 2.0 and voice-first composer — 2026-12-01 (harness + live + host smoke verified)
 - [x] Context chips suggest summarize/simpler/checklist/save/approvals from the current chat using plain phrases only

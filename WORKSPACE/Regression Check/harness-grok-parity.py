@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Harness for build 2026-12-01 (smart chips, local chat search, approval coach,
-Library 2.0, voice-first composer, plus the 2026-11-30/29/28 device-local base).
+"""Harness for build 2026-12-02 (scrollable phone profile menu with local search,
+plus the 2026-12-01/30/29/28 device-local base).
 
 Local mode checks source invariants and runs the pure JS helpers through the
 macOS JavaScriptCore engine (osascript -l JavaScript). There is no Node on this
@@ -45,7 +45,7 @@ def expect(cond, label):
 
 
 def source_checks(html, cloud, bridge, gdelt, oauth):
-    expect('content="2026-12-01"' in html, "build marker is 2026-12-01")
+    expect('content="2026-12-02"' in html, "build marker is 2026-12-02")
     expect("Socials Bot" in html and "Which platforms are you posting to?" in html,
            "Socials Bot template asks platform/audience/goal questions")
     expect("botOpener(name,job,desc)" in html, "room creation uses the local opener generator")
@@ -194,6 +194,12 @@ def source_checks(html, cloud, bridge, gdelt, oauth):
            "phone text fields stay at 16px so Safari does not zoom")
     expect("focusedField.blur()" in html and "No post-send refocus on any device" in html,
            "sending blurs before rerender and never refocuses")
+    expect('id="profileMenu"' in html and 'id="profileMenuSearch"' in html
+           and 'id="profileMenuBody"' in html and 'id="closeProfileMenu"' in html
+           and ".profile-menu-body{flex:1;min-height:0;overflow-y:auto" in html
+           and "overscroll-behavior:contain" in html
+           and "pmSearch?.addEventListener" in html,
+           "profile menu becomes a scrollable, searchable phone sheet")
     expect("function smartChips(c)" in html and 'data-smart="' in html
            and "Summarize this chat in five short bullets" in html
            and "hidden connector syntax" in html,
@@ -521,14 +527,17 @@ def live_checks():
 
     status, headers, body = get(CANONICAL)
     h = {k.lower(): v for k, v in headers.items()}
-    expect(status == 200 and 'content="2026-12-01"' in body,
-           "canonical serves build 2026-12-01")
+    expect(status == 200 and 'content="2026-12-02"' in body,
+           "canonical serves build 2026-12-02")
     expect('enterkeyhint="send"' in body and "font-size:16px !important" in body,
            "canonical serves the no-zoom composer fix")
     expect("function smartChips(c)" in body and "function chatSearchResults(q)" in body
            and "function approvalCoach(" in body and "function libraryFiltered(" in body
            and "No auto-send" in body,
            "canonical serves all five approved upgrades")
+    expect('id="profileMenuSearch"' in body and 'id="profileMenuBody"' in body
+           and "overscroll-behavior:contain" in body,
+           "canonical serves the scrollable profile menu")
     expect(h.get("cross-origin-opener-policy") == "same-origin" and
            h.get("cross-origin-embedder-policy") == "require-corp",
            "canonical still sends COOP/COEP")
@@ -536,8 +545,8 @@ def live_checks():
     expect(hashlib.sha256(raw(CANONICAL)).hexdigest() == sha(APP),
            "canonical app bytes match the local build")
     status, headers, body = get(BACKUP)
-    expect(status == 200 and 'content="2026-12-01"' in body,
-           "backup serves build 2026-12-01")
+    expect(status == 200 and 'content="2026-12-02"' in body,
+           "backup serves build 2026-12-02")
     expect(hashlib.sha256(raw(BACKUP)).hexdigest() == sha(APP),
            "backup app bytes match the local build")
     expect(headers.get("Cross-Origin-Opener-Policy") is None,

@@ -79,14 +79,28 @@ shasum -a 256 baseline/Oracle-Chat-Live.html      # active live UI
 If a hash differs from the one above, the baseline was modified — restore
 from your own backup before trusting it.
 
-## Active live baseline (re-frozen 2026-11-27, build 2026-12-01)
+## Active live baseline (re-frozen 2026-11-27, build 2026-12-02)
 
 The live UI is now the working app (served by `oracle_bridge.py`). It has its
 own known-good snapshot:
 
 - **File:** `baseline/Oracle-Chat-Live.html`
-- **SHA-256:** `62148db7142ddb5f61495507041d72e2522425d9ed9b3d6e49e2535aef8c0c22`
+- **SHA-256:** `9e9b97365df05dc678af1c1c927c34a1f06d62e5b4cc5553d19cf42abfa92bf5`
 - Roll back with `restore-live.command` (keeps a `.broken` backup).
+
+Build `2026-12-02` turns the long profile list into a scrollable, searchable
+menu sheet on phones: a fixed in-viewport panel with a Close button, a 16px local
+search field, larger rows, and independent scrolling so “My Connectors” and the
+last item stay reachable without rubber-banding the chat list behind it. The
+desktop dropdown is now height-capped and scrollable too. It keeps all of
+`2026-12-01` (smart chips, local chat search, one-time approval coach, Library
+2.0 and voice-first preview/send) plus the earlier no-zoom composer, approval
+inbox, starter bots, device-local Library, template share/import, routines,
+chief-of-staff routing, connector catalog and bot desks. The config-gated free Pages
+callback at `oracle-pages/functions/api/instagram-oauth/callback.js` from
+`2026-11-27c` is unchanged and stays honestly “Not configured” until the owner
+supplies the Meta App ID, server-side app secret, redirect URI and scopes as Pages
+secrets. No client secret exists in the app, chat, console, cloud state or prompts.
 
 Build `2026-12-01` adds smart context chips, local chat search with a jump to the
 exact message, a plain-language one-time approval coach, Library 2.0 with search,
@@ -95,14 +109,11 @@ previews dictated words and sends only on an explicit tap. It keeps the
 `2026-11-30` no-zoom/no-refocus composer, the `2026-11-29` approval inbox,
 starter bot gallery, device-local Library, safe bot template share/import and
 weekly/interval routine templates, plus the `2026-11-28` chief-of-staff routing,
-plain connector catalog and device-local bot desks. The config-gated free Pages
-callback at `oracle-pages/functions/api/instagram-oauth/callback.js` from
-`2026-11-27c` is unchanged and stays honestly “Not configured” until the owner
-supplies the Meta App ID, server-side app secret, redirect URI and scopes as Pages
-secrets. No client secret exists in the app, chat, console, cloud state or prompts.
+plain connector catalog and device-local bot desks.
+
 The physical iPhone Safari passes for builds `2026-11-29` and `2026-11-30` are
-confirmed; the physical pass for `2026-12-01` remains open, as do older
-device-only boxes.
+confirmed; the physical passes for `2026-12-01` and `2026-12-02` remain open, as do
+older device-only boxes.
 
 The original offline mockup baseline and its SHA-256 are preserved unchanged
 for layout comparison and historical rollback via `restore.command`.

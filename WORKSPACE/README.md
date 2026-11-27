@@ -5,17 +5,18 @@ This folder is the source-of-truth snapshot of the original Mac workspace at
 new computer can continue the project from GitHub alone.
 
 Snapshot date: 2026-11-27  
-Snapshot state: build `2026-12-01` re-frozen after local/live harness and host/emulation checks  
-Published build at snapshot: `2026-12-01` verified on canonical and backup (Pages commit `f07663b`)  
-App SHA: `62148db7142ddb5f61495507041d72e2522425d9ed9b3d6e49e2535aef8c0c22`  
+Snapshot state: build `2026-12-02` re-frozen after local/live harness and host/emulation checks  
+Published build at snapshot: `2026-12-02` verified on canonical and backup (Pages commit `ee9eb4a`)  
+App SHA: `9e9b97365df05dc678af1c1c927c34a1f06d62e5b4cc5553d19cf42abfa92bf5`  
 OAuth callback SHA: `2adb97b605d9ffe749d3b5d83934a8ebe6ff61ad34ae5eaff1aa6f345e271eda`  
 Service-worker SHA: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`  
 Bridge SHA: `eb86840cf681ef57881244d87bc2f0bad57c593fb0673118c356429600661e20`  
 
-The physical iPhone pass for `2026-12-01` is still open; the confirmed device
-passes remain `2026-11-29` and `2026-11-30`. Smart chips, local chat search, the
-one-time approval coach, Library 2.0 and voice-first preview are all device-local
-and approval-first.
+The physical iPhone passes for `2026-12-01` and `2026-12-02` are still open; the
+confirmed device passes remain `2026-11-29` and `2026-11-30`. The `2026-12-02`
+profile menu is a scrollable, searchable phone sheet with its own Close button;
+smart chips, local chat search, the one-time approval coach, Library 2.0 and
+voice-first preview remain device-local and approval-first.
 
 ## Included
 

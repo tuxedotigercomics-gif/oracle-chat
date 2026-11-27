@@ -4,12 +4,21 @@ Run this at **320 / 360 / 390 / 430 px** on the real iPhone in Safari, and in
 an emulated iPhone viewport against `https://oracle-chat.pages.dev/`.
 The backup host is `https://tuxedotigercomics-gif.github.io/oracle-chat/`.
 
-Baseline SHA (live UI): `62148db7142ddb5f61495507041d72e2522425d9ed9b3d6e49e2535aef8c0c22`
+Baseline SHA (live UI): `9e9b97365df05dc678af1c1c927c34a1f06d62e5b4cc5553d19cf42abfa92bf5`
 Service-worker SHA: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`
 Rollback: `restore-live.command`
 
 > The desktop/host checklist lives in `MAIN-BROWSER-REGRESSION.md`.
 > Voice-call fixes are marked **VOICE FIX 2026-11-19** below.
+
+## Profile menu sheet — 2026-12-02 (harness + live + emulation verified; physical pass open)
+- [x] Profile sheet fits inside the viewport at 320–430 px with a visible title and Close button (emulated)
+- [x] Menu body scrolls independently with overscroll containment; dragging no longer rubber-bands the chat list (emulated)
+- [x] “My Connectors” and the last row both stay reachable by scrolling the sheet (emulated)
+- [x] Local menu search narrows rows and stays 16px so Safari does not zoom (emulated)
+- [x] Existing approvals, bots, connectors, routines and backup host remain reachable (emulated)
+- [x] Harness, live harness and 320–430 px emulation pass; physical iPhone pass open
+- [ ] Physical iPhone pass: profile sheet scroll, search, Close and “My Connectors” tap
 
 ## Smart chips, chat search, approval coach, Library 2.0 and voice-first composer — 2026-12-01 (harness + live + emulation verified; physical pass open)
 - [x] Context chips, search, approval coach and Library controls stay readable at 320–430 px (emulated)

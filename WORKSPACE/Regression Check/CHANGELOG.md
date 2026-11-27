@@ -3,6 +3,39 @@
 Record every change here before you make it, so there is always a clear trail
 between the frozen baseline and whatever is currently in the working file.
 
+## 2026-12-02 — Profile menu becomes a scrollable, searchable sheet (published and verified)
+
+Status: **published and verified**. The owner reported that the long profile
+list on iPhone ran off the top of the screen and iOS rubber-banding snapped it
+back, leaving “My Connectors” hard to reach. The fix touched only the live app;
+the offline mockup stayed frozen.
+
+Intended change:
+
+1. Keep the desktop dropdown, but cap its height and let it scroll with
+   `overscroll-behavior:contain` so it never runs off the screen.
+2. On phones, turn the profile list into a fixed, edge-to-edge sheet with a
+   clear Menu title, a Close button, and a local-only “Search this menu” field.
+3. Give each row a larger touch target and keep every entry, including
+   “My Connectors”, reachable by scrolling the menu body instead of dragging
+   the chat list behind it.
+4. Keep every existing action, owner/guest gate, approval rule, connector token
+   boundary, and no-zoom input rule unchanged.
+5. Bump the marker to `2026-12-02`, extend the harness, and re-freeze only after
+   local/live checks pass. The physical iPhone pass stays open.
+
+Shipped in build `2026-12-02`: local harness PASS and live harness PASS on both
+sites. App SHA `9e9b97365df05dc678af1c1c927c34a1f06d62e5b4cc5553d19cf42abfa92bf5`
+was verified byte-for-byte on the live source, published copy, canonical site and
+backup site. Published in Pages commit `ee9eb4a`. Emulated 320/360/390/430 px
+checks on owner, guest, backup and bridge-host pages confirmed the menu sits
+inside the viewport, its body scrolls independently, search narrows entries to
+“My Connectors”, Close and Esc dismiss it, the search field stays at 16px, and
+there is no horizontal overflow. Owner, guest and backup pages had zero console
+errors; the bridge host only showed its known missing manifest asset. Baseline,
+rollback, README, workspace snapshot and manifest were re-frozen only after those
+checks passed. Physical iPhone confirmation for this new build remains open.
+
 ## 2026-12-01 — Smart chips, chat search, approval coach, Library 2.0 and voice-first composer (published and verified)
 
 Status: **published and verified** (planned before edits). The owner approved all five next improvements.
