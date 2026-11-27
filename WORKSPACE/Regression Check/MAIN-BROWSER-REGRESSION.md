@@ -4,11 +4,19 @@ Run this on **Chrome, Edge or Safari on the Mac**, against the bridge-served app
 (`Oracle-Chat-Live.html` via `oracle_bridge.py`) and against
 `https://oracle-chat.pages.dev/`.
 
-Baseline SHA (live UI): `2e3fd5470804d6f1427de0959d05dc1ec36b193edf01c94002792f85b952f985`
+Baseline SHA (live UI): `7f610c0fd4d76befb9f23ed93b3ee71c7d3b3f0a2f55a726dc29a5442ce5d17b`
 Rollback: `restore-live.command`
 
 > The phone-only checklist lives in `PHONE-BROWSER-REGRESSION.md`.
 > Voice-call fixes are marked **VOICE FIX 2026-11-19** below.
+
+## iPhone composer zoom and keyboard reset — 2026-11-30 (harness + live + host smoke verified)
+- [x] Chat input and modal text fields use at least 16px at 320–430 px so Safari does not zoom on focus
+- [x] Sending blurs the field before rerender and does not refocus; keyboard closes without a check/pinch step
+- [x] `enterkeyhint="send"` makes the keyboard action send the message
+- [x] Approvals, guest gates, connector cards and routines remain unchanged; desktop can click the field if it wants to keep typing
+- [x] Local/live harness and owner/guest/backup/bridge-host smoke pass; owner/guest had zero console errors, backup/bridge only showed known host-route asset/API 404s; worker/bridge/offline SHAs unchanged
+- [x] Build `2026-11-30` published with matching SHAs, then baseline/restore/README re-frozen only after verification
 
 ## Approval inbox, bot gallery, local Library, template share and more routines — 2026-11-29 (harness + live + host smoke verified)
 - [x] Approval inbox lists pending connector, host tool and draft approvals from every chat with plain bot names and short previews

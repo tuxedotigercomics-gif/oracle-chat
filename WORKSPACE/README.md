@@ -5,9 +5,9 @@ This folder is the source-of-truth snapshot of the original Mac workspace at
 new computer can continue the project from GitHub alone.
 
 Snapshot date: 2026-11-27  
-Snapshot state: build `2026-11-29` verified from the frozen `2026-11-28` baseline  
-Published build at snapshot: `2026-11-29` verified on canonical and backup  
-App SHA: `2e3fd5470804d6f1427de0959d05dc1ec36b193edf01c94002792f85b952f985`  
+Snapshot state: build `2026-11-30` verified from the frozen `2026-11-29` baseline  
+Published build at snapshot: `2026-11-30` verified on canonical and backup  
+App SHA: `7f610c0fd4d76befb9f23ed93b3ee71c7d3b3f0a2f55a726dc29a5442ce5d17b`  
 OAuth callback SHA: `2adb97b605d9ffe749d3b5d83934a8ebe6ff61ad34ae5eaff1aa6f345e271eda`  
 Service-worker SHA: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`  
 Bridge SHA: `eb86840cf681ef57881244d87bc2f0bad57c593fb0673118c356429600661e20`

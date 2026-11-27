@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#4a9861" />
-<meta name="oracle-build" content="2026-11-29" />
+<meta name="oracle-build" content="2026-11-30" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Oracle" />
@@ -316,7 +316,10 @@
     .bubble{max-width:88%;font-size:13.5px}
     .composer-wrap{width:calc(100% - 20px);margin-bottom:12px}
     .composer{gap:6px;padding:7px 8px}
-    .composer input{font-size:14px;min-width:0}
+    /* iOS Safari zooms any focused field under 16px; keep the page fitted. */
+    input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="range"]),
+    textarea,select{font-size:16px !important}
+    .composer input{font-size:16px;min-width:0}
     .call-bar{padding:7px 8px;font-size:11px}
   }
   @media(max-width:360px){
@@ -2889,7 +2892,7 @@ function render(){
           ${staticMode||guestMode?'':`<button type="button" class="composer-plus" id="seeThis" title="See this — ask the local model about the webcam view">${icon('camera')}</button>`}
           ${staticMode&&!guestMode?`<button type="button" class="composer-plus" id="imageBtn" title="Make an image on this device">${icon('spark')}</button>`:''}
           <button type="button" class="composer-plus ${listening?'listening':''}" id="micBtn" title="Speak instead of type">${icon('mic')}</button>
-          <input id="draft" value="${esc(draft)}" placeholder="Message ${esc(c.name)}" autocomplete="off" />
+          <input id="draft" value="${esc(draft)}" placeholder="Message ${esc(c.name)}" autocomplete="off" enterkeyhint="send" />
           <button type="submit" class="composer-send" id="send" ${draft.trim()||files.length?'':'disabled'}>${icon('arrow')}</button>
           ${plusOpen?`<div class="dropdown plus">
             <button class="menu-item" id="attachItem">${icon('file',18)}<span><strong>Attach a file</strong><span class="mi-sub">Send text file contents</span></span></button>
@@ -4743,10 +4746,14 @@ async function sendMessage(e){
   // Save now — if a phone tab is killed while the model loads, the question
   // survives the reload and can be retried instead of vanishing.
   saveState();finishFirstRun();
+  // Close the keyboard before rerendering. iOS Safari zooms a focused field
+  // under 16px; the field is now 16px, but blurring first also avoids the extra
+  // check/pinch cleanup after sending.
+  const focusedField=document.activeElement;
+  if(focusedField&&typeof focusedField.blur==='function'){try{focusedField.blur()}catch(e){}}
   draft='';files=[];waiting=true;if(callActive)setCallState('thinking');render();
-  // render() rebuilds the input; refocus it so the phone keyboard stays open
-  // instead of looking like the page jumped or reset.
-  if(!callActive){const el=document.getElementById('draft');if(el){try{el.focus({preventScroll:true})}catch(e){}}}
+  // No post-send refocus on any device: one click/tap reopens the field if needed,
+  // while the phone keyboard closes cleanly and the page stays fitted.
   if(intent){await runConnectorIntent(text,c,intent);return}
   if(route){await deliverHandoff(text,c,route);return}
   if(template){

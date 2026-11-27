@@ -4,12 +4,20 @@ Run this at **320 / 360 / 390 / 430 px** on the real iPhone in Safari, and in
 an emulated iPhone viewport against `https://oracle-chat.pages.dev/`.
 The backup host is `https://tuxedotigercomics-gif.github.io/oracle-chat/`.
 
-Baseline SHA (live UI): `2e3fd5470804d6f1427de0959d05dc1ec36b193edf01c94002792f85b952f985`
+Baseline SHA (live UI): `7f610c0fd4d76befb9f23ed93b3ee71c7d3b3f0a2f55a726dc29a5442ce5d17b`
 Service-worker SHA: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`
 Rollback: `restore-live.command`
 
 > The desktop/host checklist lives in `MAIN-BROWSER-REGRESSION.md`.
 > Voice-call fixes are marked **VOICE FIX 2026-11-19** below.
+
+## iPhone composer zoom and keyboard reset — 2026-11-30 (harness + live + 320–430 px emulation verified; physical pass open)
+- [x] Composer and modal text fields stay 16px at 320–430 px with no Safari focus zoom (emulated)
+- [x] Send closes the keyboard without a second check tap and leaves the page fitted (emulated)
+- [x] Keyboard’s Send key submits the message (emulated)
+- [x] Existing approvals, bot gallery, Library, template share, routines and backup host remain reachable (emulated)
+- [x] Harness, live harness and 320–430 px emulation pass; physical iPhone pass open
+- [ ] Physical iPhone pass: tap the field, type, send, and confirm no zoom and no check/pinch cleanup
 
 ## Approval inbox, bot gallery, local Library, template share and more routines — 2026-11-29 (harness + live + emulation + physical iPhone verified)
 - [x] Approval inbox rows and Allow once / Deny, Edit / Copy / Publish / Cancel controls fit 320–430 px and reach the original chat card (emulated)

@@ -3,6 +3,44 @@
 Record every change here before you make it, so there is always a clear trail
 between the frozen baseline and whatever is currently in the working file.
 
+## 2026-11-30 — Stop iPhone composer zoom and keyboard reset (published and verified)
+
+Status: **published and verified** (planned before edits). The owner reported that tapping the message
+field zooms the page in, and after sending they must tap the keyboard’s check key
+and pinch back out. This is iOS Safari auto-zoom for text under 16px plus an
+unconditional refocus after send.
+
+Intended change:
+
+1. Set every text input, textarea and select to at least 16px on phone widths so
+   Safari does not zoom when the field is focused.
+2. Add `enterkeyhint="send"` to the chat field so the keyboard’s main key sends.
+3. Blur the composer before rerendering after send, and stop refocusing it so the
+   keyboard closes and the page stays fitted.
+4. One click/tap reopens the field if needed. Keep approvals, guests, connectors,
+   routines and every existing SHA boundary unchanged except the live app. Bump
+   the marker to `2026-11-30`, extend the harness, run local/live smoke and SHA
+   checks, then re-freeze only after verification. Physical iPhone confirmation
+   stays open.
+
+Shipped in build `2026-11-30`: local harness PASS and live harness PASS on both
+sites. App SHA `7f610c0fd4d76befb9f23ed93b3ee71c7d3b3f0a2f55a726dc29a5442ce5d17b`
+was verified byte-for-byte on the live source, published copy, canonical site and
+backup site. The bridge stayed unchanged at
+`eb86840cf681ef57881244d87bc2f0bad57c593fb0673118c356429600661e20`, the worker at
+`6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`, the config-gated
+callback at `2adb97b605d9ffe749d3b5d83934a8ebe6ff61ad34ae5eaff1aa6f345e271eda`,
+and the frozen mockup at
+`320603d7585d1192685c1bff83c66257e6119aacc9c3b5db6cbeb5e94d96c191`. Published in
+Pages commit `98df621`. Emulated 320/360/390/430 px checks on owner, guest,
+backup and bridge-host pages confirmed 16px fields, `enterkeyhint="send"`, no
+focus zoom, no post-send refocus and no horizontal overflow. Owner and guest
+pages had zero console errors; the backup host only showed its known static-host
+`/api/cloud-state` 404/405 and the bridge host only showed its known missing
+manifest asset, with no app error. Baseline, rollback, README, workspace snapshot
+and manifest were re-frozen only after those checks passed. Physical iPhone
+confirmation for this new build remains open.
+
 ## 2026-11-29 — Physical iPhone Safari pass confirmed (documentation closeout)
 
 Status: **verified**. The owner opened the canonical build on a physical iPhone
