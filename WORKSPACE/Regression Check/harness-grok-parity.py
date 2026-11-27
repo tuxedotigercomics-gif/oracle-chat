@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Harness for build 2026-11-28 (chief-of-staff routing, connector catalog and bot
-desks, routine templates, plus the 2026-11-27c device-local base).
+"""Harness for build 2026-11-29 (approval inbox, starter bot gallery, local
+Library, bot template share/import, weekly/interval routines, plus the
+2026-11-28 chief-of-staff and device-local base).
 
 Local mode checks source invariants and runs the pure JS helpers through the
 macOS JavaScriptCore engine (osascript -l JavaScript). There is no Node on this
@@ -45,7 +46,7 @@ def expect(cond, label):
 
 
 def source_checks(html, cloud, bridge, gdelt, oauth):
-    expect('content="2026-11-28"' in html, "build marker is 2026-11-28")
+    expect('content="2026-11-29"' in html, "build marker is 2026-11-29")
     expect("Socials Bot" in html and "Which platforms are you posting to?" in html,
            "Socials Bot template asks platform/audience/goal questions")
     expect("botOpener(name,job,desc)" in html, "room creation uses the local opener generator")
@@ -168,6 +169,25 @@ def source_checks(html, cloud, bridge, gdelt, oauth):
     expect("const ROUTINE_TEMPLATES=[" in html and "function routineTemplateIntent(text)" in html
            and 'data-template-copy=' in html and "cannot keep running in the background" in html,
            "routine templates give copyable foreground-only handoffs")
+    expect("function pendingApprovals()" in html and 'data-ap-allow=' in html
+           and 'data-ap-deny=' in html and 'data-ap-open=' in html
+           and "Approval inbox" in html and "No token, borrowed account or always-allow lives here" in html,
+           "global approval inbox aggregates only one-time decisions without secrets")
+    expect("const STARTER_BOTS=[" in html and "function createStarterBot(id)" in html
+           and 'data-starter-add=' in html and "no connector attached" in html,
+           "starter bot gallery creates one-tap local bots with no account attached")
+    expect("const LIBRARY_KEY='oracle.library.'+vaultId" in html and 'data-lib-save=' in html
+           and "function libraryUseText(" in html and "silently added to a model prompt" in html
+           and "oracle.library." not in cloud,
+           "device-local Library saves and reuses items without cloud state or prompt injection")
+    expect("type:'oracle-bot-template'" in html and "function normalizeBotTemplate(raw)" in html
+           and 'data-bot-share=' in html and 'id="botImportFile"' in html
+           and "Your chats, connector, token, cloud state and account are not included" in html,
+           "bot template share/import carries only five whitelisted fields")
+    expect("id:'weekly',name:'Weekly digest'" in html and "id:'interval',name:'Interval reminder'" in html
+           and "every\\s+(\\d+|one|two|three|five|ten)\\s+minutes" in html
+           and "runs only while your phone is awake" in html,
+           "weekly and interval routines keep the honest foreground-only wording")
     expect("oracle.desks." not in cloud and "oracle.connectors." not in cloud,
            "bot desks and connectors stay out of cloud backup")
     expect('data-conn-test=' in html and "function renderConnectorWizard()" in html
@@ -213,7 +233,7 @@ def js_helper_checks(html):
         j = html.index(end, i)
         return html[i:j]
 
-    bot_src = between("const BOT_TEMPLATES=", "function heroAvatar(")
+    bot_src = between("const PERSONALITIES=", "function heroAvatar(")
     guide_src = between("const ORACLE_BOT_ID=", "// A phone tab can be killed")
     search_src = between("function searchDomains(){", "async function fetchGdeltItems(")
     web_src = between("function webSearchOn(){", "function setWebSearchOn(")
@@ -230,6 +250,7 @@ function connectorNames(){return ['My IG']}
 var convs=[{id:'a',name:'Alpha Bot',job:'Research assistant',desc:'',hero:'vision',folder:'f',persona:'oracle',messages:[]},
            {id:'b',name:'Beta Bot',job:'Social media planner',desc:'',hero:'deadpool',folder:'f',persona:'playful',messages:[]}];
 var folders=[{id:'f',name:'Chats',open:true}];
+var activeFolder='f',view='chat',mobileView='chat',modal=null;
 function showToast(s){}
 function render(){}
 function saveState(){}
@@ -341,6 +362,40 @@ convs.push(oldSocialChat,oldOracle);
 var migrated=migrateSeededWording();
 var migrationOk=!!migrated&&oldSocialChat.desc.indexOf('own approved connector')>=0&&
   oldOracle.messages[0].text.indexOf('foreground')>=0;
+var starter=starterBotTemplate('moderator');
+var starterChat=createStarterBot('moderator');
+var starterOk=!!starter&&!!starterChat&&
+  starterChat.messages[0].text.indexOf('Which community are you welcoming?')>=0&&
+  starterChat.desc.indexOf('approved connector')>=0&&!deskLoad()[starterChat.id];
+var shared=botTemplatePayload(starterChat);shared.token='BAD';shared.messages=['secret history'];
+var imported=normalizeBotTemplate(shared);
+var importOk=!!imported&&JSON.stringify(imported).indexOf('BAD')<0&&
+  JSON.stringify(imported).indexOf('secret history')<0&&imported.persona==='formal'&&
+  imported.hero==='captainamerica'&&imported.name==='Community Bot';
+var lib=libAdd({kind:'draft',title:'Post',text:'Hello from library'});
+var badLib=libAdd({title:'Bad',text:'my token ABC'});
+var libUse=libraryUseText(lib);
+var libCloud=JSON.stringify({key:'k',state:{convs:convs,folders:folders,activeId:'a'}});
+var libOk=!!lib&&badLib===null&&libUse==='Hello from library'&&libraryItems.length>=1&&
+  libCloud.indexOf('oracle.library.')<0;
+convs[0].messages.push({from:'bot',connector:{id:'x',name:'My IG',type:'instagram',action:'publish',text:'Hello'},connectorState:'pending'});
+convs[0].messages.push({from:'bot',draft:{text:'Draft note',type:'instagram'},draftState:'pending'});
+convs[1].messages.push({from:'bot',tool:{preview:'token SECRET123'},toolSummary:'Run command',toolState:'pending'});
+var pend=pendingApprovals();
+var pendOk=pend.length===3&&approvalCount()===3&&
+  pend.some(function(a){return a.kind==='connector'})&&
+  pend.some(function(a){return a.kind==='draft'})&&
+  pend.some(function(a){return a.kind==='tool'})&&
+  JSON.stringify(pend).indexOf('SECRET123')<0&&
+  pend.every(function(a){return !!a.label&&!!a.chatId&&typeof a.idx==='number'});
+var rtWeekly=routineTemplateIntent('Set up a weekly digest routine');
+var rtInterval=routineTemplateIntent('Remind me every five minutes with a shortcut');
+var weeklySteps=automationSteps('instagram','weekly');
+var intervalSteps=automationSteps('instagram','interval');
+var routineMoreOk=rtWeekly==='weekly'&&rtInterval==='interval'&&
+  weeklySteps.indexOf('Weekly digest')>=0&&intervalSteps.indexOf('Interval reminder')>=0&&
+  weeklySteps.indexOf('cannot run in the background')>=0&&
+  intervalSteps.indexOf('closing Oracle stops it')>=0;
 JSON.stringify({social:social,identity:identity,q:q,xq:xq,off:off,
   needsApproval:needsApproval,ruleFormOk:ruleFormOk,blockedBeforeApproval:blockedBeforeApproval,ran:ran,order:order,
   pausedBlocked:pausedBlocked,rulePausedBlocked:rulePausedBlocked,scheduled:scheduled,
@@ -348,6 +403,8 @@ JSON.stringify({social:social,identity:identity,q:q,xq:xq,off:off,
   parseOk:parseOk,noConnector:noConnector,noConnectorInCloud:noConnectorInCloud,
   intentOk:intentOk,migrationOk:migrationOk,draftText:draftText,stepsOk:stepsOk,
   routeOk:routeOk,deskOk:deskOk,deskLocal:deskLocal,routineOk:routineOk,
+  starterOk:starterOk,importOk:importOk,libOk:libOk,pendOk:pendOk,
+  routineMoreOk:routineMoreOk,
   oauthOk:oauthOk,memoryOk:memoryOk,firstOk:firstOk,projectOk:projectOk,
   noLocalInCloud:noLocalInCloud});
 '''
@@ -412,8 +469,8 @@ def live_checks():
 
     status, headers, body = get(CANONICAL)
     h = {k.lower(): v for k, v in headers.items()}
-    expect(status == 200 and 'content="2026-11-28"' in body,
-           "canonical serves build 2026-11-28")
+    expect(status == 200 and 'content="2026-11-29"' in body,
+           "canonical serves build 2026-11-29")
     expect(h.get("cross-origin-opener-policy") == "same-origin" and
            h.get("cross-origin-embedder-policy") == "require-corp",
            "canonical still sends COOP/COEP")
@@ -421,8 +478,8 @@ def live_checks():
     expect(hashlib.sha256(raw(CANONICAL)).hexdigest() == sha(APP),
            "canonical app bytes match the local build")
     status, headers, body = get(BACKUP)
-    expect(status == 200 and 'content="2026-11-28"' in body,
-           "backup serves build 2026-11-28")
+    expect(status == 200 and 'content="2026-11-29"' in body,
+           "backup serves build 2026-11-29")
     expect(hashlib.sha256(raw(BACKUP)).hexdigest() == sha(APP),
            "backup app bytes match the local build")
     expect(headers.get("Cross-Origin-Opener-Policy") is None,
@@ -493,6 +550,11 @@ def main():
     expect(out["deskOk"] and out["deskLocal"],
            "bot desks expose only local connector/status metadata")
     expect(out["routineOk"], "daily brief, mention check and draft post templates stay foreground-only")
+    expect(out["starterOk"], "starter gallery bot has a role-aware opener and no attached connector")
+    expect(out["importOk"], "shared bot template accepts only whitelisted plain fields")
+    expect(out["libOk"], "local Library saves safe items, refuses secrets and stays out of cloud state")
+    expect(out["pendOk"], "approval inbox aggregates one-time decisions and redacts secret-looking previews")
+    expect(out["routineMoreOk"], "weekly and interval routines stay honest about the foreground limit")
     expect(out["oauthOk"], "OAuth-ready config accepts public App ID and HTTPS callback only")
     expect(out["memoryOk"], "device memory is opt-in and refuses secret-looking facts")
     expect(out["firstOk"], "first-run quick actions are marked complete on this device")

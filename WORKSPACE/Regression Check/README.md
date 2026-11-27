@@ -79,23 +79,25 @@ shasum -a 256 baseline/Oracle-Chat-Live.html      # active live UI
 If a hash differs from the one above, the baseline was modified — restore
 from your own backup before trusting it.
 
-## Active live baseline (re-frozen 2026-11-27, build 2026-11-28)
+## Active live baseline (re-frozen 2026-11-27, build 2026-11-29)
 
 The live UI is now the working app (served by `oracle_bridge.py`). It has its
 own known-good snapshot:
 
 - **File:** `baseline/Oracle-Chat-Live.html`
-- **SHA-256:** `6cde3091390818902b0383f411f1d8566914f4f6cb9afe769708ea206844acb8`
+- **SHA-256:** `2e3fd5470804d6f1427de0959d05dc1ec36b193edf01c94002792f85b952f985`
 - Roll back with `restore-live.command` (keeps a `.broken` backup).
 
-Build `2026-11-28` adds chief-of-staff routing, a plain connector catalog,
-device-local bot desks and copyable routine templates. It keeps the config-gated
+Build `2026-11-29` adds a global approval inbox, a starter bot gallery, a
+device-local Library, safe bot template share/import and weekly/interval routine
+templates. It keeps the `2026-11-28` chief-of-staff routing, plain connector
+catalog, device-local bot desks and copyable routine templates. The config-gated
 free Pages callback at `oracle-pages/functions/api/instagram-oauth/callback.js`
-from `2026-11-27c`; that callback stays honestly “Not configured” until the owner
-supplies the Meta App ID, server-side app secret, redirect URI and scopes as Pages
-secrets. No client secret exists in the app, chat, console, cloud state, bridge or
-prompts, and the physical iPhone Safari confirmation remains a separate open
-checklist.
+from `2026-11-27c` is unchanged and stays honestly “Not configured” until the
+owner supplies the Meta App ID, server-side app secret, redirect URI and scopes
+as Pages secrets. No client secret exists in the app, chat, console, cloud state,
+bridge or prompts, and the physical iPhone Safari confirmation remains a separate
+open checklist.
 
 The original offline mockup baseline and its SHA-256 are preserved unchanged
 for layout comparison and historical rollback via `restore.command`.

@@ -4,11 +4,25 @@ Run this on **Chrome, Edge or Safari on the Mac**, against the bridge-served app
 (`Oracle-Chat-Live.html` via `oracle_bridge.py`) and against
 `https://oracle-chat.pages.dev/`.
 
-Baseline SHA (live UI): `6cde3091390818902b0383f411f1d8566914f4f6cb9afe769708ea206844acb8`
+Baseline SHA (live UI): `2e3fd5470804d6f1427de0959d05dc1ec36b193edf01c94002792f85b952f985`
 Rollback: `restore-live.command`
 
 > The phone-only checklist lives in `PHONE-BROWSER-REGRESSION.md`.
 > Voice-call fixes are marked **VOICE FIX 2026-11-19** below.
+
+## Approval inbox, bot gallery, local Library, template share and more routines — 2026-11-29 (harness + live + host smoke verified)
+- [x] Approval inbox lists pending connector, host tool and draft approvals from every chat with plain bot names and short previews
+- [x] Connector and host tool rows offer only Allow once / Deny; no Always allow, auto-approve, token, endpoint secret or cloud state appears
+- [x] Draft rows offer Edit / Copy / Publish / Cancel and Publish still creates a normal connector approval card before anything is sent
+- [x] Opening a row switches to its original chat and leaves the approval card visible there for owner, guest and host
+- [x] Approval count in Profile and command palette matches the real pending list and clears after each decision
+- [x] Starter bot gallery creates one-tap local bots with name/job/persona/opener and never auto-attaches a connector or account
+- [x] Local Library saves and reuses drafts, briefs, source cards and images per device/session, with no cloud state and no hidden prompt injection
+- [x] Share bot template exports/imports only name, job, description, persona and hero; no token, account, chat history or cloud state is carried
+- [x] Weekly digest and foreground-only interval routine templates produce honest copyable steps with no background claim
+- [x] Existing approvals, guest gates, router, catalog, bot desks and daily routine templates remain unchanged
+- [x] Harness passes locally and live on both sites; service worker SHA unchanged; zero console errors on owner, guest, backup and host pages
+- [x] Build `2026-11-29` published with matching SHAs, then baseline/restore/README re-frozen only after verification
 
 ## Chief-of-staff routing, connector catalog/bot desks and routine templates — 2026-11-28 (harness + live + host smoke verified)
 - [x] Plain requests are routed from Oracle Bot to the right specialist with a readable handoff card on owner, guest and host

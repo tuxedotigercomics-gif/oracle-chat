@@ -4,12 +4,21 @@ Run this at **320 / 360 / 390 / 430 px** on the real iPhone in Safari, and in
 an emulated iPhone viewport against `https://oracle-chat.pages.dev/`.
 The backup host is `https://tuxedotigercomics-gif.github.io/oracle-chat/`.
 
-Baseline SHA (live UI): `6cde3091390818902b0383f411f1d8566914f4f6cb9afe769708ea206844acb8`
+Baseline SHA (live UI): `2e3fd5470804d6f1427de0959d05dc1ec36b193edf01c94002792f85b952f985`
 Service-worker SHA: `6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`
 Rollback: `restore-live.command`
 
 > The desktop/host checklist lives in `MAIN-BROWSER-REGRESSION.md`.
 > Voice-call fixes are marked **VOICE FIX 2026-11-19** below.
+
+## Approval inbox, bot gallery, local Library, template share and more routines — 2026-11-29 (harness + live + 320–430 px emulation verified; physical pass open)
+- [x] Approval inbox rows and Allow once / Deny, Edit / Copy / Publish / Cancel controls fit 320–430 px and reach the original chat card (emulated)
+- [x] Starter bot gallery, local Library and template share/import stay readable at 320–430 px for owner, guest and phone sessions (emulated)
+- [x] Shared bot-template links and files carry only name/job/description/persona/hero; no token, account, chat history or cloud state (emulated)
+- [x] Weekly digest and interval routine steps expose copy controls and keep the truthful foreground-only wording (emulated)
+- [x] Existing model, voice, router, catalog, bot desks, Memory/Projects and approval cards remain reachable and unchanged (emulated)
+- [x] Build `2026-11-29` served by the unchanged worker on both sites with zero console errors (harness + live + emulation; physical iPhone pass open)
+- [ ] Physical iPhone pass at 320 / 360 / 390 / 430 px in Safari, including approvals, bot gallery, Library, template import and copied routine steps
 
 ## Chief-of-staff routing, connector catalog/bot desks and routine templates — 2026-11-28 (harness + live + 320–430 px emulation verified; physical pass open)
 - [x] Routing handoff cards fit 320–430 px and are reachable from the phone composer for guests and phone users (emulated)

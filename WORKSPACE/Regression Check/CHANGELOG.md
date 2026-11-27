@@ -3,6 +3,63 @@
 Record every change here before you make it, so there is always a clear trail
 between the frozen baseline and whatever is currently in the working file.
 
+## 2026-11-29 — Approval inbox, bot gallery, local Library, template share and more routines (planned before edits)
+
+Status: **published and verified** (planned before edits). After re-reading the
+Grok Bot video, the owner said to do whatever is best for the app and then
+approved all five safe ideas. This build keeps every useful idea device-local,
+plain-language and approval-first.
+
+Intended change:
+
+1. Add a **local Approval inbox** that gathers pending chat approvals from every
+   conversation: own-connector actions, host tool actions and draft cards. Each
+   row shows the bot name, plain action and a short preview — never a token,
+   endpoint secret, cloud state or borrowed account.
+2. Keep the exact existing decisions: connector and host tool rows offer only
+   **Allow once / Deny** in the inbox (no Always allow, no auto-approve); draft
+   rows offer Edit / Copy / Publish / Cancel. Publish still creates a normal
+   connector approval card and does not post until Allow once.
+3. Add a small **pending count** in Profile and the command palette, plus a plain
+   “Approvals” quick action. Opening a row switches to that chat, keeps the card
+   visible in its original place, and focuses the same approval controls. Guests
+   see only their own pending items; nothing goes to cloud, console or bridge.
+4. Add a **starter bot gallery** with one-tap local bots modelled on the video's
+   useful jobs (community moderator, newsletter, SEO/AEO, Slack reply drafter,
+   YouTube engagement). Each bot gets a name, job, persona and opener, but no
+   connector is attached until that person adds their own account.
+5. Add a **device-local Library** for saving useful drafts, briefs, source cards
+   and images from any chat, then reusing them in any bot. It remains
+   guest-isolated, excluded from cloud state and never injected into prompts
+   unless the user explicitly chooses an item.
+6. Add **share a bot template** as a link or file containing only the bot's name,
+   job, description, persona and hero. The recipient imports a fresh local copy;
+   no login, token, shared account, chat history or cloud state travels with it.
+7. Extend **routine templates** with a weekly digest and a foreground-only
+   interval reminder. They copy honest iOS Shortcut/webhook steps and keep the
+   existing “runs only while your phone is awake” wording.
+8. Bump the marker to `2026-11-29`, extend the harness for all five paths, run
+   local/live harnesses and browser smoke, verify SHAs, then re-freeze only after
+   verification. Physical iPhone confirmation stays a separate open checklist.
+   No Orgo cloud computer, Composio token broker, xAI key, browser control,
+   hidden token, always-allow action or background claim is added.
+
+Shipped in build `2026-11-29`: local harness PASS and live harness PASS on both
+sites. App SHA `2e3fd5470804d6f1427de0959d05dc1ec36b193edf01c94002792f85b952f985`
+was verified byte-for-byte on the live source, published copy, canonical site and
+backup site. The bridge stayed unchanged at
+`eb86840cf681ef57881244d87bc2f0bad57c593fb0673118c356429600661e20`, the worker at
+`6a84bda96dbf89e0c87de494a536e64e8aa7b711c95bc3517254caeebdde0c35`, the config-gated
+callback at `2adb97b605d9ffe749d3b5d83934a8ebe6ff61ad34ae5eaff1aa6f345e271eda`,
+and the frozen mockup at
+`320603d7585d1192685c1bff83c66257e6119aacc9c3b5db6cbeb5e94d96c191`.
+Published in Pages commit `2b11d59`; zero console errors on owner, guest, backup
+and bridge-host pages. Emulated 320/360/390/430 px checks confirmed no horizontal
+overflow and reachable approval inbox, starter gallery, Library, template
+share/import and routine controls on owner and guest sessions; the physical
+iPhone Safari pass remains a separate open checklist. Baseline, rollback, README,
+workspace snapshot and manifest were re-frozen only after those checks passed.
+
 ## 2026-11-28 — Chief-of-staff routing, connector catalog/bot desks and routine templates (published and verified)
 
 Status: **published and verified** (planned before edits). The owner watched the
